@@ -9,7 +9,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react"
 import { isMarketOpen } from "../market-timing";
 
-const LIVE_PRICE_POLL_INTERVAL = 50000 // Corrected to 5 seconds
+const LIVE_PRICE_POLL_INTERVAL = 5000 // Corrected to 5 seconds
 
 interface Quote {
   last_trade_price: number;
@@ -29,7 +29,12 @@ export const useMarketData = () => useContext(MarketDataContext)
 
 interface MarketDataProviderProps {
   watchlist: { items: { instrumentId: string }[] } | null
-  positions: { instrumentId?: string }[] | null
+  // positions: { instrumentId?: string }[] | null
+    positions: { 
+    stock: { instrumentId?: string }
+    averagePrice: number
+    quantity: number  
+    }[] | null
   children: ReactNode
 }
 
@@ -47,7 +52,7 @@ export function MarketDataProvider({ watchlist, positions, children }: MarketDat
     ids.add(INDEX_INSTRUMENTS.NIFTY)
     ids.add(INDEX_INSTRUMENTS.BANKNIFTY)
     watchlist?.items.forEach((item) => item.instrumentId && ids.add(item.instrumentId))
-    positions?.forEach((pos) => pos.instrumentId && ids.add(pos.instrumentId))
+    positions?.forEach((pos) => pos.stock.instrumentId && ids.add(pos.stock.instrumentId))
     return Array.from(ids)
   }, [watchlist, positions])
 
