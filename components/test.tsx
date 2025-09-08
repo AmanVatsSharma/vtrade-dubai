@@ -88,7 +88,10 @@ function DashboardContent({ session, portfolio, watchlist, orders, positions }: 
 
     try {
       await placeOrder({
-        userId: session.user.id, userName: session.user.name, userEmail: session.user.email,
+        // tradingAccountId: portfolio.data.tradingAccountId,
+        userId: session.user.id, 
+        userName: session.user.name, 
+        userEmail: session.user.email,
         symbol: selectedStock.symbol || selectedStock.ticker,
         stockId: selectedStock.id,
         instrumentId: selectedStock.instrumentId,
@@ -179,8 +182,8 @@ function DashboardContent({ session, portfolio, watchlist, orders, positions }: 
       
       case "positions":
           const totalPnL = positions.data?.reduce((sum: number, pos: any) => {
-              const quote = pos.instrumentId ? quotes[pos.instrumentId] : null;
-              const ltp = quote?.last_trade_price || pos.averagePrice;
+              const quote = quotes[pos.stock.instrumentId];
+              const ltp = quote?.last_trade_price ?? pos.averagePrice;
               return sum + (ltp - pos.averagePrice) * pos.quantity;
           }, 0) || 0;
         return positions.isError ? <ErrorState retry={positions.mutate} title="Positions" /> :
