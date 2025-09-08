@@ -7,8 +7,9 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react"
+import { isMarketOpen } from "../market-timing";
 
-const LIVE_PRICE_POLL_INTERVAL = 5000 // Corrected to 5 seconds
+const LIVE_PRICE_POLL_INTERVAL = 50000 // Corrected to 5 seconds
 
 interface Quote {
   last_trade_price: number;
@@ -77,11 +78,17 @@ export function MarketDataProvider({ watchlist, positions, children }: MarketDat
     }
 
     fetchQuotes()
-    const interval = setInterval(fetchQuotes, LIVE_PRICE_POLL_INTERVAL)
+    let interval: NodeJS.Timeout;
+    if (isMarketOpen()) {
+        interval = setInterval(fetchQuotes, LIVE_PRICE_POLL_INTERVAL);
+    } else {
+        // Fetch once if the market is closed
+        fetchQuotes();
+    }
 
     return () => {
         isMounted = false;
-        clearInterval(interval);
+        if (interval) clearInterval(interval);
     }
   }, [instrumentIds, isLoading])
 
