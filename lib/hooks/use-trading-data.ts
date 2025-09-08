@@ -1136,7 +1136,7 @@ const ADD_WATCHLIST_ITEM = gql`
 
 const REMOVE_WATCHLIST_ITEM = gql`
   mutation RemoveWatchlistItem($id: UUID!) {
-    deleteFromwatchlistItemCollection(filter: { id: { eq: $id } }) {
+    deleteFromWatchlistItemCollection(filter: { id: { eq: $id } }) {
       affectedCount
     }
   }
