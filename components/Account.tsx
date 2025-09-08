@@ -29,7 +29,7 @@ const StatCard = ({ icon, title, value, color }: { icon: React.ReactNode, title:
 
 export function Account({ portfolio, user }: AccountProps) {
     const formatCurrency = (amount: number) => `₹${(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    
+
     const account = portfolio?.account;
 
     return (
@@ -46,22 +46,44 @@ export function Account({ portfolio, user }: AccountProps) {
                         </div>
                     </div>
                 </div>
-                 <CardContent className="p-6 space-y-4">
-                     <h3 className="text-lg font-semibold text-gray-800">Funds</h3>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <StatCard icon={<Briefcase size={20}/>} title="Total Value" value={formatCurrency(account?.totalValue)} />
-                        <StatCard icon={<DollarSign size={20}/>} title="Available Margin" value={formatCurrency(account?.availableMargin)} color="bg-green-100 text-green-600"/>
-                     </div>
-                     <div className="grid grid-cols-1">
-                        <StatCard icon={<User size={20}/>} title="Used Margin" value={formatCurrency(account?.usedMargin)} color="bg-orange-100 text-orange-600" />
-                     </div>
-                 </CardContent>
+                <CardContent className="p-6 space-y-4">
+                    {/* // Inside the Account function component, add this above the Funds StatCards: */}
+                    <div className="grid grid-cols-1">
+                        <StatCard icon={<User size={20} />} title="Trading Account ID" value={account?.client_id} color="bg-gray-100 text-gray-600" />
+                    </div>
+
+
+                    <h3 className="text-lg font-semibold text-gray-800">Funds</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <StatCard icon={<Briefcase size={20} />} title="Total Value" value={formatCurrency(account?.totalValue)} />
+                        <StatCard icon={<DollarSign size={20} />} title="Available Margin" value={formatCurrency(account?.availableMargin)} color="bg-green-100 text-green-600" />
+                    </div>
+                    <div className="grid grid-cols-1">
+                        <StatCard icon={<User size={20} />} title="Used Margin" value={formatCurrency(account?.usedMargin)} color="bg-orange-100 text-orange-600" />
+                    </div>
+
+                    {/* // Add this button group below the Log Out button: */}
+                    <div className="px-4 space-y-2">
+                        <Button onClick={() => console.log('Navigate to Funds page')} className="w-full">
+                            Add / Withdraw Funds
+                        </Button>
+                        {/* <Button
+                            onClick={() => signOut()}
+                            variant="destructive"
+                            className="w-full"
+                        >
+                            <LogOut className="mr-2 h-4 w-4" />
+                            Log Out
+                        </Button> */}
+                    </div>
+
+                </CardContent>
             </Card>
 
             <div className="px-4">
-                 <Button 
+                <Button
                     onClick={() => signOut()}
-                    variant="destructive" 
+                    variant="destructive"
                     className="w-full"
                 >
                     <LogOut className="mr-2 h-4 w-4" />
