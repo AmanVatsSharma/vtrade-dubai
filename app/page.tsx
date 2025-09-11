@@ -25,6 +25,7 @@
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
+import Link from "next/link"
 
 const Candlestick = ({
   x,
@@ -167,15 +168,20 @@ export default function HomePage() {
         </div>
 
         <div className="flex items-center space-x-4">
-          <Button
-            variant="outline"
-            className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white bg-transparent"
-          >
-            Sign In
-          </Button>
-          <Button className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white font-semibold">
-            Get Started
-          </Button>
+          <Link href="/auth/login">
+            <Button
+              variant="outline"
+              className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white bg-transparent"
+
+            >
+              Sign In
+            </Button>
+          </Link>
+          <Link href="/dashboard">
+            <Button className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white font-semibold">
+              Get Started
+            </Button>
+          </Link>
         </div>
       </motion.nav>
 
@@ -230,6 +236,7 @@ export default function HomePage() {
                 <Button
                   size="lg"
                   className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white font-semibold px-8 py-4 text-lg rounded-xl shadow-2xl hover:shadow-cyan-500/25 transition-all duration-300 group"
+                  onClick={() => { window.location.href = '/dashboard' }}
                 >
                   Get Started
                   <motion.div
