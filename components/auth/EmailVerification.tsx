@@ -6,8 +6,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { FaCheckCircle, FaExclamationTriangle, FaEnvelope } from 'react-icons/fa'
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
-import { newVerification } from '@/actions/auth.actions'
-import { sendVerificationEmail } from '@/lib/ResendMail'
+import { newVerification, sendVerificationEmailAgain } from '@/actions/auth.actions'
+// import { sendVerificationEmail } from '@/lib/ResendMail'
 import { getVerificationTokenByToken } from '@/data/verification-token'
 
 
@@ -82,7 +82,7 @@ const EmailVerification = () => {
             }
 
             // Resend the verification email
-            await sendVerificationEmail(verificationToken.email, verificationToken?.token)
+            await sendVerificationEmailAgain(verificationToken.email, verificationToken?.token)
             setIsResending(false)
             setResendCooldown(60)
 

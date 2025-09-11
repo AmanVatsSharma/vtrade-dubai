@@ -3,8 +3,9 @@
 'use client'
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 interface KYCData {
   aadhaarNumber: string;
@@ -144,6 +145,14 @@ export default function KYC() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4">
+      <Button
+        onClick={() => signOut({ callbackUrl: "/auth/login" })}
+        className="fixed top-4 right-4 md:hidden bg-white/80 hover:bg-white/90 text-gray-700 shadow-lg rounded-full p-2 backdrop-blur-md"
+        size="icon"
+        variant="ghost"
+      >
+        <LogOut className="h-5 w-5" />
+      </Button>
       <div className="w-full max-w-xl bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-slate-100">
         <h2 className="text-3xl font-semibold text-gray-900 text-center mb-6">
           KYC Verification

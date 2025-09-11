@@ -288,3 +288,7 @@ export const newPassword = async (
 
     return { success: "Password updated!" }
 }
+
+export const sendVerificationEmailAgain = async (email :string, token: string) => {
+    await sendVerificationEmail(email, token);
+}
