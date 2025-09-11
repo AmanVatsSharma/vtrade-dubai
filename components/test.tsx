@@ -339,9 +339,9 @@ function TradingDashboard({ userId, session }: { userId: string, session: any })
     if (isQuotesLoading || !q) return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
     const change = ((q.last_trade_price - q.prev_close_price) / q.prev_close_price) * 100
     return (
-      <div className="text-center w-28">
+      <div className="text-center">
         <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{name}</span>
-        <p className={`text-xsm font-mono font-bold ${change >= 0 ? "text-green-600" : "text-red-600"}`}>
+        <p className={`text-sm font-mono font-bold ${change >= 0 ? "text-green-600" : "text-red-600"}`}>
           ₹{q.last_trade_price.toFixed(2)} 
           {/* ({change.toFixed(2)}%) */}
         </p>
@@ -391,13 +391,13 @@ function TradingDashboard({ userId, session }: { userId: string, session: any })
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
-      <header className="bg-white dark:bg-gray-800 border-b sticky top-0 z-40">
+      <header className="bg-white dark:bg-gray-800 border-b sticky top-0 z-40 w-screen">
         <div className="flex h-16 items-center justify-between px-4 max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-600 text-white">
               <TrendingUp className="h-4 w-4" />
             </div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">MarketPulse360</h1>
+            <h1 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">MarketPulse360</h1>
           </div>
           <div className="flex items-center gap-4">
             {renderIndex("NIFTY 50", "NSE_EQ-26000")}
