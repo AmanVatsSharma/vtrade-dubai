@@ -19,7 +19,7 @@ const INSERT_LOG = gql`
 const GET_LOGS_BY_CLIENT = gql`
   query GetLogsByClient($clientId: String!, $limit: Int = 100, $offset: Int = 0) {
     trading_logsCollection(
-      filter: { clientId: { eq: $clientId } }
+      filter: { client_id: { eq: $clientId } }
       orderBy: [{ createdAt: DescNullsLast }]
       first: $limit
       offset: $offset
