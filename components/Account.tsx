@@ -52,8 +52,13 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
     // CSV Export
     const exportCSV = () => {
         if (!transactions?.length) return
-        const header = 'Date,Type,Amount,Description\n'
-        const rows = transactions.map((t: any) => `${new Date(t.createdAt).toLocaleDateString()},${t.type},${t.amount},"${t.description || ''}"`).join('\n')
+        const header = 'Date,Time (IST),Type,Amount,Description\n'
+        const rows = transactions.map((t: any) => {
+            const date = new Date(t.createdAt);
+            const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' });
+            const timeStr = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+            return `${dateStr},${timeStr},${t.type},${t.amount},"${t.description || ''}"`;
+        }).join('\n')
         const csv = header + rows
         const blob = new Blob([csv], { type: 'text/csv' })
         const url = URL.createObjectURL(blob)
@@ -143,11 +148,11 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-y-auto pb-20">
             <Card className="rounded-2xl shadow-xl border-gray-100">
                 <CardContent className="p-0">
                     {/* Premium-style header - restored and enhanced for mobile */}
-                    <div className="rounded-t-2xl px-4 py-5 sm:px-6 sm:py-6 bg-gradient-to-r from-slate-900 via-indigo-900 to-blue-800 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="rounded-t-2xl px-4 py-5 sm:px-6 sm:py-6 bg-gradient-to-r from-slate-900 via-indigo-900 to-blue-800 text-white flex  sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4 w-full sm:w-auto">
                             {userImage ? (
                                 <div className="h-16 w-16 relative rounded-full overflow-hidden ring-4 ring-white/20 shadow-lg">
@@ -174,7 +179,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <div className="flex flex-col md:flex-row items-center gap-2 w-full sm:w-auto justify-end">
                             <a aria-label="Support" href="mailto:support@tradingpro.app" className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white">
                                 <LifeBuoy className="h-5 w-5" />
                             </a>
@@ -206,12 +211,12 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
 
             {/* Profile Drawer */}
             <Drawer open={profileOpen} onOpenChange={setProfileOpen}>
-                <DrawerContent className="max-h-[85vh] bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100">
+                <DrawerContent className="h-[85vh] flex flex-col bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100">
                     <DrawerHeader className="border-b">
                         <DrawerTitle>My Profile</DrawerTitle>
                         <DrawerDescription>Manage your personal information and trading preferences</DrawerDescription>
                     </DrawerHeader>
-                    <div className="p-4 sm:p-6 space-y-8 overflow-y-auto">
+                    <div className="flex-1 p-4 sm:p-6 space-y-8 overflow-y-auto">
                         {/* Personal Details */}
                         <div className="space-y-4">
                             <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-100">Personal</h3>
@@ -332,6 +337,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                             <thead>
                                 <tr className="bg-gray-50">
                                     <th className="px-2 py-2 text-left font-semibold text-gray-700">Date</th>
+                                    <th className="px-2 py-2 text-left font-semibold text-gray-700">Time</th>
                                     <th className="px-2 py-2 text-left font-semibold text-gray-700">Type</th>
                                     <th className="px-2 py-2 text-right font-semibold text-gray-700">Amount</th>
                                     <th className="px-2 py-2 text-left font-semibold text-gray-700">Description</th>
@@ -339,12 +345,13 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                             </thead>
                             <tbody>
                                 {txLoading ? (
-                                    <tr><td colSpan={4} className="text-center py-4">Loading...</td></tr>
+                                    <tr><td colSpan={5} className="text-center py-4">Loading...</td></tr>
                                 ) : transactions.length === 0 ? (
-                                    <tr><td colSpan={4} className="text-center py-4 text-gray-400">No transactions yet.</td></tr>
+                                    <tr><td colSpan={5} className="text-center py-4 text-gray-400">No transactions yet.</td></tr>
                                 ) : transactions.map((t: any) => (
                                     <tr key={t.id} className="border-b hover:bg-gray-50">
-                                        <td className="px-2 py-1 whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString()}</td>
+                                        <td className="px-2 py-1 whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td>
+                                        <td className="px-2 py-1 whitespace-nowrap">{new Date(t.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST</td>
                                         <td className="px-2 py-1 whitespace-nowrap">
                                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${t.type === 'CREDIT' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{t.type}</span>
                                         </td>
