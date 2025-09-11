@@ -9,7 +9,7 @@ import { gql } from "@apollo/client/core"
 
 // GraphQL mutations for logging
 const INSERT_LOG = gql`
-  mutation InsertLog($object: TradingLogInsertInput!) {
+  mutation InsertLog($object: trading_logsInsertInput!) {
     insertIntotrading_logsCollection(objects: [$object]) {
       records { id }
     }
@@ -88,9 +88,9 @@ class TradingLogger {
         mutation: INSERT_LOG,
         variables: {
           object: {
-            clientId: this.context.clientId,
+            client_id: this.context.clientId,
             userId: this.context.userId,
-            tradingAccountId: this.context.tradingAccountId,
+            trading_account_id: this.context.tradingAccountId,
             level: entry.level,
             category: entry.category,
             action: entry.action,

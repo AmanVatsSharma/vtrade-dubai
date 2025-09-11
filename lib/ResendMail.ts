@@ -1,16 +1,6 @@
+import { Resend } from "resend";
 
-// Mock Resend class for testing without real API
-class MockResend {
-  emails = {
-    send: async (options: any) => {
-      console.log("📧 Mock email sent:", options);
-      return { id: "mock-id-123", status: "sent" };
-    },
-  };
-}
-
-// Use mock resend instead of real one
-const resend = new MockResend();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const sendVerificationEmail = async (email: string, token: string) => {
     const confirmLink = `https://marketpulse360.live/auth/email-verification?token=${token}`
