@@ -84,7 +84,7 @@ const GET_POSITIONS = gql`
 const UPDATE_POSITION = gql`
   mutation UpdatePosition($id: UUID!, $set: positionsUpdateInput!) {
     updatepositionsCollection(set: $set, filter: { id: { eq: $id } }) {
-      records { id, stopLoss, target }
+      records { id, stopLoss, target , unrealizedPnL, dayPnL}
     }
   }
 `
@@ -325,7 +325,7 @@ const GET_ORDERS_AND_POSITIONS = gql`
     ) {
       edges {
         node {
-          id, symbol, quantity, averagePrice, stopLoss, target
+          id, symbol, quantity, averagePrice, stopLoss, target, unrealizedPnL, dayPnL
           stock {
             instrumentId, segment, strikePrice, optionType, expiry, lot_size
           }
@@ -346,6 +346,10 @@ const GET_POSITION_BY_ID = gql`
           quantity
           averagePrice
           stock { instrumentId }
+          unrealizedPnL
+          dayPnL
+          stopLoss
+          target
         }
       }
     }
