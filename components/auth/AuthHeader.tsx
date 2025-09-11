@@ -20,7 +20,7 @@ export const AuthHeader = ({ label }: HeaderProps) => {
             )}>
                 <Image 
                 src="https://firebasestorage.googleapis.com/v0/b/theaweshop.appspot.com/o/uploads%2Flogo.png?alt=media&token=248632f8-8183-4ba0-b999-3046c165ab09" 
-                alt="TradingPro logo" 
+                alt="MarketPulse360 logo" 
                 className='h-1/2 aspect-auto' 
                 width={500}
                 height={200}

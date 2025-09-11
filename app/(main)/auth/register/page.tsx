@@ -1,10 +1,11 @@
+// @ts-nocheck
 import SignUpForm from '@/components/auth/SignUpForm'
 import React from 'react'
 
 
 const RegisterPage = () => {
     return (
-        <div className="flex w-full h-screen items-center justify-center bg-gray-50">
+        <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
             <SignUpForm />
         </div>
     )

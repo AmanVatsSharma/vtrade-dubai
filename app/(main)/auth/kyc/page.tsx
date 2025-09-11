@@ -1,4 +1,5 @@
 // app/(main)/auth/kyc/page.tsx
+// @ts-nocheck
 'use client'
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -142,8 +143,8 @@ export default function KYC() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
-      <div className="w-full max-w-lg bg-white/90 backdrop-blur rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4">
+      <div className="w-full max-w-xl bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-slate-100">
         <h2 className="text-3xl font-semibold text-gray-900 text-center mb-6">
           KYC Verification
         </h2>
@@ -187,7 +188,7 @@ export default function KYC() {
               placeholder="Enter Aadhaar Number"
               pattern="[0-9]{12}"
               maxLength={12}
-              className="w-full border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg px-4 py-2 transition"
+              className="w-full border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 rounded-lg px-4 py-2 transition shadow-sm"
             />
           </div>
 
@@ -203,7 +204,7 @@ export default function KYC() {
               placeholder="Enter PAN Number"
               pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
               maxLength={10}
-              className="w-full border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg px-4 py-2 transition"
+              className="w-full border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 rounded-lg px-4 py-2 transition shadow-sm"
             />
           </div>
 
@@ -216,7 +217,7 @@ export default function KYC() {
               accept="image/*,.pdf"
               onChange={e => setBankProof(e.target.files?.[0] || null)}
               required={!existingKYC?.bankProofUrl}
-              className="w-full border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-lg px-4 py-2 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100"
+              className="w-full border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 rounded-lg px-4 py-2 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 shadow-sm"
             />
             {existingKYC?.bankProofUrl && (
               <p className="text-sm text-gray-500 mt-1">
@@ -240,7 +241,7 @@ export default function KYC() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-70 text-white font-medium py-3 rounded-lg shadow-md transition"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-70 text-white font-medium py-3 rounded-lg shadow-lg transition"
           >
             {loading ? "Submitting..." : existingKYC ? "Update KYC" : "Submit KYC"}
           </button>

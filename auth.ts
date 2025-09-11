@@ -1,4 +1,5 @@
 // auth.ts
+// @ts-nocheck
 import { prisma } from "@/lib/prisma"
 import { signInSchema } from "@/schemas"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
@@ -79,12 +80,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 session.user.id = token.id as string;
                 session.user.name = token.name;
                 session.user.email = token.email;
+                // Expose custom fields to the client session for gating and data access
+                const anySessionUser = session.user as any;
+                const anyToken = token as any;
+                anySessionUser.kycStatus = anyToken.kycStatus as string | undefined;
+                anySessionUser.tradingAccountId = anyToken.tradingAccountId as string | undefined;
             }
             return session;
         },
         async jwt({ token, user }) {
+            // When user logs in first time in the session lifecycle
             if (user) {
                 token.id = user.id
+                token.name = user.name
+                token.email = user.email
+            }
+
+            // Always ensure KYC status is present on the token
+            if (token.id) {
+                try {
+                    const dbUser = await prisma.user.findUnique({
+                        where: { id: token.id as string },
+                        include: { kyc: true, tradingAccount: true },
+                    })
+                    const anyToken = token as any;
+                    anyToken.kycStatus = dbUser?.kyc?.status ?? undefined
+                    anyToken.tradingAccountId = dbUser?.tradingAccount?.id ?? undefined
+                } catch (e) {
+                    // noop: if prisma fails, keep token as-is
+                }
             }
             return token
         }

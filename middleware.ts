@@ -30,6 +30,7 @@ const authRoutes = [
 export default auth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = !!req.auth;
+  const kycStatus = (req.auth as any)?.user?.kycStatus as string | undefined;
 
   const isApiAuthRoute = nextUrl.pathname.startsWith("/api/auth");
   const isPublicRoute = publicRoutes.some(route =>
@@ -59,16 +60,15 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(`/auth/login?callbackUrl=${encodedCallbackUrl}`, nextUrl));
   }
 
-  // --- Optional: KYC Check ---
-  // This logic redirects a logged-in user to the KYC page if their KYC is not complete.
-  // This requires adding `kycStatus` to your session token in the `auth.ts` callbacks.
-
-  // if (isLoggedIn && req.auth.user?.kycStatus !== 'VERIFIED' && nextUrl.pathname !== '/kyc') {
-
-  // Assuming `req.auth.user.kycStatus` is available in your session
-  // and you have a page at `/kyc`.
-  // return NextResponse.redirect(new URL('/kyc', nextUrl));
-  // }
+  // 4. KYC gating: If logged in but not approved, force to /auth/kyc
+  if (
+    isLoggedIn &&
+    nextUrl.pathname !== "/auth/kyc" &&
+    !nextUrl.pathname.startsWith("/api/") &&
+    kycStatus !== "APPROVED"
+  ) {
+    return NextResponse.redirect(new URL("/auth/kyc", nextUrl));
+  }
 
   // If none of the above, allow the request to proceed
   return NextResponse.next();

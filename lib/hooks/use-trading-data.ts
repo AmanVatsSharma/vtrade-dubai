@@ -13,6 +13,7 @@ import client from "@/lib/graphql/apollo-client"
 import { useMemo } from "react"
 import { OrderSide, OrderType } from "@prisma/client"
 import { Calculator } from "lucide-react"
+import { createLoggerFromSession, LogLevel, LogCategory } from "@/lib/logger"
 
 // -----------------------------
 // GraphQL Documents (Corrected for Supabase & Prisma Schema)
@@ -45,6 +46,14 @@ const GET_ACCOUNT_BY_USER = gql`
   }
 `
 
+const GET_ACCOUNT_BY_ID = gql`
+  query GetAccountById($id: UUID!) {
+    trading_accountsCollection(filter: { id: { eq: $id } }, first: 1) {
+      edges { node { id, balance, availableMargin, usedMargin } }
+    }
+  }
+`
+
 const INSERT_ACCOUNT = gql`
   mutation InsertAccount($objects: [trading_accountsInsertInput!]!) {
     insertIntotrading_accountsCollection(objects: $objects) {
@@ -62,8 +71,10 @@ const GET_POSITIONS = gql`
     ) {
       edges {
         node {
-          id, symbol, quantity, averagePrice, stopLoss, target
-          stock { instrumentId }
+          id, symbol, quantity, averagePrice, stopLoss, target, unrealizedPnL, dayPnL
+          stock { 
+            instrumentId, segment, strikePrice, optionType, expiry, lot_size
+          }
         }
       }
     }
@@ -145,8 +156,55 @@ const SEARCH_STOCKS = gql`
       first: 10
     ) {
       edges {
-        node { id, instrumentId, ticker, name, ltp, change, changePercent, sector, exchange }
+        node { id, instrumentId, ticker, name, ltp, change, changePercent, sector, exchange, segment, strikePrice, optionType, expiry, lot_size }
       }
+    }
+  }
+`
+
+const SEARCH_STOCKS_EQUITY = gql`
+  query SearchStocksEquity($query: String!) {
+    stockCollection(
+      filter: { and: [
+        { isActive: { eq: true } },
+        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } } ] },
+        { or: [ { segment: { eq: "NSE" } }, { segment: { eq: "NSE_EQ" } } ] }
+      ]},
+      first: 20
+    ) {
+      edges { node { id, instrumentId, ticker, name, ltp, change, changePercent, exchange, segment, lot_size } }
+    }
+  }
+`
+
+const SEARCH_STOCKS_FUTURES = gql`
+  query SearchStocksFutures($query: String!) {
+    stockCollection(
+      filter: { and: [
+        { isActive: { eq: true } },
+        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } } ] },
+        { segment: { eq: "NFO" } },
+        { optionType: { is: null } }
+      ]},
+      first: 20
+    ) {
+      edges { node { id, instrumentId, ticker, name, ltp, change, changePercent, exchange, segment, expiry, lot_size } }
+    }
+  }
+`
+
+const SEARCH_STOCKS_OPTIONS = gql`
+  query SearchStocksOptions($query: String!) {
+    stockCollection(
+      filter: { and: [
+        { isActive: { eq: true } },
+        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } } ] },
+        { segment: { eq: "NFO" } },
+        { optionType: { is: notNull } }
+      ]},
+      first: 20
+    ) {
+      edges { node { id, instrumentId, ticker, name, ltp, change, changePercent, exchange, segment, strikePrice, optionType, expiry, lot_size } }
     }
   }
 `
@@ -164,7 +222,7 @@ const GET_USER_WATCHLIST = gql`
               node {
                 id # This is the watchlistItemId
                 stock {
-                  id, instrumentId, exchange, ticker, name, ltp, close
+                  id, instrumentId, exchange, ticker, name, ltp, close, segment, strikePrice, optionType, expiry, lot_size
                 }
               }
             }
@@ -199,15 +257,24 @@ const REMOVE_WATCHLIST_ITEM = gql`
   }
 `
 const UPDATE_TRADING_ACCOUNT = gql`
-  mutation UpdateTradingAccount($id: UUID!, $set: TradingAccountUpdateInput!) {
-    updateTradingAccount(by: { id: $id }, set: $set) {
-      id
-      balance
-      availableMargin
-      usedMargin
+  mutation UpdateTradingAccount($id: UUID!, $set: trading_accountsUpdateInput!) {
+    updatetrading_accountsCollection(
+      filter: { id: { eq: $id } }
+      set: $set
+    ) {
+      affectedCount
+      records {
+        id
+        balance
+        availableMargin
+        usedMargin
+      }
     }
   }
 `;
+
+
+
 
 const INSERT_TRANSACTION = gql`
   mutation InsertTransaction($object: TransactionInsertInput!) {
@@ -218,6 +285,72 @@ const INSERT_TRANSACTION = gql`
     }
   }
 `;
+
+const GET_TRANSACTIONS = gql`
+  query GetTransactions($tradingAccountId: UUID!) {
+    transactionsCollection(
+      filter: { tradingAccountId: { eq: $tradingAccountId } }
+      orderBy: [{ createdAt: DescNullsLast }]
+      first: 100
+    ) {
+      edges {
+        node {
+          id
+          amount
+          type
+          description
+          createdAt
+        }
+      }
+    }
+  }
+`
+
+// --- Combined Orders & Positions Query ---
+const GET_ORDERS_AND_POSITIONS = gql`
+  query GetOrdersAndPositions($tradingAccountId: UUID!) {
+    ordersCollection(
+      filter: { tradingAccountId: { eq: $tradingAccountId } }
+      orderBy: [{ createdAt: DescNullsLast }]
+    ) {
+      edges {
+        node {
+          id, symbol, quantity, orderType, orderSide, price, filledQuantity, averagePrice, productType, status, createdAt, executedAt
+        }
+      }
+    }
+    positionsCollection(
+      filter: { tradingAccountId: { eq: $tradingAccountId } }
+      orderBy: [{ createdAt: DescNullsLast }]
+    ) {
+      edges {
+        node {
+          id, symbol, quantity, averagePrice, stopLoss, target
+          stock {
+            instrumentId, segment, strikePrice, optionType, expiry, lot_size
+          }
+        }
+      }
+    }
+  }
+`
+
+const GET_POSITION_BY_ID = gql`
+  query GetPositionById($id: UUID!) {
+    positionsCollection(filter: { id: { eq: $id } }, first: 1) {
+      edges {
+        node {
+          id
+          tradingAccountId
+          symbol
+          quantity
+          averagePrice
+          stock { instrumentId }
+        }
+      }
+    }
+  }
+`
 
 // -----------------------------
 // Helper functions
@@ -321,6 +454,7 @@ export function usePortfolio(userId?: string, userName?: string | null, userEmai
 }
 
 export function useUserWatchlist(userId?: string) {
+  const tradingAccountId = useAccountId(userId)
   const { data, loading, error, refetch } = useQuery(GET_USER_WATCHLIST, { variables: { userId: userId ?? "" }, skip: !userId, errorPolicy: "all" });
 
   const watchlist = useMemo(() => {
@@ -336,6 +470,11 @@ export function useUserWatchlist(userId?: string) {
       ltp: toNumber(e.node.stock.ltp),
       close: toNumber(e.node.stock.close),
       exchange: e.node.stock.exchange,
+      segment: e.node.stock.segment,
+      strikePrice: e.node.stock.strikePrice != null ? toNumber(e.node.stock.strikePrice) : undefined,
+      optionType: e.node.stock.optionType,
+      expiry: e.node.stock.expiry,
+      lotSize: e.node.stock.lot_size,
     }));
 
     return { id: wlNode.id, name: wlNode.name, items };
@@ -365,9 +504,65 @@ export function usePositions(userId?: string) {
   const tradingAccountId = useAccountId(userId)
   const { data, loading, error, refetch } = useQuery(GET_POSITIONS, { variables: { tradingAccountId: tradingAccountId ?? "" }, skip: !tradingAccountId, errorPolicy: "all" })
 
-  const positions = useMemo(() => data?.positionsCollection?.edges?.map((e: any) => ({ ...e.node, averagePrice: toNumber(e.node.averagePrice), stopLoss: e.node.stopLoss != null ? toNumber(e.node.stopLoss) : undefined, target: e.node.target != null ? toNumber(e.node.target) : undefined, instrumentId: e.node.Stock?.instrumentId })) ?? [], [data])
+  const positions = useMemo(() => data?.positionsCollection?.edges?.map((e: any) => ({ 
+    ...e.node, 
+    averagePrice: toNumber(e.node.averagePrice), 
+    stopLoss: e.node.stopLoss != null ? toNumber(e.node.stopLoss) : undefined, 
+    target: e.node.target != null ? toNumber(e.node.target) : undefined, 
+    unrealizedPnL: e.node.unrealizedPnL != null ? toNumber(e.node.unrealizedPnL) : 0,
+    dayPnL: e.node.dayPnL != null ? toNumber(e.node.dayPnL) : 0,
+    instrumentId: e.node.stock?.instrumentId,
+    segment: e.node.stock?.segment,
+    strikePrice: e.node.stock?.strikePrice != null ? toNumber(e.node.stock.strikePrice) : undefined,
+    optionType: e.node.stock?.optionType,
+    expiry: e.node.stock?.expiry,
+    lotSize: e.node.stock?.lot_size
+  })) ?? [], [data])
 
   return { positions, isLoading: loading || !tradingAccountId, isError: !!error, error, mutate: refetch }
+}
+
+export function useOrdersAndPositions(userId?: string) {
+  const tradingAccountId = useAccountId(userId)
+  const { data, loading, error, refetch } = useQuery(GET_ORDERS_AND_POSITIONS, {
+    variables: { tradingAccountId: tradingAccountId ?? "" },
+    skip: !tradingAccountId,
+    errorPolicy: "all"
+  })
+
+  const orders = useMemo(() => data?.ordersCollection?.edges?.map((e: any) => ({
+    ...e.node,
+    price: e.node.price != null ? toNumber(e.node.price) : null,
+    averagePrice: e.node.averagePrice != null ? toNumber(e.node.averagePrice) : null
+  })) ?? [], [data])
+
+  const positions = useMemo(() => data?.positionsCollection?.edges?.map((e: any) => ({
+    ...e.node,
+    averagePrice: toNumber(e.node.averagePrice),
+    stopLoss: e.node.stopLoss != null ? toNumber(e.node.stopLoss) : undefined,
+    target: e.node.target != null ? toNumber(e.node.target) : undefined,
+    instrumentId: e.node.stock?.instrumentId,
+    segment: e.node.stock?.segment,
+    strikePrice: e.node.stock?.strikePrice != null ? toNumber(e.node.stock.strikePrice) : undefined,
+    optionType: e.node.stock?.optionType,
+    expiry: e.node.stock?.expiry,
+    lotSize: e.node.stock?.lot_size
+  })) ?? [], [data])
+
+  return {
+    orders,
+    positions,
+    isLoading: loading || !tradingAccountId,
+    isError: !!error,
+    error,
+    mutate: refetch
+  }
+}
+
+export function useTransactions(tradingAccountId?: string) {
+  const { data, loading, error, refetch } = useQuery(GET_TRANSACTIONS, { variables: { tradingAccountId: tradingAccountId ?? "" }, skip: !tradingAccountId, errorPolicy: "all" })
+  const transactions = data?.transactionsCollection?.edges?.map((e: any) => e.node) ?? []
+  return { transactions, isLoading: loading, isError: !!error, error, mutate: refetch }
 }
 
 // -----------------------------
@@ -377,9 +572,70 @@ export function usePositions(userId?: string) {
 export async function searchStocks(query: string) {
   try {
     const { data } = await client.query({ query: SEARCH_STOCKS, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
-    return data?.stockCollection?.edges?.map((e: any) => ({ ...e.node, ltp: toNumber(e.node.ltp), change: toNumber(e.node.change), changePercent: toNumber(e.node.changePercent) })) ?? []
+    return data?.stockCollection?.edges?.map((e: any) => ({
+      ...e.node,
+      ltp: toNumber(e.node.ltp),
+      change: toNumber(e.node.change),
+      changePercent: toNumber(e.node.changePercent),
+      strikePrice: e.node.strikePrice != null ? toNumber(e.node.strikePrice) : undefined,
+      optionType: e.node.optionType,
+      expiry: e.node.expiry,
+      segment: e.node.segment,
+      lotSize: e.node.lot_size,
+    })) ?? []
   } catch (error) {
     console.error("Search error:", error)
+    return []
+  }
+}
+
+export async function searchEquities(query: string) {
+  try {
+    const { data } = await client.query({ query: SEARCH_STOCKS_EQUITY, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
+    return data?.stockCollection?.edges?.map((e: any) => ({
+      ...e.node,
+      ltp: toNumber(e.node.ltp),
+      change: toNumber(e.node.change),
+      changePercent: toNumber(e.node.changePercent),
+      lotSize: e.node.lot_size,
+    })) ?? []
+  } catch (error) {
+    console.error("Equity search error:", error)
+    return []
+  }
+}
+
+export async function searchFutures(query: string) {
+  try {
+    const { data } = await client.query({ query: SEARCH_STOCKS_FUTURES, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
+    return data?.stockCollection?.edges?.map((e: any) => ({
+      ...e.node,
+      ltp: toNumber(e.node.ltp),
+      change: toNumber(e.node.change),
+      changePercent: toNumber(e.node.changePercent),
+      lotSize: e.node.lot_size,
+    })) ?? []
+  } catch (error) {
+    console.error("Futures search error:", error)
+    return []
+  }
+}
+
+export async function searchOptions(query: string) {
+  try {
+    const { data } = await client.query({ query: SEARCH_STOCKS_OPTIONS, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
+    return data?.stockCollection?.edges?.map((e: any) => ({
+      ...e.node,
+      ltp: toNumber(e.node.ltp),
+      change: toNumber(e.node.change),
+      changePercent: toNumber(e.node.changePercent),
+      strikePrice: e.node.strikePrice != null ? toNumber(e.node.strikePrice) : undefined,
+      optionType: e.node.optionType,
+      expiry: e.node.expiry,
+      lotSize: e.node.lot_size,
+    })) ?? []
+  } catch (error) {
+    console.error("Options search error:", error)
     return []
   }
 }
@@ -397,7 +653,7 @@ export async function addStockToWatchlist(userId: string, stockId: string, watch
 
   if (!finalWatchlistId) throw new Error("Could not find or create a watchlist.");
 
-  await client.mutate({ mutation: ADD_WATCHLIST_ITEM, variables: { watchlistId: finalWatchlistId, stockId } });
+  await client.mutate({ mutation: ADD_WATCHLIST_ITEM, variables: { watchlistId: finalWatchlistId, stockId: stockId } });
 }
 
 export async function removeStockFromWatchlist(watchlistItemId: string) {
@@ -405,159 +661,174 @@ export async function removeStockFromWatchlist(watchlistItemId: string) {
 }
 
 
-// export async function placeOrder(orderData: {
-//   // tradingAccountId: string,
-//   userId: string,
-//   userName?: string | null,
-//   userEmail?: string | null,
-//   symbol: string,
-//   stockId: string,
-//   instrumentId: string,
-//   quantity: number,
-//   price: number,
-//   orderType: OrderType,
-//   orderSide: OrderSide,
-//   productType?: string
-// }) {
-//   try {
-//     const { tradingAccountId } = await ensureUserAndAccount(client, orderData.userId, orderData.userName, orderData.userEmail)
-// console.log("Using tradingAccountId:", tradingAccountId);
+function computeCharges(segment: string | undefined, turnover: number) {
+  const isEquity = segment === 'NSE' || segment === 'NSE_EQ'
+  const isFno = segment === 'NFO'
+  let brokerage = 0
+  if (isEquity) {
+    brokerage = Math.min(20, 0.0003 * turnover) // 0.03% or ₹20 cap
+  } else if (isFno) {
+    brokerage = 20 // flat per order
+  } else {
+    brokerage = Math.min(20, 0.0003 * turnover)
+  }
+  const gst = 0.18 * brokerage
+  const totalCharges = brokerage + gst
+  return { brokerage, gst, totalCharges }
+}
 
-// console.log("Placing order:", orderData);
-//     const orderId = generateUUID()
-//     let executionPrice = orderData.price
-//     const requiredMargin = orderData.quantity * executionPrice * (orderData.productType === "MIS" ? 0.1 : 1); // 10% for MIS, 100% for CNC
+function computeRequiredMargin(segment: string | undefined, turnover: number, productType?: string) {
+  const isEquity = segment === 'NSE' || segment === 'NSE_EQ'
+  const isFno = segment === 'NFO'
+  if (productType === 'INTRADAY' || productType === 'MIS') {
+    if (isEquity) return turnover * 0.1 // 10% for MIS equity
+    if (isFno) return turnover * 0.2 // simplistic F&O margin
+    return turnover * 0.1
+  }
+  // Delivery
+  return turnover
+}
 
-//     const { data: acctData } = await client.query({ query: GET_ACCOUNT_BY_USER, variables: { userId: tradingAccountId }, fetchPolicy: "network-only" })
-//     const account = acctData?.trading_accountsCollection?.edges?.[0]?.node
-//     if (!account) throw new Error("Trading account not found.")
-//     if (toNumber(account.availableMargin) < requiredMargin) {
-//       throw new Error("Insufficient available margin to place this order.")
-//     }
-// console.log("Account before order:", account);
-
-//     // Simple Brokerage Calculator 
-//     const brokerage = Math.min(20, 0.0003 * orderData.quantity * executionPrice); // Max ₹20 or 0.03%
-//     const totalCost = (orderData.orderSide === "BUY" ? requiredMargin : 0) + brokerage;
-
-// console.log(`Order requires margin: ₹${requiredMargin.toFixed(2)}, brokerage: ₹${brokerage.toFixed(2)}, total cost: ₹${totalCost.toFixed(2)}`);
-//     // For MARKET orders, fetch the latest LTP
-//     if (orderData.orderType === "MARKET") {
-//       const res = await fetch(`/api/quotes?q=${orderData.instrumentId}&mode=ltp`)
-//       const quoteData = await res.json()
-//       if (quoteData.status === "success" && quoteData.data[orderData.instrumentId]) {
-//         executionPrice = toNumber(quoteData.data[orderData.instrumentId].last_trade_price)
-//       } else {
-//         throw new Error("Could not fetch LTP for market order execution.")
-//       }
-//     }
-// console.log("Execution price determined:", executionPrice);
-
-//     // Insert order with PENDING status
-//     await client.mutate({
-//       mutation: INSERT_ORDER,
-//       variables: {
-//         objects: [{
-//           id: orderId,
-//           tradingAccountId: tradingAccountId,
-//           symbol: orderData.symbol,
-//           stockId: orderData.stockId,
-//           quantity: orderData.quantity,
-//           price: orderData.orderType === 'LIMIT' ? executionPrice.toFixed(2) : null,
-//           orderType: orderData.orderType,
-//           orderSide: orderData.orderSide,
-//           productType: orderData.productType ?? "MIS",
-//           status: "PENDING"
-//         }]
-//       }
-//     })
-// console.log("Order inserted with ID:", orderId);
-
-//     // Simulate order execution after a short delay
-//     setTimeout(async () => {
-//       try {
-//         await client.mutate({
-//           mutation: UPDATE_ORDER,
-//           variables: {
-//             id: orderId,
-//             set: {
-//               status: "EXECUTED",
-//               filledQuantity: orderData.quantity,
-//               averagePrice: executionPrice.toFixed(2),
-//               executedAt: new Date().toISOString()
-//             }
-//           }
-//         })
-//         // Deduct funds and brokerage from account and create a position
-//         await client.mutate({
-//           mutation: UPDATE_TRADING_ACCOUNT,
-//           variables: {
-//             id: tradingAccountId,
-//             set: {
-//               availableMargin: account.availableMargin - totalCost,
-//               usedMargin: account.usedMargin + (orderData.orderSide === "BUY" ? requiredMargin : 0),
-//               balance: account.balance - brokerage
-//             },
-//           },
-//         });
-
-//         await client.mutate({
-//           mutation: INSERT_TRANSACTION,
-//           variables: {
-//             object: {
-//               tradingAccountId: tradingAccountId,
-//               amount: brokerage,
-//               type: 'DEBIT',
-//               description: `Brokerage for order #${orderId}`,
-//             },
-//           },
-//         });
-
-//         await createOrUpdatePosition(client, {
-//           tradingAccountId: tradingAccountId,
-//           symbol: orderData.symbol,
-//           stockId: orderData.stockId,
-//           quantity: orderData.quantity,
-//           orderSide: orderData.orderSide,
-//           price: executionPrice.toFixed(2)
-//         })
-//       } catch (executionError) { console.error("Error during simulated order execution:", executionError) }
-//     }, 3000) // Reduced delay for faster feedback
-
-//     return { success: true, orderId }
-//   } catch (error: any) {
-//     console.error("Error placing order:", JSON.stringify(error, null, 2))
-//     throw new Error(error.message || "Failed to place order.")
-//   }
-// }
-
-export async function placeOrder(orderData: { userId: string, userName?: string | null, userEmail?: string | null, symbol: string, stockId: string, instrumentId: string, quantity: number, price: number, orderType: OrderType, orderSide: OrderSide, productType?: string }) {
+export async function placeOrder(orderData: { userId?: string, userName?: string | null, userEmail?: string | null, tradingAccountId?: string, symbol: string, stockId: string, instrumentId: string, quantity: number, price: number | null, orderType: OrderType, orderSide: OrderSide, productType?: string, segment?: string, session?: any }) {
+    const logger = orderData.session ? createLoggerFromSession(orderData.session, orderData.tradingAccountId) : null
+    
     try {
-        const { tradingAccountId } = await ensureUserAndAccount(client, orderData.userId, orderData.userName, orderData.userEmail)
+        await logger?.logSystemEvent("ORDER_START", `Starting order placement for ${orderData.symbol}`)
+        
+        // Normalize tradingAccountId
+        let tradingAccountId = orderData.tradingAccountId
+        if (!tradingAccountId) {
+            if (!orderData.userId) throw new Error('User context missing')
+            const ensured = await ensureUserAndAccount(client, orderData.userId, orderData.userName, orderData.userEmail)
+            tradingAccountId = ensured.tradingAccountId
+        }
         const orderId = generateUUID()
-        let executionPrice = orderData.price
+        let executionPrice = orderData.price ?? 0
 
         if (orderData.orderType === "MARKET") {
+            await logger?.logApiCall(`/api/quotes?q=${orderData.instrumentId}&mode=ltp`, "GET", 200)
             const res = await fetch(`/api/quotes?q=${orderData.instrumentId}&mode=ltp`)
             const quoteData = await res.json()
-            if (quoteData.status === "success" && quoteData.data[orderData.instrumentId]) {
-                executionPrice = toNumber(quoteData.data[orderData.instrumentId].last_trade_price)
+            if ((quoteData?.status === "success" && quoteData?.data?.[orderData.instrumentId]) || (quoteData?.success && quoteData?.data?.data?.[orderData.instrumentId])) {
+                const payload = quoteData?.success ? quoteData.data.data : quoteData.data
+                executionPrice = toNumber(payload[orderData.instrumentId].last_trade_price)
+                await logger?.logSystemEvent("LTP_FETCHED", `LTP fetched: ₹${executionPrice}`)
             } else {
                 throw new Error("Could not fetch LTP for market order execution.")
             }
         }
 
+        // Insert order with PENDING status
         await client.mutate({ mutation: INSERT_ORDER, variables: { objects: [{ id: orderId, tradingAccountId, symbol: orderData.symbol, stockId: orderData.stockId, quantity: orderData.quantity, price: orderData.orderType === 'LIMIT' ? executionPrice.toFixed(2) : null, orderType: orderData.orderType, orderSide: orderData.orderSide, productType: orderData.productType ?? "MIS", status: "PENDING" }] } })
+        
+        await logger?.logOrderPlaced({
+            id: orderId,
+            symbol: orderData.symbol,
+            quantity: orderData.quantity,
+            orderType: orderData.orderType,
+            orderSide: orderData.orderSide,
+            price: orderData.price,
+            productType: orderData.productType,
+            status: "PENDING"
+        })
 
         setTimeout(async () => {
             try {
+                await logger?.logSystemEvent("ORDER_EXECUTION_START", `Starting execution for order ${orderId}`)
+                
+                // Mark executed
                 await client.mutate({ mutation: UPDATE_ORDER, variables: { id: orderId, set: { status: "EXECUTED", filledQuantity: orderData.quantity, averagePrice: executionPrice.toFixed(2), executedAt: new Date().toISOString() } } })
+
+                // Funds handling - Calculate charges and margin first
+                const turnover = orderData.quantity * executionPrice
+                const { totalCharges, brokerage } = computeCharges(orderData.segment, turnover)
+                const requiredMargin = computeRequiredMargin(orderData.segment, turnover, orderData.productType)
+
+                await logger?.logSystemEvent("FUNDS_CALCULATION", `Calculated charges: ₹${totalCharges}, margin: ₹${requiredMargin}`)
+
+                // Fetch account and deduct funds FIRST
+                const { data: accRes } = await client.query({ query: GET_ACCOUNT_BY_ID, variables: { id: tradingAccountId }, fetchPolicy: 'network-only' })
+                const acc = accRes?.trading_accountsCollection?.edges?.[0]?.node
+                if (acc) {
+                  const oldBalance = toNumber(acc.balance)
+                  const oldAvailable = toNumber(acc.availableMargin)
+                  const oldUsed = toNumber(acc.usedMargin)
+                  
+                  // Convert to integers for database
+                  const newAvailable = Math.floor(Math.max(0, oldAvailable - (requiredMargin + totalCharges)))
+                  const newUsed = Math.floor(oldUsed + requiredMargin)
+                  const newBalance = Math.floor(Math.max(0, oldBalance - totalCharges))
+                  
+                  // Deduct funds FIRST
+                  await client.mutate({ 
+                    mutation: UPDATE_TRADING_ACCOUNT, 
+                    variables: { 
+                      id: tradingAccountId, 
+                      set: { 
+                        availableMargin: newAvailable, 
+                        usedMargin: newUsed, 
+                        balance: newBalance 
+                      } 
+                    } 
+                  })
+
+                  await logger?.logFundsDeducted(totalCharges, "Order execution", {
+                    orderId,
+                    brokerage,
+                    oldBalance,
+                    newBalance,
+                    oldAvailable,
+                    newAvailable,
+                    oldUsed,
+                    newUsed
+                  })
+
+                  // Record brokerage transaction
+                  await client.mutate({ 
+                    mutation: INSERT_TRANSACTION, 
+                    variables: { 
+                      object: { 
+                        tradingAccountId, 
+                        amount: `${Math.floor(totalCharges)}`, 
+                        type: 'DEBIT', 
+                        description: `Brokerage (₹${brokerage.toFixed(2)}) for order #${orderId}` 
+                      } 
+                    } 
+                  })
+                  
+                  await logger?.logTransactionCreated({
+                    tradingAccountId,
+                    amount: totalCharges,
+                    type: 'DEBIT',
+                    description: `Brokerage (₹${brokerage.toFixed(2)}) for order #${orderId}`
+                  })
+                }
+
+                // Position update AFTER funds are deducted
                 await createOrUpdatePosition(client, { tradingAccountId, symbol: orderData.symbol, stockId: orderData.stockId, quantity: orderData.quantity, orderSide: orderData.orderSide, price: executionPrice.toFixed(2) })
-            } catch (executionError) { console.error("Error during simulated order execution:", executionError) }
-        }, 1500) // Reduced delay for faster feedback
+                
+                await logger?.logOrderExecuted({
+                    id: orderId,
+                    symbol: orderData.symbol,
+                    quantity: orderData.quantity
+                }, {
+                    executionPrice,
+                    brokerage,
+                    totalCharges,
+                    marginRequired: requiredMargin
+                })
+                
+                await logger?.logSystemEvent("ORDER_EXECUTION_COMPLETE", `Order ${orderId} executed successfully`)
+                
+            } catch (executionError) { 
+                await logger?.logError(executionError as Error, "Order execution", { orderId })
+                console.error("Error during simulated order execution:", executionError) 
+            }
+        }, 1500)
 
         return { success: true, orderId }
     } catch (error: any) {
+        await logger?.logError(error, "Order placement", orderData)
         console.error("Error placing order:", JSON.stringify(error, null, 2))
         throw new Error(error.message || "Failed to place order.")
     }
@@ -587,13 +858,120 @@ export async function deleteOrder(orderId: string) {
     console.error("Error deleting order:", error); throw new Error("Failed to delete order.")
   }
 }
-export async function closePosition(positionId: string) {
+export async function closePosition(positionId: string, session?: any) {
+  const logger = session ? createLoggerFromSession(session) : null
+  
   try {
-    // In a real scenario, this would create a market order to square off.
-    // For this app's logic, we directly delete the position record.
-    await client.mutate({ mutation: DELETE_POSITION, variables: { id: positionId } })
+    await logger?.logSystemEvent("POSITION_CLOSE_START", `Starting position close for ${positionId}`)
+    
+    // 1) Fetch the position with instrumentId for LTP
+    const { data } = await client.query({ query: GET_POSITION_BY_ID, variables: { id: positionId }, fetchPolicy: "network-only" })
+    const pos = data?.positionsCollection?.edges?.[0]?.node
+    if (!pos) throw new Error("Position not found")
+
+    const quantity = Number(pos.quantity)
+    const avg = toNumber(pos.averagePrice)
+
+    await logger?.logSystemEvent("POSITION_FETCHED", `Position: ${pos.symbol} ${quantity} @ ₹${avg}`)
+
+    // 2) Fetch LTP to simulate exit price
+    let exitPrice = avg
+    try {
+      if (pos.stock?.instrumentId) {
+        const res = await fetch(`/api/quotes?q=${pos.stock.instrumentId}&mode=ltp`)
+        const quoteData = await res.json()
+        const payload = quoteData?.success ? quoteData.data.data : quoteData
+        const ltp = payload?.data?.[pos.stock.instrumentId]?.last_trade_price || payload?.[pos.stock.instrumentId]?.last_trade_price
+        if (ltp != null) exitPrice = toNumber(ltp)
+        await logger?.logSystemEvent("EXIT_PRICE_FETCHED", `Exit price: ₹${exitPrice}`)
+      }
+    } catch {}
+
+    // 3) Compute realized P&L
+    const realizedPnl = (exitPrice - avg) * quantity
+
+    await logger?.logSystemEvent("P&L_CALCULATED", `Realized P&L: ₹${realizedPnl.toFixed(2)}`)
+
+    // 4) Update position to quantity 0 and set realized P&L into pnl fields for display
+    await client.mutate({
+      mutation: UPDATE_POSITION,
+      variables: { id: positionId, set: { quantity: 0, stopLoss: null, target: null, unrealizedPnL: realizedPnl.toFixed(2), dayPnL: realizedPnl.toFixed(2) } }
+    })
+
+    await logger?.logPositionClosed({
+      id: positionId,
+      symbol: pos.symbol,
+      exitPrice
+    }, realizedPnl)
+
+    // 5) Update trading account funds: add/subtract P&L, release margin
+    const { data: accRes } = await client.query({ query: GET_ACCOUNT_BY_ID, variables: { id: pos.tradingAccountId }, fetchPolicy: 'network-only' })
+    const acc = accRes?.trading_accountsCollection?.edges?.[0]?.node
+    if (acc) {
+      const oldBalance = toNumber(acc.balance)
+      const oldAvailable = toNumber(acc.availableMargin)
+      const oldUsed = toNumber(acc.usedMargin)
+      
+      // Approximate previously locked margin as |qty| * avg * 0.1
+      const turnover = Math.abs(quantity) * avg
+      const releasedMargin = computeRequiredMargin('NSE', turnover, 'MIS') // fallback if segment not available
+      
+      // Convert to integers for database
+      const newAvailable = Math.floor(oldAvailable + releasedMargin + realizedPnl)
+      const newUsed = Math.floor(Math.max(0, oldUsed - releasedMargin))
+      const newBalance = Math.floor(oldBalance + realizedPnl)
+      
+      await client.mutate({ 
+        mutation: UPDATE_TRADING_ACCOUNT, 
+        variables: { 
+          id: pos.tradingAccountId, 
+          set: { 
+            availableMargin: newAvailable, 
+            usedMargin: newUsed, 
+            balance: newBalance 
+          } 
+        } 
+      })
+
+      await logger?.logFundsAdded(realizedPnl, "Position closure", {
+        positionId,
+        symbol: pos.symbol,
+        oldBalance,
+        newBalance,
+        oldAvailable,
+        newAvailable,
+        oldUsed,
+        newUsed,
+        releasedMargin
+      })
+    }
+
+    // 6) Record transaction for realized P&L
+    await client.mutate({ 
+      mutation: INSERT_TRANSACTION, 
+      variables: { 
+        object: { 
+          tradingAccountId: pos.tradingAccountId, 
+          amount: `${Math.floor(Math.abs(realizedPnl))}`, 
+          type: realizedPnl >= 0 ? 'CREDIT' : 'DEBIT', 
+          description: `Realized P&L for ${pos.symbol} @ ₹${exitPrice.toFixed(2)}` 
+        } 
+      } 
+    })
+    
+    await logger?.logTransactionCreated({
+      tradingAccountId: pos.tradingAccountId,
+      amount: Math.abs(realizedPnl),
+      type: realizedPnl >= 0 ? 'CREDIT' : 'DEBIT',
+      description: `Realized P&L for ${pos.symbol} @ ₹${exitPrice.toFixed(2)}`
+    })
+    
+    await logger?.logSystemEvent("POSITION_CLOSE_COMPLETE", `Position ${positionId} closed successfully`)
+    
   } catch (error) {
-    console.error("Error closing position:", error); throw new Error("Failed to close position.")
+    await logger?.logError(error as Error, "Position closure", { positionId })
+    console.error("Error closing position:", error); 
+    throw new Error("Failed to close position.")
   }
 }
 export async function updateStopLoss(positionId: string, stopLoss: number) {

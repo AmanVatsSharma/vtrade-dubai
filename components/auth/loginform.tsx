@@ -44,7 +44,8 @@ const LoginForm = () => {
                     }
                     if (data.success) {
                         setSuccess(data.success)
-                        router.push('/dashboard')
+                        const target = (data as any).redirectTo || '/dashboard'
+                        router.push(target)
                     }
                 })
                 .catch(() => setError("Something went wrong!"))
@@ -53,7 +54,7 @@ const LoginForm = () => {
 
     return (
         <CardWrapper
-            headerLabel='Welcome back to TradingPro'
+            headerLabel='Welcome back to MarketPulse360'
             backButtonLabel="Don't have an account?"
             backButtonHref='/auth/register'
             // showSocial
@@ -77,7 +78,7 @@ const LoginForm = () => {
                                             disabled={isPending}
                                             placeholder="john.doe@example.com"
                                             type='email'
-                                            className="pl-10 border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                                            className="pl-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
                                         />
                                     </div>
                                 </FormControl>
@@ -101,7 +102,7 @@ const LoginForm = () => {
                                             disabled={isPending}
                                             placeholder="••••••••"
                                             type='password'
-                                            className="pl-10 border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                                            className="pl-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
                                         />
                                     </div>
                                 </FormControl>
@@ -116,14 +117,14 @@ const LoginForm = () => {
                                     id="remember-me"
                                     name="remember-me"
                                     type="checkbox"
-                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded"
                                 />
                                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                                     Remember me
                                 </label>
                             </div>
                             <div className="text-sm">
-                                <Link href="/auth/forgot-password" className="font-medium text-green-600 hover:text-green-500">
+                                <Link href="/auth/forgot-password" className="font-medium text-emerald-700 hover:text-emerald-600">
                                     Forgot your password?
                                 </Link>
                             </div>
@@ -135,7 +136,7 @@ const LoginForm = () => {
                     <Button
                             disabled={isPending}
                             type='submit'
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
                         >
                             {isPending ? (
                                 <div className="flex items-center justify-center">
@@ -146,7 +147,7 @@ const LoginForm = () => {
                                     Signing in...
                                 </div>
                             ) : (
-                                "Sign in to TradingPro"
+                                "Sign in to MarketPulse360"
                             )}
                         </Button>
                 </form>

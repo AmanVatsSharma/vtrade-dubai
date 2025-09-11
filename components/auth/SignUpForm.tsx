@@ -54,7 +54,7 @@ const SignUpForm = () => {
 
     return (
         <CardWrapper
-            headerLabel='Join TradingPro Today'
+            headerLabel='Join MarketPulse360 Today'
             backButtonLabel="Already have an account?"
             backButtonHref='/auth/login'
             // showSocial
@@ -78,7 +78,7 @@ const SignUpForm = () => {
                                                 disabled={isPending}
                                                 placeholder="John Doe"
                                                 type='text'
-                                                className="pl-10 border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                                                className="pl-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
                                             />
                                         </div>
                                     </FormControl>
@@ -102,7 +102,7 @@ const SignUpForm = () => {
                                                 disabled={isPending}
                                                 placeholder="john.doe@example.com"
                                                 type='email'
-                                                className="pl-10 border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                                                className="pl-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
                                             />
                                         </div>
                                     </FormControl>
@@ -126,7 +126,7 @@ const SignUpForm = () => {
                                                 disabled={isPending}
                                                 placeholder="••••••••"
                                                 type='password'
-                                                className="pl-10 border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                                                className="pl-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
                                             />
                                         </div>
 
@@ -142,7 +142,7 @@ const SignUpForm = () => {
                     <Button
                         disabled={isPending}
                         type='submit'
-                        className='w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg'
+                        className='w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg'
                     >
                         {isPending ? (
                             <div className="flex items-center justify-center">
@@ -153,7 +153,7 @@ const SignUpForm = () => {
                                 Creating your account...
                             </div>
                         ) : (
-                            "Create Your TradingPro Account"
+                            "Create Your MarketPulse360 Account"
                         )}
                     </Button>
                 </form>

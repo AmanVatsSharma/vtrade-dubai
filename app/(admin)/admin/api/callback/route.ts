@@ -1,54 +1,86 @@
-// app/api/callback/route.ts
+// app/(admin)/admin/api/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
-import { prisma } from "@/lib/prisma";
+import { vortexAPI } from "@/lib/vortex-enhanced";
+import { logger, LogCategory } from "@/lib/vortexLogger";
 
 export async function GET(req: NextRequest) {
+    const startTime = Date.now();
     const { searchParams } = new URL(req.url);
-    // 1. Get the temporary auth token from Rupeezy's redirect
-    const authToken = searchParams.get("auth");
-    console.log('authTOken:', authToken)
-
-    if (!authToken) {
-        return NextResponse.json({ error: "Missing auth token" }, { status: 400 });
-    }
-
-    const appId = process.env.VORTEX_APPLICATION_ID!;
-    const apiKey = process.env.VORTEX_X_API_KEY!;
-
-    // 2. Securely generate the checksum on the server
-    const raw = appId + authToken + apiKey;
-    const checksum = crypto.createHash("sha256").update(raw).digest("hex");
-
-    // 3. Exchange the auth token for an access token
-    console.log('sending request to votex (exchange token) with', 'appId:', appId,)
-    const res = await fetch("https://vortex-api.rupeezy.in/v2/user/session", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-        },
-        body: JSON.stringify({
-            checksum,
-            applicationId: appId,
-            token: authToken,
-        }),
-    });
-
-    const data = await res.json();
-    console.log('res data:', data)
     
-    // 4. If successful, save the access token to the database
-    if (data.status === "success") {
-        await prisma.vortexSession.create({
-            data: {
-                userId: 1, // admin ka ID, ya jo bhi current user hai
-                accessToken: data.data.access_token,
-            },
+    try {
+        // 1. Get the temporary auth token from Rupeezy's redirect
+        const authToken = searchParams.get("auth");
+        const error = searchParams.get("error");
+        const errorDescription = searchParams.get("error_description");
+
+        logger.info(LogCategory.VORTEX_AUTH, 'Callback received', {
+            hasAuthToken: !!authToken,
+            hasError: !!error,
+            error,
+            errorDescription,
+            userAgent: req.headers.get('user-agent'),
+            ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip')
         });
-        // 5. Redirect user to the dashboard
-        return NextResponse.redirect("http://localhost:3000/admin/dashboard");
-    } else {
-        return NextResponse.json({ error: "Login failed" }, { status: 401 });
+
+        // Handle OAuth errors
+        if (error) {
+            logger.error(LogCategory.VORTEX_AUTH, 'OAuth error received', undefined, {
+                error,
+                errorDescription
+            });
+            
+            return NextResponse.redirect(
+                `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/auth/login?error=${encodeURIComponent(error)}&description=${encodeURIComponent(errorDescription || '')}`
+            );
+        }
+
+        if (!authToken) {
+            logger.error(LogCategory.VORTEX_AUTH, 'Missing auth token in callback');
+            return NextResponse.redirect(
+                `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/auth/login?error=missing_token&description=No authentication token received`
+            );
+        }
+
+        // 2. Exchange the auth token for an access token
+        logger.info(LogCategory.VORTEX_AUTH, 'Starting token exchange', {
+            authTokenLength: authToken.length,
+            authTokenPrefix: authToken.substring(0, 10)
+        });
+
+        const session = await vortexAPI.exchangeToken(authToken, 1); // Admin user ID = 1
+
+        logger.info(LogCategory.VORTEX_AUTH, 'Token exchange successful', {
+            sessionId: session.id,
+            userId: session.userId,
+            processingTime: Date.now() - startTime
+        });
+
+        // 3. Redirect user to the dashboard
+        const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/dashboard?success=true&session=${session.id}`;
+        
+        logger.info(LogCategory.VORTEX_AUTH, 'Redirecting to dashboard', {
+            redirectUrl,
+            sessionId: session.id
+        });
+
+        return NextResponse.redirect(redirectUrl);
+
+    } catch (error) {
+        const processingTime = Date.now() - startTime;
+        
+        logger.error(LogCategory.VORTEX_AUTH, 'Callback processing failed', error as Error, {
+            processingTime,
+            authToken: searchParams.get("auth")?.substring(0, 10) + '...',
+            error: searchParams.get("error"),
+            errorDescription: searchParams.get("error_description")
+        });
+
+        // Redirect to login with error
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        const encodedError = encodeURIComponent(errorMessage);
+        
+        return NextResponse.redirect(
+            `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/auth/login?error=callback_failed&description=${encodedError}`
+        );
     }
 }
