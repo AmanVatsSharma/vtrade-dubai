@@ -23,7 +23,8 @@ const publicRoutes = [
  */
 const authRoutes = [
   "/auth/login",
-  "/auth/register"
+  "/auth/register",
+  "/auth/email-verification"
   // Add other auth routes like /auth/register if you have them
 ];
 
