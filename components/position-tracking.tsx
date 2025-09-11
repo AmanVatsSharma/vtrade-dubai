@@ -1,354 +1,6 @@
-// /**
-//  * @file position-tracking.tsx
-//  * @description This component is updated to consume live quotes for real-time P&L calculation.
-//  */
-// "use client"
-
-// import { useState } from "react"
-// import { Button } from "@/components/ui/button"
-// import { Input } from "@/components/ui/input"
-// import { Card, CardContent } from "@/components/ui/card"
-// import { Badge } from "@/components/ui/badge"
-// import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-// import { Label } from "@/components/ui/label"
-// import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-// import { MoreHorizontal, Target, TrendingDown, X } from "lucide-react"
-// import { toast } from "@/hooks/use-toast"
-// import { closePosition, updateStopLoss, updateTarget } from "@/lib/hooks/use-trading-data"
-
-// // The base Position interface from the data hook
-// interface Position {
-//   id: string
-//   symbol: string
-//   quantity: number
-//   averagePrice: number
-//   instrumentId?: string
-//   stopLoss?: number
-//   target?: number
-// }
-
-// // The Quote interface for live data
-// interface Quote {
-//   last_trade_price: number
-// }
-
-// interface PositionTrackingProps {
-//   positions: Position[]
-//   quotes: Record<string, Quote> // Live quotes passed as a prop
-//   onPositionUpdate: () => void
-// }
-
-// export function PositionTracking({ positions, quotes, onPositionUpdate }: PositionTrackingProps) {
-//   const [stopLossDialogOpen, setStopLossDialogOpen] = useState(false)
-//   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
-//   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
-//   const [stopLossValue, setStopLossValue] = useState(0)
-//   const [targetValue, setTargetValue] = useState(0)
-//   const [loading, setLoading] = useState<string | null>(null)
-
-//   const handleClosePosition = async (positionId: string, symbol: string) => {
-//     try {
-//       setLoading(positionId)
-//       await closePosition(positionId)
-//       onPositionUpdate()
-//       toast({
-//         title: "Position Closed",
-//         description: `Market order placed to close ${symbol} position`,
-//       })
-//     } catch (error) {
-//       toast({
-//         title: "Close Failed",
-//         description: error instanceof Error ? error.message : "Failed to close position",
-//         variant: "destructive",
-//       })
-//     } finally {
-//       setLoading(null)
-//     }
-//   }
-
-//   const handleUpdateStopLoss = async () => {
-//     if (!selectedPosition) return
-
-//     try {
-//       setLoading(selectedPosition.id)
-//       await updateStopLoss(selectedPosition.id, stopLossValue)
-//       onPositionUpdate()
-//       setStopLossDialogOpen(false)
-//       toast({
-//         title: "Stop Loss Updated",
-//         description: `Stop loss set to ₹${stopLossValue} for ${selectedPosition.symbol}`,
-//       })
-//     } catch (error) {
-//       toast({
-//         title: "Update Failed",
-//         description: error instanceof Error ? error.message : "Failed to update stop loss",
-//         variant: "destructive",
-//       })
-//     } finally {
-//       setLoading(null)
-//     }
-//   }
-
-//   const handleUpdateTarget = async () => {
-//     if (!selectedPosition) return
-
-//     try {
-//       setLoading(selectedPosition.id)
-//       await updateTarget(selectedPosition.id, targetValue)
-//       onPositionUpdate()
-//       setTargetDialogOpen(false)
-//       toast({
-//         title: "Target Updated",
-//         description: `Target set to ₹${targetValue} for ${selectedPosition.symbol}`,
-//       })
-//     } catch (error) {
-//       toast({
-//         title: "Update Failed",
-//         description: error instanceof Error ? error.message : "Failed to update target",
-//         variant: "destructive",
-//       })
-//     } finally {
-//       setLoading(null)
-//     }
-//   }
-
-//   const openStopLossDialog = (position: Position) => {
-//     setSelectedPosition(position)
-//     setStopLossValue(position.stopLoss || 0)
-//     setStopLossDialogOpen(true)
-//   }
-
-//   const openTargetDialog = (position: Position) => {
-//     setSelectedPosition(position)
-//     setTargetValue(position.target || 0)
-//     setTargetDialogOpen(true)
-//   }
-
-//   return (
-//     <>
-//       <div className="space-y-2">
-//         {positions.map((position) => {
-//           const quote = position.instrumentId ? quotes[position.instrumentId] : null
-//           const currentPrice = quote?.last_trade_price || position.averagePrice
-//           const unrealizedPnL = (currentPrice - position.averagePrice) * position.quantity
-//           const pnlPercentage =
-//             position.averagePrice !== 0
-//               ? ((currentPrice - position.averagePrice) / position.averagePrice) * 100
-//               : 0
-
-//           return (
-//             <Card
-//               key={position.id}
-//               className="bg-white border border-gray-200 shadow-sm rounded-lg hover:shadow-md transition-shadow duration-200"
-//             >
-//               <CardContent className="p-3">
-//                 <div className="flex items-center justify-between mb-2">
-//                   <div className="flex items-center gap-2">
-//                     <h3 className="font-semibold text-gray-900 text-sm">{position.symbol}</h3>
-//                     <Badge
-//                       variant={position.quantity > 0 ? "default" : "destructive"}
-//                       className={`text-xs px-2 py-0.5 ${position.quantity > 0 ? "bg-blue-100 text-blue-800" : "bg-red-100 text-red-800"}`}
-//                     >
-//                       {position.quantity > 0 ? "LONG" : "SHORT"}
-//                     </Badge>
-//                   </div>
-
-//                   <div className="flex items-center gap-2">
-//                     <div className="text-right">
-//                       <div
-//                         className={`font-mono font-semibold text-sm ${unrealizedPnL >= 0 ? "text-green-600" : "text-red-600"}`}
-//                       >
-//                         {unrealizedPnL >= 0 ? "+" : ""}₹{unrealizedPnL.toFixed(2)}
-//                       </div>
-//                       <div className={`text-xs ${unrealizedPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
-//                         ({pnlPercentage.toFixed(2)}%)
-//                       </div>
-//                     </div>
-
-//                     <DropdownMenu>
-//                       <DropdownMenuTrigger asChild>
-//                         <Button variant="ghost" size="icon" className="h-7 w-7">
-//                           <MoreHorizontal className="h-3 w-3" />
-//                         </Button>
-//                       </DropdownMenuTrigger>
-//                       <DropdownMenuContent align="end" className="bg-white border border-gray-200 rounded-md shadow-lg">
-//                         <DropdownMenuItem onClick={() => openStopLossDialog(position)} className="text-sm">
-//                           <TrendingDown className="h-3 w-3 mr-2" />
-//                           Set Stop Loss
-//                         </DropdownMenuItem>
-//                         <DropdownMenuItem onClick={() => openTargetDialog(position)} className="text-sm">
-//                           <Target className="h-3 w-3 mr-2" />
-//                           Set Target
-//                         </DropdownMenuItem>
-//                         <DropdownMenuItem
-//                           onClick={() => handleClosePosition(position.id, position.symbol)}
-//                           className="text-sm text-red-600"
-//                           disabled={loading === position.id}
-//                         >
-//                           <X className="h-3 w-3 mr-2" />
-//                           Close Position
-//                         </DropdownMenuItem>
-//                       </DropdownMenuContent>
-//                     </DropdownMenu>
-//                   </div>
-//                 </div>
-
-//                 <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
-//                   <div className="space-y-1">
-//                     <div className="flex justify-between">
-//                       <span>Quantity:</span>
-//                       <span className="font-mono">{Math.abs(position.quantity)}</span>
-//                     </div>
-//                     <div className="flex justify-between">
-//                       <span>Avg Price:</span>
-//                       <span className="font-mono">₹{position.averagePrice.toFixed(2)}</span>
-//                     </div>
-//                   </div>
-//                   <div className="space-y-1">
-//                     <div className="flex justify-between">
-//                       <span>Current:</span>
-//                       <span className="font-mono">₹{currentPrice.toFixed(2)}</span>
-//                     </div>
-//                   </div>
-//                 </div>
-
-//                 {(position.stopLoss || position.target) && (
-//                   <div className="mt-2 pt-2 border-t border-gray-100">
-//                     <div className="flex gap-4 text-xs">
-//                       {position.stopLoss && (
-//                         <div className="flex items-center gap-1">
-//                           <TrendingDown className="h-3 w-3 text-red-500" />
-//                           <span className="text-gray-500">SL:</span>
-//                           <span className="font-mono text-red-600">₹{position.stopLoss}</span>
-//                         </div>
-//                       )}
-//                       {position.target && (
-//                         <div className="flex items-center gap-1">
-//                           <Target className="h-3 w-3 text-green-500" />
-//                           <span className="text-gray-500">Target:</span>
-//                           <span className="font-mono text-green-600">₹{position.target}</span>
-//                         </div>
-//                       )}
-//                     </div>
-//                   </div>
-//                 )}
-//               </CardContent>
-//             </Card>
-//           )
-//         })}
-//       </div>
-
-//       {/* Dialogs remain the same... */}
-//       <Dialog open={stopLossDialogOpen} onOpenChange={setStopLossDialogOpen}>
-//         <DialogContent className="sm:max-w-md bg-white border border-gray-200 rounded-lg shadow-lg">
-//           <DialogHeader>
-//             <DialogTitle className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-//               <TrendingDown className="h-5 w-5 text-red-600" />
-//               Set Stop Loss
-//             </DialogTitle>
-//           </DialogHeader>
-//           {selectedPosition && (
-//             <div className="space-y-4">
-//                <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-//                 <h3 className="font-semibold text-gray-900">{selectedPosition.symbol}</h3>
-//                 <div className="flex gap-4 mt-1 text-sm text-gray-600">
-//                   <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
-//                   <span>Avg: ₹{selectedPosition.averagePrice}</span>
-//                 </div>
-//               </div>
-
-//               <div className="space-y-1">
-//                 <Label className="text-sm font-medium text-gray-700">Stop Loss Price</Label>
-//                 <Input
-//                   type="number"
-//                   value={stopLossValue}
-//                   onChange={(e) => setStopLossValue(Number(e.target.value))}
-//                   step="0.05"
-//                   placeholder="Enter stop loss price"
-//                   className="h-9 border-gray-300 focus:border-red-500 focus:ring-red-500"
-//                 />
-//               </div>
-
-//               <div className="flex gap-2">
-//                 <Button
-//                   onClick={handleUpdateStopLoss}
-//                   disabled={loading === selectedPosition.id || !stopLossValue}
-//                   className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-//                 >
-//                   {loading === selectedPosition.id ? "Setting..." : "Set Stop Loss"}
-//                 </Button>
-//                 <Button
-//                   variant="outline"
-//                   onClick={() => setStopLossDialogOpen(false)}
-//                   className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
-//                 >
-//                   Cancel
-//                 </Button>
-//               </div>
-//             </div>
-//           )}
-//         </DialogContent>
-//       </Dialog>
-
-//       <Dialog open={targetDialogOpen} onOpenChange={setTargetDialogOpen}>
-//         <DialogContent className="sm:max-w-md bg-white border border-gray-200 rounded-lg shadow-lg">
-//           <DialogHeader>
-//             <DialogTitle className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-//               <Target className="h-5 w-5 text-green-600" />
-//               Set Target
-//             </DialogTitle>
-//           </DialogHeader>
-//           {selectedPosition && (
-//             <div className="space-y-4">
-//               <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-//                 <h3 className="font-semibold text-gray-900">{selectedPosition.symbol}</h3>
-//                 <div className="flex gap-4 mt-1 text-sm text-gray-600">
-//                   <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
-//                   <span>Avg: ₹{selectedPosition.averagePrice}</span>
-//                 </div>
-//               </div>
-
-//               <div className="space-y-1">
-//                 <Label className="text-sm font-medium text-gray-700">Target Price</Label>
-//                 <Input
-//                   type="number"
-//                   value={targetValue}
-//                   onChange={(e) => setTargetValue(Number(e.target.value))}
-//                   step="0.05"
-//                   placeholder="Enter target price"
-//                   className="h-9 border-gray-300 focus:border-green-500 focus:ring-green-500"
-//                 />
-//               </div>
-
-//               <div className="flex gap-2">
-//                 <Button
-//                   onClick={handleUpdateTarget}
-//                   disabled={loading === selectedPosition.id || !targetValue}
-//                   className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-//                 >
-//                   {loading === selectedPosition.id ? "Setting..." : "Set Target"}
-//                 </Button>
-//                 <Button
-//                   variant="outline"
-//                   onClick={() => setTargetDialogOpen(false)}
-//                   className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
-//                 >
-//                   Cancel
-//                 </Button>
-//               </div>
-//             </div>
-//           )}
-//         </DialogContent>
-//       </Dialog>
-//     </>
-//   )
-// }
-
-
 /**
  * @file position-tracking.tsx
- * @description Displays open trading positions and calculates real-time P&L.
- * This file was already in good shape and required no major corrections.
+ * @description Displays open trading positions with swipe actions & drag sorting (premium mobile UX).
  */
 "use client"
 
@@ -363,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Target, TrendingDown, X, Loader2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { closePosition, updateStopLoss, updateTarget } from "@/lib/hooks/use-trading-data"
+import { Reorder, motion } from "framer-motion"
 
 interface Position {
   id: string;
@@ -385,6 +38,7 @@ interface PositionTrackingProps {
 }
 
 export function PositionTracking({ positions, quotes, onPositionUpdate }: PositionTrackingProps) {
+  const [items, setItems] = useState(positions)
   const [stopLossDialogOpen, setStopLossDialogOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
@@ -395,7 +49,7 @@ export function PositionTracking({ positions, quotes, onPositionUpdate }: Positi
   const handleAction = async (action: 'close' | 'stoploss' | 'target', positionId: string, value?: number) => {
     setLoading(positionId);
     try {
-      if (action === 'close') await closePosition(positionId, { user: { id: "current-user", clientId: "client-123" } }); // TODO: Get from actual session
+      if (action === 'close') await closePosition(positionId, { user: { id: "current-user", clientId: "client-123" } });
       if (action === 'stoploss' && value) await updateStopLoss(positionId, value);
       if (action === 'target' && value) await updateTarget(positionId, value);
 
@@ -406,7 +60,11 @@ export function PositionTracking({ positions, quotes, onPositionUpdate }: Positi
 
       toast({ title: `Position Action`, description: `Position ${action} request was successful.` });
     } catch (error) {
-      toast({ title: `${action.charAt(0).toUpperCase() + action.slice(1)} Failed`, description: error instanceof Error ? error.message : "An unknown error occurred.", variant: "destructive" });
+      toast({
+        title: `${action.charAt(0).toUpperCase() + action.slice(1)} Failed`,
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(null);
     }
@@ -429,20 +87,20 @@ export function PositionTracking({ positions, quotes, onPositionUpdate }: Positi
 
   return (
     <>
-      <div className="space-y-2 pb-20">
-        {positions.map((position) => {
+      {/* ✅ Drag + Reorder Container */}
+      <Reorder.Group axis="y" values={items} onReorder={setItems} className="space-y-2 pb-20">
+        {items.map((position) => {
           const quote = position.instrumentId ? quotes[position.instrumentId] : null;
           const isFutures = position.segment === "NFO" && !position.optionType;
           const isOption = position.segment === "NFO" && !!position.optionType;
 
-          // If position is closed (quantity === 0), show booked P&L from unrealizedPnL
           let displayPnL: number;
           let displayPnLPercent: number;
           let currentPrice: number;
           if (position.quantity === 0) {
             displayPnL = position.unrealizedPnL ?? 0;
             displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0;
-            currentPrice = position.averagePrice; // For closed, just show avg price
+            currentPrice = position.averagePrice;
           } else {
             currentPrice = quote?.last_trade_price || position.averagePrice;
             displayPnL = (currentPrice - position.averagePrice) * position.quantity;
@@ -450,128 +108,244 @@ export function PositionTracking({ positions, quotes, onPositionUpdate }: Positi
           }
 
           return (
-            <Card 
-              key={position.id} 
-              className={`border shadow-sm rounded-lg transition-all duration-200 ${
-                position.quantity === 0 
-                  ? 'bg-gray-50 opacity-85 hover:opacity-100' 
-                  : 'bg-white hover:shadow-md'
-              }`}
+            <Reorder.Item
+              key={position.id}
+              value={position}
+              drag="y" // ✅ Only vertical drag allowed here
+              className="relative"
             >
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className={`font-semibold text-sm ${position.quantity === 0 ? 'text-gray-600' : 'text-gray-900'}`}>
-                      {position.symbol}
-                    </h3>
-                    {isFutures && <span className="bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs">FUT</span>}
-                    {isOption && <span className="bg-yellow-100 text-yellow-700 rounded px-2 py-0.5 text-xs">OPT</span>}
-                    {position.quantity === 0 ? (
-                      <Badge className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5">CLOSED</Badge>
-                    ) : (
-                      <Badge variant={position.quantity > 0 ? "default" : "destructive"} className={`text-xs px-2 py-0.5 ${position.quantity > 0 ? "bg-blue-100 text-blue-800" : "bg-red-100 text-red-800"}`}>
-                        {position.quantity > 0 ? "LONG" : "SHORT"}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="text-right">
-                      <div className={`font-mono font-semibold text-sm ${
-                        position.quantity === 0
-                          ? displayPnL >= 0 ? "text-green-500" : "text-red-500"
-                          : displayPnL >= 0 ? "text-green-600" : "text-red-600"
-                      }`}>
-                        {Number(displayPnL || 0) >= 0 ? "+" : ""}₹{Number(displayPnL || 0).toFixed(2)}
+
+              {/* Background for swipe action */}
+              <div className="absolute inset-0 flex justify-end items-center pr-4 bg-red-50 rounded-lg">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleAction("close", position.id)}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <X className="h-4 w-4 mr-1" /> Close
+                </Button>
+              </div>
+
+              {/* ✅ Swipeable Card */}
+              <motion.div
+                drag="x"
+                dragConstraints={{ left: -120, right: 120 }}
+                onDragEnd={(e, info) => {
+                  if (info.offset.x < -80) {
+                    handleAction("close", position.id)
+                  }
+                  if (info.offset.x > 80) {
+                    openDialog("stoploss", position)
+                  }
+                }}
+                className="cursor-grab active:cursor-grabbing"
+              >
+                <Card
+                  className={`border shadow-sm rounded-lg transition-all duration-200 ${position.quantity === 0
+                    ? 'bg-gray-50 opacity-85 hover:opacity-100'
+                    : 'bg-white hover:shadow-md'
+                    }`}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className={`font-semibold text-sm ${position.quantity === 0 ? 'text-gray-600' : 'text-gray-900'}`}>
+                          {position.symbol}
+                        </h3>
+                        {isFutures && <span className="bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs">FUT</span>}
+                        {isOption && <span className="bg-yellow-100 text-yellow-700 rounded px-2 py-0.5 text-xs">OPT</span>}
+                        {position.quantity === 0 ? (
+                          <Badge className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5">CLOSED</Badge>
+                        ) : (
+                          <Badge variant={position.quantity > 0 ? "default" : "destructive"} className={`text-xs px-2 py-0.5 ${position.quantity > 0 ? "bg-blue-100 text-blue-800" : "bg-red-100 text-red-800"}`}>
+                            {position.quantity > 0 ? "LONG" : "SHORT"}
+                          </Badge>
+                        )}
                       </div>
-                      <div className={`text-xs ${
-                        position.quantity === 0
-                          ? displayPnL >= 0 ? "text-green-500" : "text-red-500"
-                          : displayPnL >= 0 ? "text-green-600" : "text-red-600"
-                      }`}>
-                        ({displayPnLPercent.toFixed(2)}%)
-                      </div>
-                      {position.quantity === 0 && (
-                        <div className="text-xs text-gray-500 font-medium mt-0.5">
-                          Booked P&L • {new Date().toLocaleDateString()}
+                      <div className="flex items-center gap-1">
+                        <div className="text-right">
+                          <div className={`font-mono font-semibold text-sm ${position.quantity === 0
+                            ? displayPnL >= 0 ? "text-green-500" : "text-red-500"
+                            : displayPnL >= 0 ? "text-green-600" : "text-red-600"
+                            }`}>
+                            {Number(displayPnL || 0) >= 0 ? "+" : ""}₹{Number(displayPnL || 0).toFixed(2)}
+                          </div>
+                          <div className={`text-xs ${position.quantity === 0
+                            ? displayPnL >= 0 ? "text-green-500" : "text-red-500"
+                            : displayPnL >= 0 ? "text-green-600" : "text-red-600"
+                            }`}>
+                            ({displayPnLPercent.toFixed(2)}%)
+                          </div>
+                          {position.quantity === 0 && (
+                            <div className="text-xs text-gray-500 font-medium mt-0.5">
+                              Booked P&L • {new Date().toLocaleDateString()}
+                            </div>
+                          )}
                         </div>
-                      )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openDialog('stoploss', position)}>
+                              <TrendingDown className="h-3 w-3 mr-2" />Set Stop Loss
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openDialog('target', position)}>
+                              <Target className="h-3 w-3 mr-2" />Set Target
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleAction('close', position.id)}
+                              className="text-red-600"
+                              disabled={loading === position.id}
+                            >
+                              <X className="h-3 w-3 mr-2" />Close Position
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end"><DropdownMenuItem onClick={() => openDialog('stoploss', position)}><TrendingDown className="h-3 w-3 mr-2" />Set Stop Loss</DropdownMenuItem><DropdownMenuItem onClick={() => openDialog('target', position)}><Target className="h-3 w-3 mr-2" />Set Target</DropdownMenuItem><DropdownMenuItem onClick={() => handleAction('close', position.id)} className="text-red-600" disabled={loading === position.id}><X className="h-3 w-3 mr-2" />Close Position</DropdownMenuItem></DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-                {/* F&O Details */}
-                {(isFutures || isOption) && (
-                  <div className="flex flex-wrap gap-2 mb-2 text-xs">
-                    {position.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(position.expiry).toLocaleDateString()}</span>}
-                    {isOption && position.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{position.strikePrice}</span>}
-                    {isOption && position.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{position.optionType}</span>}
-                    {position.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {position.lotSize}</span>}
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
-                  <div className="space-y-1"><div className="flex justify-between"><span>Quantity:</span><span className="font-mono">{Math.abs(position.quantity)}</span></div><div className="flex justify-between"><span>Avg Price:</span><span className="font-mono">₹{position.averagePrice.toFixed(2)}</span></div></div>
-                  <div className="space-y-1"><div className="flex justify-between"><span>Current:</span><span className="font-mono">₹{currentPrice.toFixed(2)}</span></div></div>
-                </div>
-                {(position.stopLoss || position.target) && (
-                  <div className="mt-2 pt-2 border-t flex gap-4 text-xs">
-                    {position.stopLoss && (<div className="flex items-center gap-1"><TrendingDown className="h-3 w-3 text-red-500" /><span className="text-gray-500">SL:</span><span className="font-mono text-red-600">₹{position.stopLoss}</span></div>)}
-                    {position.target && (<div className="flex items-center gap-1"><Target className="h-3 w-3 text-green-500" /><span className="text-gray-500">Target:</span><span className="font-mono text-green-600">₹{position.target}</span></div>)}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+
+                    {/* F&O Details */}
+                    {(isFutures || isOption) && (
+                      <div className="flex flex-wrap gap-2 mb-2 text-xs">
+                        {position.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(position.expiry).toLocaleDateString()}</span>}
+                        {isOption && position.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{position.strikePrice}</span>}
+                        {isOption && position.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{position.optionType}</span>}
+                        {position.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {position.lotSize}</span>}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+                      <div className="space-y-1">
+                        <div className="flex justify-between">
+                          <span>Quantity:</span>
+                          <span className="font-mono">{Math.abs(position.quantity)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Avg Price:</span>
+                          <span className="font-mono">₹{position.averagePrice.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between">
+                          <span>Current:</span>
+                          <span className="font-mono">₹{currentPrice.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {(position.stopLoss || position.target) && (
+                      <div className="mt-2 pt-2 border-t flex gap-4 text-xs">
+                        {position.stopLoss && (
+                          <div className="flex items-center gap-1">
+                            <TrendingDown className="h-3 w-3 text-red-500" />
+                            <span className="text-gray-500">SL:</span>
+                            <span className="font-mono text-red-600">₹{position.stopLoss}</span>
+                          </div>
+                        )}
+                        {position.target && (
+                          <div className="flex items-center gap-1">
+                            <Target className="h-3 w-3 text-green-500" />
+                            <span className="text-gray-500">Target:</span>
+                            <span className="font-mono text-green-600">₹{position.target}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Reorder.Item>
           )
         })}
-      </div>
+      </Reorder.Group>
+
+      {/* Stop Loss Dialog */}
       <Dialog open={stopLossDialogOpen} onOpenChange={setStopLossDialogOpen}>
         <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><TrendingDown className="h-5 w-5 text-red-600" />Set Stop Loss</DialogTitle></DialogHeader>
-          {selectedPosition && (<div className="space-y-4">
-            <div className="bg-gray-50 p-3 rounded-md border">
-              <h3 className="font-semibold">{selectedPosition.symbol}</h3>
-              <div className="flex gap-4 mt-1 text-sm text-gray-600">
-                <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
-                <span>Avg: ₹{selectedPosition.averagePrice}</span>
-              </div>
-              {(selectedPosition.segment === "NFO") && (
-                <div className="flex flex-wrap gap-2 mt-2 text-xs">
-                  {selectedPosition.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(selectedPosition.expiry).toLocaleDateString()}</span>}
-                  {selectedPosition.optionType && selectedPosition.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{selectedPosition.strikePrice}</span>}
-                  {selectedPosition.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{selectedPosition.optionType}</span>}
-                  {selectedPosition.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {selectedPosition.lotSize}</span>}
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-red-600" />Set Stop Loss
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPosition && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-3 rounded-md border">
+                <h3 className="font-semibold">{selectedPosition.symbol}</h3>
+                <div className="flex gap-4 mt-1 text-sm text-gray-600">
+                  <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
+                  <span>Avg: ₹{selectedPosition.averagePrice}</span>
                 </div>
-              )}
+              </div>
+              <div className="space-y-1">
+                <Label>Stop Loss Price</Label>
+                <Input
+                  type="number"
+                  value={stopLossValue}
+                  onChange={(e) => setStopLossValue(Number(e.target.value))}
+                  step="0.05"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleAction('stoploss', selectedPosition.id, stopLossValue)}
+                  disabled={loading === selectedPosition.id || !stopLossValue}
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Stop Loss"}
+                </Button>
+                <Button variant="outline" onClick={() => setStopLossDialogOpen(false)} className="flex-1">
+                  Cancel
+                </Button>
+              </div>
             </div>
-            <div className="space-y-1"><Label>Stop Loss Price</Label><Input type="number" value={stopLossValue} onChange={(e) => setStopLossValue(Number(e.target.value))} step="0.05" /></div>
-            <div className="flex gap-2"><Button onClick={() => handleAction('stoploss', selectedPosition.id, stopLossValue)} disabled={loading === selectedPosition.id || !stopLossValue} className="flex-1 bg-red-600 hover:bg-red-700">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Stop Loss"}</Button><Button variant="outline" onClick={() => setStopLossDialogOpen(false)} className="flex-1">Cancel</Button></div>
-          </div>)}
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Target Dialog */}
       <Dialog open={targetDialogOpen} onOpenChange={setTargetDialogOpen}>
         <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-green-600" />Set Target</DialogTitle></DialogHeader>
-          {selectedPosition && (<div className="space-y-4">
-            <div className="bg-gray-50 p-3 rounded-md border">
-              <h3 className="font-semibold">{selectedPosition.symbol}</h3>
-              <div className="flex gap-4 mt-1 text-sm text-gray-600">
-                <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
-                <span>Avg: ₹{selectedPosition.averagePrice}</span>
-              </div>
-              {(selectedPosition.segment === "NFO") && (
-                <div className="flex flex-wrap gap-2 mt-2 text-xs">
-                  {selectedPosition.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(selectedPosition.expiry).toLocaleDateString()}</span>}
-                  {selectedPosition.optionType && selectedPosition.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{selectedPosition.strikePrice}</span>}
-                  {selectedPosition.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{selectedPosition.optionType}</span>}
-                  {selectedPosition.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {selectedPosition.lotSize}</span>}
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-green-600" />Set Target
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPosition && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-3 rounded-md border">
+                <h3 className="font-semibold">{selectedPosition.symbol}</h3>
+                <div className="flex gap-4 mt-1 text-sm text-gray-600">
+                  <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
+                  <span>Avg: ₹{selectedPosition.averagePrice}</span>
                 </div>
-              )}
+              </div>
+              <div className="space-y-1">
+                <Label>Target Price</Label>
+                <Input
+                  type="number"
+                  value={targetValue}
+                  onChange={(e) => setTargetValue(Number(e.target.value))}
+                  step="0.05"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleAction('target', selectedPosition.id, targetValue)}
+                  disabled={loading === selectedPosition.id || !targetValue}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Target"}
+                </Button>
+                <Button variant="outline" onClick={() => setTargetDialogOpen(false)} className="flex-1">
+                  Cancel
+                </Button>
+              </div>
             </div>
-            <div className="space-y-1"><Label>Target Price</Label><Input type="number" value={targetValue} onChange={(e) => setTargetValue(Number(e.target.value))} step="0.05" /></div>
-            <div className="flex gap-2"><Button onClick={() => handleAction('target', selectedPosition.id, targetValue)} disabled={loading === selectedPosition.id || !targetValue} className="flex-1 bg-green-600 hover:bg-green-700">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Target"}</Button><Button variant="outline" onClick={() => setTargetDialogOpen(false)} className="flex-1">Cancel</Button></div>
-          </div>)}
+          )}
         </DialogContent>
       </Dialog>
     </>
