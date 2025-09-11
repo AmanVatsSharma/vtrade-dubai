@@ -4,6 +4,7 @@ import "./globals.css";
 import { auth } from "@/auth";
 import SessionProvider from "@/components/providers/SessionProvider";
 import ApolloProviderWrapper from "@/components/apollo-provider";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,7 +26,15 @@ export default async function RootLayout({
       <body className={inter.className}>
         <SessionProvider>
           <ApolloProviderWrapper>
-          {children}
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+
+              {children}
+            </ThemeProvider>
           </ApolloProviderWrapper>
         </SessionProvider>
       </body>
