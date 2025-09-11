@@ -13,7 +13,7 @@ export function isMarketOpen(): boolean {
     const now = new Date();
     
     // Get the current time in India (IST)
-    const indianTimeString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const indianTimeString = now.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
     const indianTime = new Date(indianTimeString);
 
     const dayOfWeek = indianTime.getDay(); // Sunday = 0, Monday = 1, ..., Saturday = 6
