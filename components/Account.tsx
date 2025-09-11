@@ -418,8 +418,8 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                     <tr><td colSpan={5} className="text-center py-4 text-gray-400">No transactions yet.</td></tr>
                                 ) : transactions.map((t: any) => (
                                     <tr key={t.id} className="border-b hover:bg-gray-50">
-                                        <td className="px-2 py-1 whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td>
-                                        <td className="px-2 py-1 whitespace-nowrap">{new Date(t.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST</td>
+                                        <td className="px-2 py-1 whitespace-nowrap text-black">{new Date(t.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td>
+                                        <td className="px-2 py-1 whitespace-nowrap text-black">{new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</td>
                                         <td className="px-2 py-1 whitespace-nowrap">
                                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${t.type === 'CREDIT' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{t.type}</span>
                                         </td>
