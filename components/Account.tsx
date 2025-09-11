@@ -223,8 +223,14 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                         {/* RM Image/Avatar Section */}
                                         <div className="relative">
                                             <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-400 to-indigo-600 p-1">
-                                                <div className="h-full w-full rounded-xl bg-white/95 dark:bg-slate-900 flex items-center justify-center">
-                                                    <User className="h-12 w-12 text-blue-600 dark:text-blue-400" />
+                                                <div className="h-full w-full rounded-xl bg-white/95 dark:bg-slate-900 relative overflow-hidden">
+                                                    <Image
+                                                        src="/rm_dp-01.webp"
+                                                        alt="Relationship Manager"
+                                                        fill
+                                                        className="object-cover"
+                                                        sizes="96px"
+                                                    />
                                                 </div>
                                             </div>
                                             <div className="absolute -bottom-2 -right-2 h-6 w-6 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
@@ -236,7 +242,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                         <div className="flex-1 text-center sm:text-left">
                                             <h3 className="text-xl font-bold text-white mb-1">Your Personal Relationship Manager</h3>
                                             <div className="space-y-2">
-                                                <p className="text-lg font-semibold text-blue-200">Rahul Sharma</p>
+                                                <p className="text-lg font-semibold text-blue-200">Dev Gupta</p>
                                                 <div className="flex flex-col sm:flex-row items-center gap-2 text-sm text-blue-100/80">
                                                     <div className="flex items-center">
                                                         <div className="h-2 w-2 rounded-full bg-green-500 mr-2" />
@@ -266,7 +272,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                             {/* Action Buttons */}
                                             <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
                                                 <Button 
-                                                    onClick={() => window.open('tel:+919876543210')}
+                                                    onClick={() => window.open('tel:+916307656991')}
                                                     className="bg-white/95 hover:bg-white text-blue-900 font-medium px-6"
                                                 >
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -275,7 +281,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                                     Schedule a Call
                                                 </Button>
                                                 <Button 
-                                                    onClick={() => window.open('https://wa.me/919876543210')}
+                                                    onClick={() => window.open('https://wa.me/916307656991')}
                                                     className="bg-green-500 hover:bg-green-600 text-white font-medium px-6"
                                                 >
                                                     <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
