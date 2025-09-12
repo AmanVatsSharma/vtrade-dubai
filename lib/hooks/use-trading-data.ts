@@ -380,12 +380,31 @@ const GET_POSITION_BY_ID = gql`
           symbol
           quantity
           averagePrice
-          stock { instrumentId }
+          stock { instrumentId, segment }
           unrealizedPnL
           dayPnL
           stopLoss
           target
         }
+      }
+    }
+  }
+`
+
+// Latest executed order for a symbol to infer productType for margin reversal
+const GET_LAST_EXECUTED_ORDER_FOR_SYMBOL = gql`
+  query GetLastExecutedOrderForSymbol($tradingAccountId: UUID!, $symbol: String!) {
+    ordersCollection(
+      filter: { and: [
+        { tradingAccountId: { eq: $tradingAccountId } },
+        { symbol: { eq: $symbol } },
+        { status: { eq: EXECUTED } }
+      ]}
+      orderBy: [{ createdAt: DescNullsLast }]
+      first: 1
+    ) {
+      edges {
+        node { id, productType }
       }
     }
   }
@@ -785,63 +804,9 @@ export async function placeOrder(orderData: { userId?: string, userName?: string
 
                 await logger?.logSystemEvent("FUNDS_CALCULATION", `Calculated charges: ₹${totalCharges}, margin: ₹${requiredMargin}`)
 
-                // Fetch account and deduct funds FIRST
-                const { data: accRes } = await client.query({ query: GET_ACCOUNT_BY_ID, variables: { id: tradingAccountId }, fetchPolicy: 'network-only' })
-                const acc = accRes?.trading_accountsCollection?.edges?.[0]?.node
-                if (acc) {
-                  const oldBalance = toNumber(acc.balance)
-                  const oldAvailable = toNumber(acc.availableMargin)
-                  const oldUsed = toNumber(acc.usedMargin)
-                  
-                  // Convert to integers for database
-                  const newAvailable = Math.floor(Math.max(0, oldAvailable - (requiredMargin + totalCharges)))
-                  const newUsed = Math.floor(oldUsed + requiredMargin)
-                  const newBalance = Math.floor(Math.max(0, oldBalance - totalCharges))
-                  
-                  // Deduct funds FIRST
-                  await client.mutate({ 
-                    mutation: UPDATE_TRADING_ACCOUNT, 
-                    variables: { 
-                      id: tradingAccountId, 
-                      set: { 
-                        availableMargin: newAvailable, 
-                        usedMargin: newUsed, 
-                        balance: newBalance 
-                      } 
-                    } 
-                  })
-
-                  await logger?.logFundsDeducted(totalCharges, "Order execution", {
-                    orderId,
-                    brokerage,
-                    oldBalance,
-                    newBalance,
-                    oldAvailable,
-                    newAvailable,
-                    oldUsed,
-                    newUsed
-                  })
-
-                  // Record brokerage transaction
-                  await client.mutate({ 
-                    mutation: INSERT_TRANSACTION, 
-                    variables: { 
-                      object: { 
-                        tradingAccountId, 
-                        amount: `${Math.floor(totalCharges)}`, 
-                        type: 'DEBIT', 
-                        description: `Brokerage (₹${brokerage.toFixed(2)}) for order #${orderId}` 
-                      } 
-                    } 
-                  })
-                  
-                  await logger?.logTransactionCreated({
-                    tradingAccountId,
-                    amount: totalCharges,
-                    type: 'DEBIT',
-                    description: `Brokerage (₹${brokerage.toFixed(2)}) for order #${orderId}`
-                  })
-                }
+                // Deduct funds via unified Funds API
+                await manageFunds(tradingAccountId, Math.floor(requiredMargin), 'BLOCK')
+                await manageFunds(tradingAccountId, Math.floor(totalCharges), 'DEBIT')
 
                 // Position update AFTER funds are deducted
                 await createOrUpdatePosition(client, { tradingAccountId, symbol: orderData.symbol, stockId: orderData.stockId, quantity: orderData.quantity, orderSide: orderData.orderSide, price: executionPrice.toFixed(2) })
@@ -943,67 +908,36 @@ export async function closePosition(positionId: string, session?: any) {
       exitPrice
     }, realizedPnl)
 
-    // 5) Update trading account funds: add/subtract P&L, release margin
-    const { data: accRes } = await client.query({ query: GET_ACCOUNT_BY_ID, variables: { id: pos.tradingAccountId }, fetchPolicy: 'network-only' })
-    const acc = accRes?.trading_accountsCollection?.edges?.[0]?.node
-    if (acc) {
-      const oldBalance = toNumber(acc.balance)
-      const oldAvailable = toNumber(acc.availableMargin)
-      const oldUsed = toNumber(acc.usedMargin)
-      
-      // Approximate previously locked margin as |qty| * avg * 0.1
-      const turnover = Math.abs(quantity) * avg
-      const releasedMargin = computeRequiredMargin('NSE', turnover, 'MIS') // fallback if segment not available
-      
-      // Convert to integers for database
-      const newAvailable = Math.floor(oldAvailable + releasedMargin + realizedPnl)
-      const newUsed = Math.floor(Math.max(0, oldUsed - releasedMargin))
-      const newBalance = Math.floor(oldBalance + realizedPnl)
-      
-      await client.mutate({ 
-        mutation: UPDATE_TRADING_ACCOUNT, 
-        variables: { 
-          id: pos.tradingAccountId, 
-          set: { 
-            availableMargin: newAvailable, 
-            usedMargin: newUsed, 
-            balance: newBalance 
-          } 
-        } 
+    // 5) Update account funds via unified Funds API: release margin, then apply realized P&L
+    // Determine correct margin to release using the original productType and stock segment
+    const turnover = Math.abs(quantity) * avg
+    let productTypeForClose: string | undefined = undefined
+    try {
+      const { data: lastOrderData } = await client.query({
+        query: GET_LAST_EXECUTED_ORDER_FOR_SYMBOL,
+        variables: { tradingAccountId: pos.tradingAccountId, symbol: pos.symbol },
+        fetchPolicy: 'network-only'
       })
+      productTypeForClose = lastOrderData?.ordersCollection?.edges?.[0]?.node?.productType
+    } catch {}
+    const segmentForClose = pos.stock?.segment
+    const releasedMargin = computeRequiredMargin(segmentForClose, turnover, productTypeForClose)
 
-      await logger?.logFundsAdded(realizedPnl, "Position closure", {
-        positionId,
-        symbol: pos.symbol,
-        oldBalance,
-        newBalance,
-        oldAvailable,
-        newAvailable,
-        oldUsed,
-        newUsed,
-        releasedMargin
-      })
+    await manageFunds(pos.tradingAccountId, Math.floor(releasedMargin), 'RELEASE')
+    if (realizedPnl !== 0) {
+      const creditOrDebit = realizedPnl >= 0 ? 'CREDIT' : 'DEBIT'
+      await manageFunds(pos.tradingAccountId, Math.floor(Math.abs(realizedPnl)), creditOrDebit)
     }
 
-    // 6) Record transaction for realized P&L
-    await client.mutate({ 
-      mutation: INSERT_TRANSACTION, 
-      variables: { 
-        object: { 
-          tradingAccountId: pos.tradingAccountId, 
-          amount: `${Math.floor(Math.abs(realizedPnl))}`, 
-          type: realizedPnl >= 0 ? 'CREDIT' : 'DEBIT', 
-          description: `Realized P&L for ${pos.symbol} @ ₹${exitPrice.toFixed(2)}` 
-        } 
-      } 
-    })
-    
-    await logger?.logTransactionCreated({
-      tradingAccountId: pos.tradingAccountId,
-      amount: Math.abs(realizedPnl),
-      type: realizedPnl >= 0 ? 'CREDIT' : 'DEBIT',
-      description: `Realized P&L for ${pos.symbol} @ ₹${exitPrice.toFixed(2)}`
-    })
+    // 6) Log transaction creation via logger (funds API already inserts the transaction)
+    if (realizedPnl !== 0) {
+      await logger?.logTransactionCreated({
+        tradingAccountId: pos.tradingAccountId,
+        amount: Math.abs(realizedPnl),
+        type: realizedPnl >= 0 ? 'CREDIT' : 'DEBIT',
+        description: `Realized P&L for ${pos.symbol} @ ₹${exitPrice.toFixed(2)}`
+      })
+    }
     
     await logger?.logSystemEvent("POSITION_CLOSE_COMPLETE", `Position ${positionId} closed successfully`)
     
