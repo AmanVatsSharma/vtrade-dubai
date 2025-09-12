@@ -15,6 +15,41 @@ import { OrderSide, OrderType } from "@prisma/client"
 import { Calculator } from "lucide-react"
 import { createLoggerFromSession, LogLevel, LogCategory } from "@/lib/logger"
 
+// --- Funds Management Functions ---
+async function manageFunds(tradingAccountId: string, amount: number, type: 'BLOCK' | 'RELEASE' | 'CREDIT' | 'DEBIT') {
+  try {
+    const response = await fetch('/api/trading/funds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tradingAccountId, amount, type })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to manage funds')
+    }
+
+    return true
+  } catch (error) {
+    console.error('Fund management error:', error)
+    throw error
+  }
+}
+
+function calculateMarginRequired(price: number, quantity: number, segment: string, orderType: string = 'CNC') {
+  const baseValue = quantity * price
+
+  if (segment === 'NSE') {
+    return orderType === 'MIS' ? baseValue / 200 : baseValue / 50 // 200x leverage for MIS, 50x for CNC
+  }
+
+  if (segment === 'NFO') {
+    return baseValue / 100 // 100x leverage for F&O
+  }
+
+  return baseValue // Full margin for others
+}
+
 // -----------------------------
 // GraphQL Documents (Corrected for Supabase & Prisma Schema)
 // -----------------------------
