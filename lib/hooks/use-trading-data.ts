@@ -555,7 +555,8 @@ export function useOrders(userId?: string) {
 
   const orders = useMemo(() => data?.ordersCollection?.edges?.map((e: any) => ({ ...e.node, price: e.node.price != null ? toNumber(e.node.price) : null, averagePrice: e.node.averagePrice != null ? toNumber(e.node.averagePrice) : null })) ?? [], [data])
 
-  return { orders, isLoading: loading || !tradingAccountId, isError: !!error, error, mutate: refetch }
+  // Do not report loading just because account is not present yet
+  return { orders, isLoading: loading, isError: !!error, error, mutate: refetch }
 }
 
 export function usePositions(userId?: string) {
@@ -577,7 +578,8 @@ export function usePositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
-  return { positions, isLoading: loading || !tradingAccountId, isError: !!error, error, mutate: refetch }
+  // Do not report loading just because account is not present yet
+  return { positions, isLoading: loading, isError: !!error, error, mutate: refetch }
 }
 
 export function useOrdersAndPositions(userId?: string) {
@@ -607,10 +609,11 @@ export function useOrdersAndPositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
+  // Do not report loading just because account is not present yet
   return {
     orders,
     positions,
-    isLoading: loading || !tradingAccountId,
+    isLoading: loading,
     isError: !!error,
     error,
     mutate: refetch

@@ -80,7 +80,7 @@ export function PositionTracking({ positions, quotes, onPositionUpdate }: Positi
     <>
       <div className="space-y-2 pb-20">
         {positions.map((position) => {
-          const quote = position.instrumentId ? quotes[position.instrumentId] : null;
+          const quote = position.instrumentId ? quotes?.[position.instrumentId] : null;
           const isFutures = position.segment === "NFO" && !position.optionType;
           const isOption = position.segment === "NFO" && !!position.optionType;
 
@@ -93,7 +93,7 @@ export function PositionTracking({ positions, quotes, onPositionUpdate }: Positi
             displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0;
             currentPrice = position.averagePrice; // For closed, just show avg price
           } else {
-            currentPrice = quote?.last_trade_price || position.averagePrice;
+            currentPrice = (quote?.display_price ?? quote?.last_trade_price ?? position.averagePrice ?? 0);
             displayPnL = (currentPrice - position.averagePrice) * position.quantity;
             displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / (Math.abs(position.quantity) * position.averagePrice)) * 100 : 0;
           }

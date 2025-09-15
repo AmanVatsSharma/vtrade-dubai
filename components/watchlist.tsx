@@ -102,8 +102,8 @@ export function Watchlist({ watchlist, quotes, onSelectStock, onUpdate }: Watchl
           </Card>
         ) : (
           watchlist?.items.map((item) => {
-            const quote = quotes[item.instrumentId]
-            const ltp = quote?.last_trade_price || item.ltp
+            const quote = quotes?.[item.instrumentId]
+            const ltp = (quote?.display_price ?? quote?.last_trade_price ?? item.ltp ?? 0)
             const change = ltp - item.close
             const changePercent = item.close > 0 ? (change / item.close) * 100 : 0
             const isFutures = item.segment === "NFO" && !item.optionType

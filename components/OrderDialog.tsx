@@ -279,6 +279,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   const { quotes } = useMarketData()
   const q = selectedStock ? quotes?.[selectedStock.instrumentId] : null
+  const currentLtp = useMemo(() => (q?.display_price ?? q?.last_trade_price ?? selectedStock?.ltp ?? 0), [q, selectedStock])
 
   useEffect(() => {
     setSelectedStock(stock)
@@ -298,8 +299,9 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   // Margin calculation logic
   const marginRequired = useMemo(() => {
-    if (!selectedStock || !price || quantity <= 0) return 0
-    const baseValue = quantity * price
+    if (!selectedStock || quantity <= 0) return 0
+    const tradePrice = isMarket ? currentLtp : (price ?? currentLtp)
+    const baseValue = quantity * (tradePrice || 0)
 
     if (selectedStock.segment === "NSE") {
       return currentOrderType === "MIS" ? baseValue / 200 : baseValue / 50
@@ -308,12 +310,13 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       return baseValue / 100
     }
     return baseValue
-  }, [selectedStock, quantity, price, currentOrderType])
+  }, [selectedStock, quantity, price, currentOrderType, isMarket, currentLtp])
 
   // Brokerage calculation (realistic, like Kite)
   const brokerage = useMemo(() => {
-    if (!selectedStock || !price || quantity <= 0) return 0
-    const baseValue = quantity * price
+    if (!selectedStock || quantity <= 0) return 0
+    const tradePrice = isMarket ? currentLtp : (price ?? currentLtp)
+    const baseValue = quantity * (tradePrice || 0)
     // Equity: 0.03% or ₹20 max per order
     // F&O: ₹20 per lot
     if (selectedStock.segment === "NSE") {
@@ -323,7 +326,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       return (selectedStock.lot_size || 1) * 20
     }
     return 0
-  }, [selectedStock, quantity, price])
+  }, [selectedStock, quantity, price, isMarket, currentLtp])
 
   const totalCost = marginRequired + brokerage
 
@@ -413,7 +416,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             </div>
             <div className="text-right">
               <span className="font-mono font-bold text-lg">
-                ₹{selectedStock.ltp?.toFixed(2)}
+                ₹{Number(currentLtp || 0).toFixed(2)}
               </span>
               {/* {q && (
                 <p className={`text-xs ${q.change >= 0 ? "text-green-600" : "text-red-600"}`}>{q.change.toFixed(2)} ({q.change_percent.toFixed(2)}%)</p>
@@ -479,7 +482,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
               <Label>Price</Label>
               <Input
                 type="number"
-                value={isMarket ? "" : price ?? ""}
+                value={isMarket ? "" : (price ?? "")}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 placeholder="Market"
                 disabled={isMarket}
@@ -519,7 +522,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             <div className="space-y-1">
               <div className="flex justify-between">
                 <span className="text-gray-600">Order Value</span>
-                <span className="font-mono">₹{((price || 0) * quantity).toFixed(2)}</span>
+                <span className="font-mono">₹{(((isMarket ? currentLtp : (price ?? currentLtp)) || 0) * quantity).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Margin</span>
