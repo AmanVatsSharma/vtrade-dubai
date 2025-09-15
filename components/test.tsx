@@ -289,8 +289,10 @@ export default function TradingDashboardWrapper() {
   }
 
   return (
-    <MarketDataProvider userId={userId}>
-      <TradingDashboard userId={userId} session={session}/>
+    <MarketDataProvider
+      config={{ jitter: { enabled: true, interval: 1000, intensity: 3, convergence: 0.3 } }}
+      userId={userId}>
+      <TradingDashboard userId={userId} session={session} />
     </MarketDataProvider>
   )
 }
@@ -325,7 +327,7 @@ function TradingDashboard({ userId, session }: { userId: string, session: any })
     let total = 0, day = 0
     positions.forEach((pos: any) => {
       const q = quotes?.[pos.stock?.instrumentId]
-      const ltp = q?.last_trade_price ?? pos.averagePrice
+      const ltp = q?.display_price ?? q?.last_trade_price ?? pos.averagePrice
       const diff = (ltp - pos.averagePrice) * pos.quantity
       total += diff
       day += (ltp - (pos.prevClosePrice ?? pos.averagePrice)) * pos.quantity
@@ -342,7 +344,7 @@ function TradingDashboard({ userId, session }: { userId: string, session: any })
       <div className="text-center">
         <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{name}</span>
         <p className={`text-sm font-mono font-bold ${change >= 0 ? "text-green-600" : "text-red-600"}`}>
-          ₹{q.last_trade_price.toFixed(2)} 
+          ₹{q?.display_price.toFixed(2) ?? q.last_trade_price.toFixed(2)}
           {/* ({change.toFixed(2)}%) */}
         </p>
       </div>
@@ -415,22 +417,22 @@ function TradingDashboard({ userId, session }: { userId: string, session: any })
 
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t z-50">
         <div className="grid grid-cols-4 gap-1 p-2 max-w-4xl mx-auto">
-            {[{ id: "watchlist", icon: Eye, label: "Watchlist" },
-              { id: "orders", icon: FileText, label: "Orders" },
-              { id: "positions", icon: TrendingUp, label: "Positions" },
-              { id: "account", icon: Wallet, label: "Account" },
-            ].map(({ id, icon: Icon, label }) => (
-              <Button
-                key={id}
-                onClick={() => setCurrentTab(id as any)}
-                variant="ghost"
-                className={`flex flex-col items-center justify-center gap-2 rounded-xl py-3 px-1 transition-all duration-150 shadow-sm ${currentTab === id ? "text-blue-700 bg-blue-50 font-semibold shadow-lg" : "text-gray-500 hover:text-blue-600"}`}
-                style={{ minWidth: 0, minHeight: 0, borderRadius: 16 }}
-              >
-                <Icon className="h-5 w-5 mt-1" style={{ minWidth: 28, minHeight: 28 }} />
-                <span className="text-sm font-medium tracking-wide" style={{ letterSpacing: 0.2 }}>{label}</span>
-              </Button>
-            ))}
+          {[{ id: "watchlist", icon: Eye, label: "Watchlist" },
+          { id: "orders", icon: FileText, label: "Orders" },
+          { id: "positions", icon: TrendingUp, label: "Positions" },
+          { id: "account", icon: Wallet, label: "Account" },
+          ].map(({ id, icon: Icon, label }) => (
+            <Button
+              key={id}
+              onClick={() => setCurrentTab(id as any)}
+              variant="ghost"
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl py-3 px-1 transition-all duration-150 shadow-sm ${currentTab === id ? "text-blue-700 bg-blue-50 font-semibold shadow-lg" : "text-gray-500 hover:text-blue-600"}`}
+              style={{ minWidth: 0, minHeight: 0, borderRadius: 16 }}
+            >
+              <Icon className="h-5 w-5 mt-1" style={{ minWidth: 28, minHeight: 28 }} />
+              <span className="text-sm font-medium tracking-wide" style={{ letterSpacing: 0.2 }}>{label}</span>
+            </Button>
+          ))}
         </div>
       </div>
 
