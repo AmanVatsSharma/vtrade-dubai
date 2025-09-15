@@ -290,8 +290,10 @@ export default function TradingDashboardWrapper() {
 
   return (
     <MarketDataProvider
-      config={{ jitter: { enabled: true, interval: 1000, intensity: 3, convergence: 0.3 } }}
-      userId={userId}>
+    config={{ jitter: { enabled: true, interval: 450, intensity: 0.2, convergence: 0.2 } , 
+    interpolation: { enabled: true, steps: 50, duration: 4500 } ,
+    deviation: { enabled: true, percentage: 0.7, absolute: 0.5 }
+  }}      userId={userId}>
       <TradingDashboard userId={userId} session={session} />
     </MarketDataProvider>
   )
