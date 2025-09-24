@@ -1,5 +1,8 @@
 // app/api/admin/kyc/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+// Force this route to be dynamic; it uses auth() which depends on cookies/headers
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -171,9 +174,15 @@ export async function PUT(request: NextRequest) {
     // Log the action
     await prisma.tradingLog.create({
       data: {
+        clientId: updatedKYC.user.clientId || 'UNKNOWN',
         userId: session.user.id,
-        action: `KYC ${status.toLowerCase()}`,
-        details: `KYC ${status.toLowerCase()} for user ${updatedKYC.user.name} (${updatedKYC.user.email})${reason ? `. Reason: ${reason}` : ''}`,
+        action: `KYC_${status.toLowerCase()}`,
+        message: `KYC ${status.toLowerCase()} for ${updatedKYC.user.name} (${updatedKYC.user.email})`,
+        details: {
+          kycId: kycId,
+          reason: reason || '',
+          approvedAt: status === 'APPROVED' ? new Date() : null
+        },
         category: 'SYSTEM',
         level: 'INFO'
       }

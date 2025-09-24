@@ -1,5 +1,5 @@
 "use client"
-import React, { useMemo, useTransition, useState } from "react"
+import React, { useMemo, useTransition, useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import CardWrapper from "@/components/auth/CardWrapper"
 import { useForm } from "react-hook-form"
@@ -14,10 +14,10 @@ import Link from "next/link"
 import { NewPasswordSchema } from "@/schemas"
 import { newPassword } from "@/actions/auth.actions"
 
-const PasswordResetPage = () => {
+const PasswordResetContent = () => {
   const router = useRouter()
   const params = useSearchParams()
-  const token = useMemo(() => params.get("token"), [params])
+  const token = useMemo(() => params?.get("token") ?? null, [params])
 
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | undefined>("")
@@ -121,6 +121,12 @@ const PasswordResetPage = () => {
   )
 }
 
-export default PasswordResetPage
+export default function PasswordResetPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-600">Loading reset page…</div>}>
+      <PasswordResetContent />
+    </Suspense>
+  )
+}
 
 

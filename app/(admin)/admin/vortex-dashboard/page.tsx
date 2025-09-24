@@ -65,7 +65,7 @@ export function AdminDashboard() {
 
     if (error) {
       const description = searchParams.get('description');
-      setError(`${error}: ${description || 'Unknown error'}`); yes
+      setError(`${error}: ${description || 'Unknown error'}`);
     }
   }, [searchParams]);
 
