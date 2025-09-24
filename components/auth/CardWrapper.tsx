@@ -9,6 +9,7 @@ type CardWrapperProps = {
     headerLabel: string,
     backButtonLabel: string,
     backButtonHref: string,
+    backButtonAction?: () => void,
     showSocial?: boolean
 }
 
@@ -17,10 +18,11 @@ const CardWrapper = ({
     headerLabel,
     backButtonHref,
     backButtonLabel,
+    backButtonAction,
     showSocial
 }: CardWrapperProps) => {
     return (
-        <Card className='w-[420px] shadow-xl border-0 bg-white/80 backdrop-blur-md rounded-2xl'>
+        <Card className='md:w-[420px] w-full shadow-xl border-0 bg-white/80 backdrop-blur-md rounded-2xl'>
             <CardHeader className="pb-2">
                 <AuthHeader label={headerLabel}/>
             </CardHeader>
@@ -36,6 +38,7 @@ const CardWrapper = ({
                 <AuthBackButton
                 label={backButtonLabel}
                 href={backButtonHref}
+                onClick={backButtonAction}
                 />
             </CardFooter>
         </Card>

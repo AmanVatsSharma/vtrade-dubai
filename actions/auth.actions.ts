@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 import * as z from 'zod'
 import { generatePasswordResetVerificationToken, generateVerificationToken } from "@/lib/tokens"
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/ResendMail"
-import { getUserByEmail } from "@/data/user";
+import { getUserByEmail, getUserByIdentifier } from "@/data/user";
 import { signIn } from "@/auth";
 import { nanoid } from "nanoid";
 import { getVerificationTokenByToken } from "@/data/verification-token";
@@ -31,7 +31,7 @@ export const login = async (values: z.infer<typeof signInSchema>) => {
     }
 
     if (!existingUser || !existingUser.password) {
-        return { error: "User does not exist!" }
+        return { error: "Invalid email or Client ID!" }
     }
 
     if (!existingUser.emailVerified) {
@@ -45,6 +45,22 @@ export const login = async (values: z.infer<typeof signInSchema>) => {
         where: { id: existingUser.id },
         include: { kyc: true }
     })
+
+    // Check phone verification first
+    if (!existingUser.phoneVerified && existingUser.phone) {
+        return {
+            success: "Please verify your phone number to continue.",
+            redirectTo: "/auth/phone-verification"
+        }
+    }
+
+    // Check mPin setup
+    if (!existingUser.mPin) {
+        return {
+            success: "Please set up your mPin to continue.",
+            redirectTo: "/auth/mpin-setup"
+        }
+    }
 
     // Check KYC status - redirect to KYC page if not approved
     if (!userWithKYC?.kyc || userWithKYC.kyc.status !== "APPROVED") {
@@ -112,7 +128,7 @@ export const register = async (values: z.infer<typeof signUpSchema>) => {
         return { error: "Invalid fields!" }
     }
 
-    const { email, password, name } = validatedFields.data
+    const { email, password, name, phone } = validatedFields.data
 
     const existingUser = await prisma.user.findUnique({
         where: { email }
@@ -120,6 +136,17 @@ export const register = async (values: z.infer<typeof signUpSchema>) => {
 
     if (existingUser) {
         return { error: "Email already in use!" }
+    }
+
+    // Check if phone number is already in use
+    if (phone) {
+        const existingPhone = await prisma.user.findUnique({
+            where: { phone }
+        })
+
+        if (existingPhone) {
+            return { error: "Mobile number already in use!" }
+        }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -130,6 +157,7 @@ export const register = async (values: z.infer<typeof signUpSchema>) => {
             data: {
                 name,
                 email,
+                phone,
                 password: hashedPassword,
                 clientId,
             }
@@ -213,26 +241,31 @@ export const newVerification = async (token: string) => {
     return { success: "Email verified! You can now login and complete KYC verification." }
 }
 
-export const resetPassword = async (values: { email: string }): Promise<PasswordResetResponse> => {
-    if (!values.email) {
-        return { error: "Email is required" };
+export const resetPassword = async (values: { identifier: string }): Promise<PasswordResetResponse> => {
+    // Robust validation
+    if (!values.identifier || !values.identifier.trim()) {
+        return { error: "Identifier is required" };
     }
 
     try {
-        const existingUser = await getUserByEmail(values.email);
+        // Find user by email OR phone OR clientId
+        const existingUser = await getUserByIdentifier(values.identifier.trim());
 
-        // For security, we don't want to reveal if an email exists or not
-        if (!existingUser) {
+        // For security, never reveal whether the user exists
+        if (!existingUser || !existingUser.email) {
             return {
-                success: "If an account exists with this email, you will receive password reset instructions shortly"
+                success: "If an account exists, you will receive password reset instructions shortly"
             };
         }
 
-        const passwordResetToken = await generatePasswordResetVerificationToken(values.email);
+        // Generate a password reset token tied to the user's email
+        const passwordResetToken = await generatePasswordResetVerificationToken(existingUser.email);
+
+        // Send password reset email with link
         await sendPasswordResetEmail(passwordResetToken.email, passwordResetToken.token);
 
         return {
-            success: "If an account exists with this email, you will receive password reset instructions shortly"
+            success: "If an account exists, you will receive password reset instructions shortly"
         };
     } catch (error) {
         console.error("Password reset error:", error);

@@ -78,19 +78,24 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('KYC API: GET request received');
     const session = await auth();
+    console.log('KYC API: Session check', { hasSession: !!session, userId: session?.user?.id });
     
     if (!session?.user?.id) {
+      console.log('KYC API: No session or user ID');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
+    console.log('KYC API: Fetching KYC for user:', session.user.id);
     const kyc = await prisma.kYC.findUnique({
       where: { userId: session.user.id }
     });
 
+    console.log('KYC API: KYC data found:', !!kyc);
     return NextResponse.json({ kyc });
 
   } catch (error) {

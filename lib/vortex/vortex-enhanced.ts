@@ -1,7 +1,7 @@
 // lib/vortex-enhanced.ts
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import crypto from 'crypto';
-import { prisma } from './prisma';
+import { prisma } from '../prisma';
 import { logger, LogCategory } from './vortexLogger';
 import { requestQueue } from './request-queue';
 

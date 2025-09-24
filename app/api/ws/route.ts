@@ -1,7 +1,7 @@
 // app/api/ws/route.ts
 import { NextRequest } from "next/server";
-import { vortexAPI } from "@/lib/vortex-enhanced";
-import { logger, LogCategory } from "@/lib/vortexLogger";
+import { vortexAPI } from "@/lib/vortex/vortex-enhanced";
+import { logger, LogCategory } from "@/lib/vortex/vortexLogger";
 
 export async function GET(request: NextRequest) {
   try {

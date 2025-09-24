@@ -1,250 +1,3 @@
-// /**
-//  * @file OrderDialog.tsx
-//  * @description A complex dialog component for placing new orders.
-//  * It handles margin calculations, order type selection (MIS/CNC), lot size for F&O,
-//  * and interacts with the trading data hook to place the order.
-//  */
-// "use client"
-
-// import { useState, useEffect, useMemo } from "react"
-// import { Button } from "@/components/ui/button"
-// import { Input } from "@/components/ui/input"
-// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-// import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-// import { Label } from "@/components/ui/label"
-// import { Loader2, DollarSign, ArrowLeftRight, Package, Calculator } from "lucide-react"
-// import { toast } from "@/hooks/use-toast"
-// import { placeOrder } from "@/lib/hooks/use-trading-data"
-// import { OrderType } from "@prisma/client"
-
-// interface OrderDialogProps {
-//   isOpen: boolean
-//   onClose: () => void
-//   stock: any | null
-//   portfolio: any | null
-//   onOrderPlaced: () => void
-// }
-
-// export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced }: OrderDialogProps) {
-//   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY")
-//   const [quantity, setQuantity] = useState(1)
-//   const [price, setPrice] = useState<number | null>(null)
-//   const [currentOrderType, setCurrentOrderType] = useState('CNC')
-//   const [loading, setLoading] = useState(false)
-//   const [selectedStock, setSelectedStock] = useState(stock)
-
-//   useEffect(() => {
-//     setSelectedStock(stock)
-//     if (stock) {
-//       setPrice(stock.ltp)
-//       if (stock.segment === 'NFO') {
-//         setCurrentOrderType('DELIVERY')
-//         setQuantity(stock.lot_size || 1)
-//       } else {
-//         setQuantity(1)
-//         setCurrentOrderType('CNC')
-//       }
-//     }
-//   }, [stock])
-
-//   const availableMargin = portfolio?.account?.availableMargin || 0;
-
-//   // Margin calculation logic
-//   const marginRequired = useMemo(() => {
-//     if (!selectedStock || !price || quantity <= 0) return 0;
-
-//     const baseValue = quantity * price;
-
-//     if (selectedStock.segment === 'NSE') {
-//       if (currentOrderType === 'MIS') {
-//         return baseValue / 200; // 200x margin
-//       } else {
-//         return baseValue / 50; // 50x margin
-//       }
-//     }
-
-//     if (selectedStock.segment === 'NFO') {
-//       return baseValue / 100; // 100x margin for F&O
-//     }
-
-//     return baseValue;
-//   }, [selectedStock, quantity, price, currentOrderType]);
-
-
-//   const handleSubmit = async () => {
-//     if (!selectedStock || quantity <= 0 || (price !== null && price <= 0)) {
-//       toast({
-//         title: "Invalid Order",
-//         description: "Please check your quantity and price.",
-//         variant: "destructive",
-//       })
-//       return
-//     }
-
-//     if (marginRequired > availableMargin) {
-//       toast({
-//         title: "Insufficient Margin",
-//         description: `You need ₹${marginRequired.toFixed(2)} but only have ₹${availableMargin.toFixed(2)} available.`,
-//         variant: "destructive",
-//       })
-//       return
-//     }
-
-//     setLoading(true)
-
-//     try {
-//       await placeOrder({
-//         tradingAccountId: portfolio.account.id,
-//         stockId: selectedStock.id,
-//         symbol: selectedStock.symbol,
-//         quantity,
-//         price,
-//         orderType: price === null ? OrderType.MARKET : OrderType.LIMIT,
-//         orderSide,
-//         segment: selectedStock.segment,
-//         productType: currentOrderType === 'MIS' ? 'INTRADAY' : 'DELIVERY',
-//       })
-
-//       toast({
-//         title: "Order Placed",
-//         description: `${quantity} shares of ${selectedStock.symbol} submitted successfully.`,
-//       })
-//       onOrderPlaced()
-//       onClose()
-//     } catch (error) {
-//       console.error(error)
-//       toast({
-//         title: "Failed to Place Order",
-//         description: "Something went wrong. Please try again.",
-//         variant: "destructive",
-//       })
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const formatCurrency = (amount: number) => `₹${(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-//   if (!selectedStock) return null
-
-//   return (
-//     <Dialog open={isOpen} onOpenChange={onClose}>
-//       <DialogContent className="sm:max-w-md bg-white">
-//         <DialogHeader>
-//           <DialogTitle className="flex items-center gap-2">
-//             <DollarSign className="h-5 w-5 text-green-600" />
-//             Place Order
-//           </DialogTitle>
-//         </DialogHeader>
-
-//         <div className="space-y-4">
-//           <div className="bg-gray-50 p-3 rounded-md border flex justify-between items-center">
-//             <div>
-//               <h3 className="font-semibold text-gray-900">{selectedStock.symbol}</h3>
-//               <p className="text-sm text-gray-600">{selectedStock.name}</p>
-//             </div>
-//             <div className="flex-shrink-0 text-right">
-//               <span className="font-mono font-bold text-lg text-gray-900">
-//                 ₹{selectedStock.ltp?.toFixed(2)}
-//               </span>
-//             </div>
-//           </div>
-
-//           <div className="flex justify-center gap-2">
-//             <Button
-//               onClick={() => setOrderSide("BUY")}
-//               className={`flex-1 rounded-full ${orderSide === "BUY" ? 'bg-green-600' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
-//             >
-//               Buy
-//             </Button>
-//             <Button
-//               onClick={() => setOrderSide("SELL")}
-//               className={`flex-1 rounded-full ${orderSide === "SELL" ? 'bg-red-600' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
-//             >
-//               Sell
-//             </Button>
-//           </div>
-
-//           <Tabs value={currentOrderType} onValueChange={setCurrentOrderType}>
-//             <TabsList className="grid w-full grid-cols-2">
-//               <TabsTrigger value="MIS" disabled={selectedStock.segment === 'NFO'}>Intraday (MIS)</TabsTrigger>
-//               <TabsTrigger value="CNC">Delivery (CNC)</TabsTrigger>
-//             </TabsList>
-//             <TabsContent value="MIS" className="mt-4">
-//               <p className="text-sm text-gray-500">MIS orders are for intraday trades and require less margin.</p>
-//             </TabsContent>
-//             <TabsContent value="CNC" className="mt-4">
-//               <p className="text-sm text-gray-500">CNC orders are for holding positions longer than one day.</p>
-//             </TabsContent>
-//           </Tabs>
-
-//           {selectedStock.segment === 'NFO' && (
-//             <div className="flex items-center justify-between p-2 rounded-md bg-yellow-50 border border-yellow-200">
-//               <span className="text-sm text-yellow-800 font-medium">
-//                 <Package className="h-4 w-4 inline mr-2"/>
-//                 F&O orders must be in lots. Lot Size: {selectedStock.lot_size}
-//               </span>
-//             </div>
-//           )}
-
-//           <div className="grid grid-cols-2 gap-3">
-//             <div className="space-y-1">
-//               <Label>Quantity</Label>
-//               <Input
-//                 type="number"
-//                 value={quantity}
-//                 onChange={(e) => setQuantity(Number(e.target.value))}
-//                 min={selectedStock.segment === 'NFO' ? selectedStock.lot_size : 1}
-//                 step={selectedStock.segment === 'NFO' ? selectedStock.lot_size : 1}
-//               />
-//             </div>
-//             <div className="space-y-1">
-//               <Label>Price</Label>
-//               <Input
-//                 type="number"
-//                 value={price !== null ? price : ''}
-//                 onChange={(e) => setPrice(Number(e.target.value))}
-//                 placeholder="Market Price"
-//                 step="0.05"
-//               />
-//             </div>
-//           </div>
-
-//           <div className="flex items-center justify-between font-mono text-sm">
-//             <span className="text-gray-600">Available Margin</span>
-//             <span className="font-semibold text-green-600">
-//               {formatCurrency(availableMargin)}
-//             </span>
-//           </div>
-//           <div className="flex items-center justify-between font-mono text-sm">
-//             <span className="text-gray-600 flex items-center gap-1">
-//               <Calculator className="h-4 w-4"/>
-//               Margin Required
-//             </span>
-//             <span className="font-semibold text-gray-900">
-//               {formatCurrency(marginRequired)}
-//             </span>
-//           </div>
-
-//         </div>
-//         <div className="flex gap-2 mt-4">
-//           <Button
-//             onClick={handleSubmit}
-//             disabled={loading}
-//             className="flex-1"
-//           >
-//             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Place Order"}
-//           </Button>
-//           <Button variant="outline" onClick={onClose} className="flex-1">
-//             Cancel
-//           </Button>
-//         </div>
-//       </DialogContent>
-//     </Dialog>
-//   )
-// }
-
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -266,9 +19,10 @@ interface OrderDialogProps {
   portfolio: any | null
   onOrderPlaced: () => void
   drawer?: boolean // 👈 flag to render drawer instead of modal
+  session?: any // Pass session data for logging
 }
 
-export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, drawer }: OrderDialogProps) {
+export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, drawer, session }: OrderDialogProps) {
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY")
   const [quantity, setQuantity] = useState(1)
   const [price, setPrice] = useState<number | null>(null)
@@ -279,7 +33,6 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   const { quotes } = useMarketData()
   const q = selectedStock ? quotes?.[selectedStock.instrumentId] : null
-  const currentLtp = useMemo(() => (q?.display_price ?? q?.last_trade_price ?? selectedStock?.ltp ?? 0), [q, selectedStock])
 
   useEffect(() => {
     setSelectedStock(stock)
@@ -299,9 +52,8 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   // Margin calculation logic
   const marginRequired = useMemo(() => {
-    if (!selectedStock || quantity <= 0) return 0
-    const tradePrice = isMarket ? currentLtp : (price ?? currentLtp)
-    const baseValue = quantity * (tradePrice || 0)
+    if (!selectedStock || !price || quantity <= 0) return 0
+    const baseValue = quantity * price
 
     if (selectedStock.segment === "NSE") {
       return currentOrderType === "MIS" ? baseValue / 200 : baseValue / 50
@@ -310,13 +62,12 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       return baseValue / 100
     }
     return baseValue
-  }, [selectedStock, quantity, price, currentOrderType, isMarket, currentLtp])
+  }, [selectedStock, quantity, price, currentOrderType])
 
   // Brokerage calculation (realistic, like Kite)
   const brokerage = useMemo(() => {
-    if (!selectedStock || quantity <= 0) return 0
-    const tradePrice = isMarket ? currentLtp : (price ?? currentLtp)
-    const baseValue = quantity * (tradePrice || 0)
+    if (!selectedStock || !price || quantity <= 0) return 0
+    const baseValue = quantity * price
     // Equity: 0.03% or ₹20 max per order
     // F&O: ₹20 per lot
     if (selectedStock.segment === "NSE") {
@@ -326,7 +77,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       return (selectedStock.lot_size || 1) * 20
     }
     return 0
-  }, [selectedStock, quantity, price, isMarket, currentLtp])
+  }, [selectedStock, quantity, price])
 
   const totalCost = marginRequired + brokerage
 
@@ -349,6 +100,9 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
     try {
       await placeOrder({
         tradingAccountId: portfolio.account.id,
+        userId: session?.user?.id,
+        userName: session?.user?.name,
+        userEmail: session?.user?.email,
         stockId: selectedStock.id,
         symbol: selectedStock.symbol,
         quantity,
@@ -358,7 +112,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         segment: selectedStock.segment,
         productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
         instrumentId: selectedStock.instrumentId,
-        session: { user: { id: "current-user", clientId: "client-123" } }, // TODO: Get from actual session
+        session
       })
       toast({ title: "Order Placed", description: `${quantity} ${selectedStock.symbol} submitted.` })
       onOrderPlaced()
@@ -416,7 +170,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             </div>
             <div className="text-right">
               <span className="font-mono font-bold text-lg">
-                ₹{Number(currentLtp || 0).toFixed(2)}
+                ₹{selectedStock.ltp?.toFixed(2)}
               </span>
               {/* {q && (
                 <p className={`text-xs ${q.change >= 0 ? "text-green-600" : "text-red-600"}`}>{q.change.toFixed(2)} ({q.change_percent.toFixed(2)}%)</p>
@@ -482,7 +236,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
               <Label>Price</Label>
               <Input
                 type="number"
-                value={isMarket ? "" : (price ?? "")}
+                value={isMarket ? "" : price ?? ""}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 placeholder="Market"
                 disabled={isMarket}
@@ -500,17 +254,17 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
           </div>
 
           {/* Market Depth */}
-          {q?.depth && (
+          {(q as any)?.depth && (
             <div className="grid grid-cols-2 gap-4 text-xs font-mono">
               <div>
                 <p className="font-bold text-green-600">Bids</p>
-                {q.depth.buy.slice(0, 5).map((b: any, i: number) => (
+                {(q as any).depth.buy.slice(0, 5).map((b: any, i: number) => (
                   <p key={i}>₹{b.price} × {b.qty}</p>
                 ))}
               </div>
               <div>
                 <p className="font-bold text-red-600">Asks</p>
-                {q.depth.sell.slice(0, 5).map((a: any, i: number) => (
+                {(q as any).depth.sell.slice(0, 5).map((a: any, i: number) => (
                   <p key={i}>₹{a.price} × {a.qty}</p>
                 ))}
               </div>
@@ -522,7 +276,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             <div className="space-y-1">
               <div className="flex justify-between">
                 <span className="text-gray-600">Order Value</span>
-                <span className="font-mono">₹{(((isMarket ? currentLtp : (price ?? currentLtp)) || 0) * quantity).toFixed(2)}</span>
+                <span className="font-mono">₹{((price || 0) * quantity).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Margin</span>

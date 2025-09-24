@@ -82,16 +82,16 @@ export function OrderManagement({ orders, onOrderUpdate }: OrderManagementProps)
   return (
     <div className="space-y-6 pb-20">
       <div className="flex items-center gap-2">
-        <FileText className="h-7 w-7 text-blue-600" />
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Orders</h2>
+        <FileText className="h-7 w-7 text-primary" />
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Orders</h2>
       </div>
 
       <Tabs value={currentOrderTab} onValueChange={setCurrentOrderTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 rounded-2xl bg-gray-100 dark:bg-gray-900 p-1">
-          <TabsTrigger value="all" className="rounded-xl data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800">All</TabsTrigger>
-          <TabsTrigger value="pending" className="rounded-xl data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800">Pending</TabsTrigger>
-          <TabsTrigger value="executed" className="rounded-xl data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800">Executed</TabsTrigger>
-          <TabsTrigger value="cancelled" className="rounded-xl data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800">Cancelled</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 rounded-2xl bg-muted p-1">
+          <TabsTrigger value="all" className="rounded-xl data-[state=active]:bg-card">All</TabsTrigger>
+          <TabsTrigger value="pending" className="rounded-xl data-[state=active]:bg-card">Pending</TabsTrigger>
+          <TabsTrigger value="executed" className="rounded-xl data-[state=active]:bg-card">Executed</TabsTrigger>
+          <TabsTrigger value="cancelled" className="rounded-xl data-[state=active]:bg-card">Cancelled</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -103,7 +103,7 @@ export function OrderManagement({ orders, onOrderUpdate }: OrderManagementProps)
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <Card className="rounded-xl shadow-sm border-gray-200 dark:border-gray-700 p-6 text-center text-gray-500">
+              <Card className="rounded-xl shadow-sm border border-border p-6 text-center text-muted-foreground">
                 <p>No {currentOrderTab} orders found.</p>
               </Card>
             </motion.div>
@@ -116,11 +116,11 @@ export function OrderManagement({ orders, onOrderUpdate }: OrderManagementProps)
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <Card className="rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all bg-white dark:bg-gray-800">
+                <Card className="rounded-2xl shadow-md border border-border hover:shadow-lg transition-all bg-card">
                   <CardContent className="p-5 flex items-center justify-between">
                     <div className="flex-1 space-y-1">
-                      <h3 className="font-bold text-lg text-gray-900 dark:text-white">{order.symbol}</h3>
-                      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <h3 className="font-bold text-lg text-foreground">{order.symbol}</h3>
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         <Badge variant={order.orderSide === 'BUY' ? 'success' : 'destructive'}>{order.orderSide}</Badge>
                         <Badge variant="outline">{order.orderType}</Badge>
                         <Badge variant="outline">{order.status}</Badge>
@@ -131,7 +131,7 @@ export function OrderManagement({ orders, onOrderUpdate }: OrderManagementProps)
                     <div className="flex items-center gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                          <Button variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-muted">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>

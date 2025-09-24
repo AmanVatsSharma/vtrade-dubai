@@ -13,12 +13,20 @@ This document describes the comprehensive Vortex API integration implemented in 
 - **Timeout Handling**: Configurable timeouts for API requests
 - **Retry Logic**: Built-in retry mechanisms for failed requests
 
-### 2. Advanced Logging System (`lib/logger.ts`)
+### 2. Advanced Logging System (`lib/vortex/vortexLogger.ts`)
 - **Structured Logging**: Categorized logging by operation type
 - **Multiple Log Levels**: DEBUG, INFO, WARN, ERROR, CRITICAL
 - **Contextual Information**: User IDs, session IDs, processing times
 - **Development/Production Modes**: Different logging strategies
 - **Vortex-Specific Methods**: Dedicated logging for Vortex operations
+- **Configurable Disable**: Environment variable to disable all logging when needed
+
+#### Logging Configuration
+The Vortex logger can be completely disabled using an environment variable:
+- Set `DISABLE_VORTEX_LOGGER=true` to disable all logging operations
+- This is useful for performance optimization or when you want to reduce log noise
+- When disabled, all logger methods return immediately without any processing
+- Use `logger.isLoggingDisabled()` to check if logging is currently disabled
 
 ### 3. Enhanced Admin Login UI (`app/(admin)/admin/auth/login/page.tsx`)
 - **System Status Monitoring**: Real-time status of database, Vortex API, and configuration
@@ -56,6 +64,9 @@ NEXT_PUBLIC_VORTEX_APPLICATION_ID="your-vortex-application-id"
 # Application Configuration
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 NODE_ENV="development"
+
+# Logging Configuration (Optional)
+DISABLE_VORTEX_LOGGER="true"  # Set to 'true' to disable all Vortex logging
 
 # JWT Secret
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"

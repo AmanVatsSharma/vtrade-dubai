@@ -1,5 +1,7 @@
 // lib/logger.ts
-import { prisma } from './prisma';
+// Vortex Logger with configurable disable option
+// Set DISABLE_VORTEX_LOGGER=true environment variable to disable all logging
+import { prisma } from '../prisma';
 
 export enum LogLevel {
   DEBUG = 'DEBUG',
@@ -36,9 +38,11 @@ interface LogEntry {
 class Logger {
   private static instance: Logger;
   private isDevelopment: boolean;
+  private isDisabled: boolean;
 
   private constructor() {
     this.isDevelopment = process.env.NODE_ENV === 'development';
+    this.isDisabled = process.env.DISABLE_VORTEX_LOGGER === 'true';
   }
 
   public static getInstance(): Logger {
@@ -46,6 +50,10 @@ class Logger {
       Logger.instance = new Logger();
     }
     return Logger.instance;
+  }
+
+  public isLoggingDisabled(): boolean {
+    return this.isDisabled;
   }
 
   private async saveToDatabase(logEntry: LogEntry): Promise<void> {
@@ -72,6 +80,11 @@ class Logger {
   }
 
   public async log(entry: LogEntry): Promise<void> {
+    // Skip all logging if disabled
+    if (this.isDisabled) {
+      return;
+    }
+
     const timestamp = new Date();
     const logEntry = { ...entry, timestamp };
 

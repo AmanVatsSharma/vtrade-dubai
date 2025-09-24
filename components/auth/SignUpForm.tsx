@@ -46,7 +46,10 @@ const SignUpForm = () => {
                         // router.push('/auth/email-verification')
                     }
                 })
-                .catch(() => setError("Something went wrong!"))
+                .catch((error) => {
+                    console.error("Registration error:", error)
+                    setError("Something went wrong! Please try again.")
+                })
         })
     }
 

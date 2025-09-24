@@ -187,7 +187,10 @@ const DELETE_ORDER = gql`
 const SEARCH_STOCKS = gql`
   query SearchStocks($query: String!) {
     stockCollection(
-      filter: { and: [{ isActive: { eq: true } }, { or: [{ name: { ilike: $query } }, { ticker: { ilike: $query } }] }] },
+      filter: { and: [
+        { isActive: { eq: true } },
+        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } }, { symbol: { ilike: $query } } ] }
+      ]},
       first: 10
     ) {
       edges {
@@ -202,7 +205,7 @@ const SEARCH_STOCKS_EQUITY = gql`
     stockCollection(
       filter: { and: [
         { isActive: { eq: true } },
-        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } } ] },
+        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } }, { symbol: { ilike: $query } } ] },
         { or: [ { segment: { eq: "NSE" } }, { segment: { eq: "NSE_EQ" } } ] }
       ]},
       first: 20
@@ -217,9 +220,9 @@ const SEARCH_STOCKS_FUTURES = gql`
     stockCollection(
       filter: { and: [
         { isActive: { eq: true } },
-        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } } ] },
+        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } }, { symbol: { ilike: $query } } ] },
         { segment: { eq: "NFO" } },
-        { optionType: { is: null } }
+        { optionType: { is: NULL } }
       ]},
       first: 20
     ) {
@@ -233,9 +236,9 @@ const SEARCH_STOCKS_OPTIONS = gql`
     stockCollection(
       filter: { and: [
         { isActive: { eq: true } },
-        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } } ] },
+        { or: [ { name: { ilike: $query } }, { ticker: { ilike: $query } }, { symbol: { ilike: $query } } ] },
         { segment: { eq: "NFO" } },
-        { optionType: { is: notNull } }
+        { optionType: { is: NOT_NULL } }
       ]},
       first: 20
     ) {
@@ -555,8 +558,7 @@ export function useOrders(userId?: string) {
 
   const orders = useMemo(() => data?.ordersCollection?.edges?.map((e: any) => ({ ...e.node, price: e.node.price != null ? toNumber(e.node.price) : null, averagePrice: e.node.averagePrice != null ? toNumber(e.node.averagePrice) : null })) ?? [], [data])
 
-  // Do not report loading just because account is not present yet
-  return { orders, isLoading: loading, isError: !!error, error, mutate: refetch }
+  return { orders, isLoading: loading || !tradingAccountId, isError: !!error, error, mutate: refetch }
 }
 
 export function usePositions(userId?: string) {
@@ -578,8 +580,7 @@ export function usePositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
-  // Do not report loading just because account is not present yet
-  return { positions, isLoading: loading, isError: !!error, error, mutate: refetch }
+  return { positions, isLoading: loading || !tradingAccountId, isError: !!error, error, mutate: refetch }
 }
 
 export function useOrdersAndPositions(userId?: string) {
@@ -609,11 +610,10 @@ export function useOrdersAndPositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
-  // Do not report loading just because account is not present yet
   return {
     orders,
     positions,
-    isLoading: loading,
+    isLoading: loading || !tradingAccountId,
     isError: !!error,
     error,
     mutate: refetch
@@ -756,84 +756,45 @@ export async function placeOrder(orderData: { userId?: string, userName?: string
     try {
         await logger?.logSystemEvent("ORDER_START", `Starting order placement for ${orderData.symbol}`)
         
-        // Normalize tradingAccountId
-        let tradingAccountId = orderData.tradingAccountId
-        if (!tradingAccountId) {
-            if (!orderData.userId) throw new Error('User context missing')
-            const ensured = await ensureUserAndAccount(client, orderData.userId, orderData.userName, orderData.userEmail)
-            tradingAccountId = ensured.tradingAccountId
-        }
-        const orderId = generateUUID()
-        let executionPrice = orderData.price ?? 0
+        // Normalize product type to backend-expected values
+        const normalizedProductType = (() => {
+          const pt = (orderData.productType || '').toUpperCase()
+          if (pt === 'INTRADAY' || pt === 'MIS') return 'MIS'
+          if (pt === 'DELIVERY' || pt === 'CNC') return 'DELIVERY'
+          return orderData.productType
+        })()
 
-        if (orderData.orderType === "MARKET") {
-            await logger?.logApiCall(`/api/quotes?q=${orderData.instrumentId}&mode=ltp`, "GET", 200)
-            const res = await fetch(`/api/quotes?q=${orderData.instrumentId}&mode=ltp`)
-            const quoteData = await res.json()
-            if ((quoteData?.status === "success" && quoteData?.data?.[orderData.instrumentId]) || (quoteData?.success && quoteData?.data?.data?.[orderData.instrumentId])) {
-                const payload = quoteData?.success ? quoteData.data.data : quoteData.data
-                executionPrice = toNumber(payload[orderData.instrumentId].last_trade_price)
-                await logger?.logSystemEvent("LTP_FETCHED", `LTP fetched: ₹${executionPrice}`)
-            } else {
-                throw new Error("Could not fetch LTP for market order execution.")
-            }
-        }
-
-        // Insert order with PENDING status
-        await client.mutate({ mutation: INSERT_ORDER, variables: { objects: [{ id: orderId, tradingAccountId, symbol: orderData.symbol, stockId: orderData.stockId, quantity: orderData.quantity, price: orderData.orderType === 'LIMIT' ? executionPrice.toFixed(2) : null, orderType: orderData.orderType, orderSide: orderData.orderSide, productType: orderData.productType ?? "MIS", status: "PENDING" }] } })
-        
-        await logger?.logOrderPlaced({
-            id: orderId,
-            symbol: orderData.symbol,
-            quantity: orderData.quantity,
-            orderType: orderData.orderType,
-            orderSide: orderData.orderSide,
-            price: orderData.price,
-            productType: orderData.productType,
-            status: "PENDING"
+        // Call server-side order placement API
+        const response = await fetch('/api/trading/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tradingAccountId: orderData.tradingAccountId,
+                userId: orderData.userId,
+                userName: orderData.userName,
+                userEmail: orderData.userEmail,
+                stockId: orderData.stockId,
+                instrumentId: orderData.instrumentId,
+                symbol: orderData.symbol,
+                quantity: orderData.quantity,
+                price: orderData.price,
+                orderType: orderData.orderType,
+                orderSide: orderData.orderSide,
+                productType: normalizedProductType ?? "MIS",
+                segment: orderData.segment
+            })
         })
 
-        setTimeout(async () => {
-            try {
-                await logger?.logSystemEvent("ORDER_EXECUTION_START", `Starting execution for order ${orderId}`)
-                
-                // Mark executed
-                await client.mutate({ mutation: UPDATE_ORDER, variables: { id: orderId, set: { status: "EXECUTED", filledQuantity: orderData.quantity, averagePrice: executionPrice.toFixed(2), executedAt: new Date().toISOString() } } })
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Failed to place order')
+        }
 
-                // Funds handling - Calculate charges and margin first
-                const turnover = orderData.quantity * executionPrice
-                const { totalCharges, brokerage } = computeCharges(orderData.segment, turnover)
-                const requiredMargin = computeRequiredMargin(orderData.segment, turnover, orderData.productType)
+        const result = await response.json()
+        
+        await logger?.logSystemEvent("ORDER_PLACED", `Order ${result.orderId} placed successfully for ${orderData.symbol}`)
 
-                await logger?.logSystemEvent("FUNDS_CALCULATION", `Calculated charges: ₹${totalCharges}, margin: ₹${requiredMargin}`)
-
-                // Deduct funds via unified Funds API
-                await manageFunds(tradingAccountId, Math.floor(requiredMargin), 'BLOCK')
-                await manageFunds(tradingAccountId, Math.floor(totalCharges), 'DEBIT')
-
-                // Position update AFTER funds are deducted
-                await createOrUpdatePosition(client, { tradingAccountId, symbol: orderData.symbol, stockId: orderData.stockId, quantity: orderData.quantity, orderSide: orderData.orderSide, price: executionPrice.toFixed(2) })
-                
-                await logger?.logOrderExecuted({
-                    id: orderId,
-                    symbol: orderData.symbol,
-                    quantity: orderData.quantity
-                }, {
-                    executionPrice,
-                    brokerage,
-                    totalCharges,
-                    marginRequired: requiredMargin
-                })
-                
-                await logger?.logSystemEvent("ORDER_EXECUTION_COMPLETE", `Order ${orderId} executed successfully`)
-                
-            } catch (executionError) { 
-                await logger?.logError(executionError as Error, "Order execution", { orderId })
-                console.error("Error during simulated order execution:", executionError) 
-            }
-        }, 1500)
-
-        return { success: true, orderId }
+        return { success: true, orderId: result.orderId }
     } catch (error: any) {
         await logger?.logError(error, "Order placement", orderData)
         console.error("Error placing order:", JSON.stringify(error, null, 2))
@@ -843,24 +804,48 @@ export async function placeOrder(orderData: { userId?: string, userName?: string
 
 export async function cancelOrder(orderId: string) {
   try {
-    await client.mutate({ mutation: UPDATE_ORDER, variables: { id: orderId, set: { status: "CANCELLED" } } })
+    const response = await fetch('/api/trading/orders', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId })
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to cancel order')
+    }
+    return await response.json()
   } catch (error) {
     console.error("Error cancelling order:", error); throw new Error("Failed to cancel order.")
   }
 }
 export async function modifyOrder(orderId: string, updates: { price?: number; quantity?: number }) {
   try {
-    const setPayload: any = {};
-    if (updates.price !== undefined) setPayload.price = updates.price.toFixed(2);
-    if (updates.quantity !== undefined) setPayload.quantity = updates.quantity;
-    await client.mutate({ mutation: UPDATE_ORDER, variables: { id: orderId, set: setPayload } })
+    const response = await fetch('/api/trading/orders', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, ...updates })
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to modify order')
+    }
+    return await response.json()
   } catch (error) {
     console.error("Error modifying order:", error); throw new Error("Failed to modify order.")
   }
 }
 export async function deleteOrder(orderId: string) {
   try {
-    await client.mutate({ mutation: DELETE_ORDER, variables: { id: orderId } })
+    const response = await fetch('/api/trading/orders', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId })
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to delete order')
+    }
+    return await response.json()
   } catch (error) {
     console.error("Error deleting order:", error); throw new Error("Failed to delete order.")
   }
@@ -871,79 +856,21 @@ export async function closePosition(positionId: string, session?: any) {
   try {
     await logger?.logSystemEvent("POSITION_CLOSE_START", `Starting position close for ${positionId}`)
     
-    // 1) Fetch the position with instrumentId for LTP
-    const { data } = await client.query({ query: GET_POSITION_BY_ID, variables: { id: positionId }, fetchPolicy: "network-only" })
-    const pos = data?.positionsCollection?.edges?.[0]?.node
-    if (!pos) throw new Error("Position not found")
-
-    const quantity = Number(pos.quantity)
-    const avg = toNumber(pos.averagePrice)
-
-    await logger?.logSystemEvent("POSITION_FETCHED", `Position: ${pos.symbol} ${quantity} @ ₹${avg}`)
-
-    // 2) Fetch LTP to simulate exit price
-    let exitPrice = avg
-    try {
-      if (pos.stock?.instrumentId) {
-        const res = await fetch(`/api/quotes?q=${pos.stock.instrumentId}&mode=ltp`)
-        const quoteData = await res.json()
-        const payload = quoteData?.success ? quoteData.data.data : quoteData
-        const ltp = payload?.data?.[pos.stock.instrumentId]?.last_trade_price || payload?.[pos.stock.instrumentId]?.last_trade_price
-        if (ltp != null) exitPrice = toNumber(ltp)
-        await logger?.logSystemEvent("EXIT_PRICE_FETCHED", `Exit price: ₹${exitPrice}`)
-      }
-    } catch {}
-
-    // 3) Compute realized P&L
-    const realizedPnl = (exitPrice - avg) * quantity
-
-    await logger?.logSystemEvent("P&L_CALCULATED", `Realized P&L: ₹${realizedPnl.toFixed(2)}`)
-
-    // 4) Update position to quantity 0 and set realized P&L into pnl fields for display
-    await client.mutate({
-      mutation: UPDATE_POSITION,
-      variables: { id: positionId, set: { quantity: 0, stopLoss: null, target: null, unrealizedPnL: realizedPnl.toFixed(2), dayPnL: realizedPnl.toFixed(2) } }
+    const response = await fetch('/api/trading/positions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positionId, tradingAccountId: session?.user?.tradingAccountId })
     })
 
-    await logger?.logPositionClosed({
-      id: positionId,
-      symbol: pos.symbol,
-      exitPrice
-    }, realizedPnl)
-
-    // 5) Update account funds via unified Funds API: release margin, then apply realized P&L
-    // Determine correct margin to release using the original productType and stock segment
-    const turnover = Math.abs(quantity) * avg
-    let productTypeForClose: string | undefined = undefined
-    try {
-      const { data: lastOrderData } = await client.query({
-        query: GET_LAST_EXECUTED_ORDER_FOR_SYMBOL,
-        variables: { tradingAccountId: pos.tradingAccountId, symbol: pos.symbol },
-        fetchPolicy: 'network-only'
-      })
-      productTypeForClose = lastOrderData?.ordersCollection?.edges?.[0]?.node?.productType
-    } catch {}
-    const segmentForClose = pos.stock?.segment
-    const releasedMargin = computeRequiredMargin(segmentForClose, turnover, productTypeForClose)
-
-    await manageFunds(pos.tradingAccountId, Math.floor(releasedMargin), 'RELEASE')
-    if (realizedPnl !== 0) {
-      const creditOrDebit = realizedPnl >= 0 ? 'CREDIT' : 'DEBIT'
-      await manageFunds(pos.tradingAccountId, Math.floor(Math.abs(realizedPnl)), creditOrDebit)
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to close position')
     }
 
-    // 6) Log transaction creation via logger (funds API already inserts the transaction)
-    if (realizedPnl !== 0) {
-      await logger?.logTransactionCreated({
-        tradingAccountId: pos.tradingAccountId,
-        amount: Math.abs(realizedPnl),
-        type: realizedPnl >= 0 ? 'CREDIT' : 'DEBIT',
-        description: `Realized P&L for ${pos.symbol} @ ₹${exitPrice.toFixed(2)}`
-      })
-    }
-    
+    const result = await response.json()
     await logger?.logSystemEvent("POSITION_CLOSE_COMPLETE", `Position ${positionId} closed successfully`)
     
+    return result
   } catch (error) {
     await logger?.logError(error as Error, "Position closure", { positionId })
     console.error("Error closing position:", error); 
@@ -952,14 +879,32 @@ export async function closePosition(positionId: string, session?: any) {
 }
 export async function updateStopLoss(positionId: string, stopLoss: number) {
   try {
-    await client.mutate({ mutation: UPDATE_POSITION, variables: { id: positionId, set: { stopLoss: stopLoss.toFixed(2) } } })
+    const response = await fetch('/api/trading/positions', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positionId, updates: { stopLoss } })
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update stop loss')
+    }
+    return await response.json()
   } catch (error) {
     console.error("Error updating stop loss:", error); throw new Error("Failed to update stop loss.")
   }
 }
 export async function updateTarget(positionId: string, target: number) {
   try {
-    await client.mutate({ mutation: UPDATE_POSITION, variables: { id: positionId, set: { target: target.toFixed(2) } } })
+    const response = await fetch('/api/trading/positions', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positionId, updates: { target } })
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update target')
+    }
+    return await response.json()
   } catch (error) {
     console.error("Error updating target:", error); throw new Error("Failed to update target.")
   }

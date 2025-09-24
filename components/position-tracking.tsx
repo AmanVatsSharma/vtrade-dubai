@@ -1,18 +1,24 @@
-
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Target, TrendingDown, X, Loader2 } from "lucide-react"
+import { motion, AnimatePresence, PanInfo, useMotionValue, useTransform, useAnimation } from "framer-motion"
+import { 
+  TrendingUp, TrendingDown, Target, X, Loader2,
+  Activity, DollarSign, Clock, Shield, AlertCircle,
+  Percent, Hash, BarChart3, Sparkles, 
+  ArrowUpRight, ArrowDownRight
+} from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { closePosition, updateStopLoss, updateTarget } from "@/lib/hooks/use-trading-data"
+import { cn } from "@/lib/utils"
 
+// Types
 interface Position {
   id: string;
   symbol: string;
@@ -28,12 +34,353 @@ interface Position {
   lotSize?: number;
   unrealizedPnL: number;
 }
-interface Quote { last_trade_price: number }
-interface PositionTrackingProps {
-  positions: Position[]; quotes: Record<string, Quote>; onPositionUpdate: () => void;
+
+interface Quote { 
+  last_trade_price: number 
 }
 
-export function PositionTracking({ positions, quotes, onPositionUpdate }: PositionTrackingProps) {
+interface PositionTrackingProps {
+  positions: Position[];
+  quotes: Record<string, Quote>;
+  onPositionUpdate: () => void;
+  tradingAccountId?: string;
+}
+
+// Position filters
+const POSITION_FILTERS = [
+  { id: 'all', label: 'All', icon: BarChart3 },
+  { id: 'long', label: 'Long', icon: TrendingUp },
+  { id: 'short', label: 'Short', icon: TrendingDown },
+  { id: 'profit', label: 'Profit', icon: ArrowUpRight },
+  { id: 'loss', label: 'Loss', icon: ArrowDownRight },
+  { id: 'today', label: "Today's", icon: Clock },
+] as const
+
+type FilterType = typeof POSITION_FILTERS[number]['id']
+
+// Swipeable Position Card Component
+const SwipeablePositionCard = ({ 
+  position, 
+  quote, 
+  onClose, 
+  onStopLoss, 
+  onTarget,
+  isLoading 
+}: {
+  position: Position
+  quote: Quote | null
+  onClose: () => void
+  onStopLoss: () => void
+  onTarget: () => void
+  isLoading: boolean
+}) => {
+  const x = useMotionValue(0)
+  const controls = useAnimation()
+  const cardRef = useRef<HTMLDivElement>(null)
+  
+  const background = useTransform(
+    x,
+    [-200, 0, 200],
+    ["rgba(239, 68, 68, 0.15)", "rgba(0, 0, 0, 0)", "rgba(34, 197, 94, 0.15)"]
+  )
+
+  const rotateY = useTransform(x, [-200, 200], [-15, 15])
+  const opacity = useTransform(x, [-200, -150, 0, 150, 200], [0.5, 1, 1, 1, 0.5])
+
+  // Calculate P&L
+  const isFutures = position.segment === "NFO" && !position.optionType
+  const isOption = position.segment === "NFO" && !!position.optionType
+  const isClosed = position.quantity === 0
+
+  let displayPnL: number
+  let displayPnLPercent: number
+  let currentPrice: number
+
+  if (isClosed) {
+    displayPnL = position.unrealizedPnL ?? 0
+    displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0
+    currentPrice = position.averagePrice
+  } else {
+    currentPrice = quote?.last_trade_price || position.averagePrice
+    displayPnL = (currentPrice - position.averagePrice) * position.quantity
+    displayPnLPercent = position.averagePrice !== 0 
+      ? ((currentPrice - position.averagePrice) / position.averagePrice) * 100 
+      : 0
+  }
+
+  const isProfitable = displayPnL >= 0
+
+  const handleDragEnd = async (_: any, info: PanInfo) => {
+    const threshold = 100
+    
+    if (info.offset.x < -threshold) {
+      // Left swipe - Close position
+      await controls.start({ x: -300, opacity: 0 })
+      onClose()
+    } else if (info.offset.x > threshold) {
+      // Right swipe - Quick actions
+      toast({
+        title: "Quick Actions",
+        description: "Set SL/Target from the action menu",
+      })
+      controls.start({ x: 0 })
+    } else {
+      controls.start({ x: 0 })
+    }
+  }
+
+  return (
+    <motion.div
+      ref={cardRef}
+      className="relative touch-pan-y"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      {/* Background gradient on swipe */}
+      <motion.div 
+        className="absolute inset-0 rounded-2xl"
+        style={{ background }}
+      />
+      
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: -200, right: 200 }}
+        dragElastic={0.2}
+        onDragEnd={handleDragEnd}
+        style={{ x, rotateY, opacity }}
+        animate={controls}
+        className="relative"
+      >
+        <Card className={cn(
+          "border border-border shadow-lg backdrop-blur-xl transition-all duration-300",
+          "bg-gradient-to-br from-card/90 to-card/70",
+          isClosed && "opacity-75",
+          isProfitable ? "hover:shadow-green-500/20" : "hover:shadow-red-500/20"
+        )}>
+          <CardContent className="p-4 space-y-3">
+            {/* Header Row */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <motion.h3 
+                  className="font-bold text-lg"
+                  whileHover={{ scale: 1.02 }}
+                >
+                  {position.symbol}
+                </motion.h3>
+                
+                {/* Position Type Badges */}
+                <div className="flex gap-1">
+                  {isFutures && (
+                    <Badge className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 text-xs px-2 py-0.5">
+                      FUT
+                    </Badge>
+                  )}
+                  {isOption && (
+                    <Badge className="bg-gradient-to-r from-amber-500 to-amber-600 text-white border-0 text-xs px-2 py-0.5">
+                      {position.optionType}
+                    </Badge>
+                  )}
+                  {position.quantity > 0 ? (
+                    <Badge className="bg-gradient-to-r from-green-500 to-green-600 text-white border-0 text-xs px-2 py-0.5">
+                      LONG
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 text-xs px-2 py-0.5">
+                      SHORT
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Live indicator */}
+                <motion.div
+                  className="w-2 h-2 bg-green-500 rounded-full"
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              </div>
+
+              {/* P&L Display */}
+              <motion.div 
+                className="text-right"
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 3, repeat: Infinity }}
+              >
+                <div className={cn(
+                  "font-bold text-xl font-mono",
+                  isProfitable ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                )}>
+                  {isProfitable ? "+" : ""}₹{Math.abs(displayPnL).toFixed(2)}
+                </div>
+                <div className={cn(
+                  "text-xs flex items-center justify-end gap-1",
+                  isProfitable ? "text-green-600" : "text-red-600"
+                )}>
+                  {isProfitable ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {Math.abs(displayPnLPercent).toFixed(2)}%
+                </div>
+              </motion.div>
+            </div>
+
+            {/* F&O Details Row (if applicable) */}
+            {(isFutures || isOption) && (
+              <div className="flex flex-wrap gap-1.5">
+                {position.expiry && (
+                  <div className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1">
+                    <Clock className="w-3 h-3 text-gray-500" />
+                    <span className="text-xs font-medium">{new Date(position.expiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                )}
+                {isOption && position.strikePrice !== undefined && (
+                  <div className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1">
+                    <Target className="w-3 h-3 text-gray-500" />
+                    <span className="text-xs font-medium">₹{position.strikePrice}</span>
+                  </div>
+                )}
+                {position.lotSize && (
+                  <div className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1">
+                    <Hash className="w-3 h-3 text-gray-500" />
+                    <span className="text-xs font-medium">Lot: {position.lotSize}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-2">
+              <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg p-2">
+                <Hash className="w-4 h-4 text-blue-500" />
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Qty</p>
+                  <p className="text-sm font-bold">{Math.abs(position.quantity)}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg p-2">
+                <DollarSign className="w-4 h-4 text-green-500" />
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Avg</p>
+                  <p className="text-sm font-bold">₹{position.averagePrice.toFixed(2)}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg p-2">
+                <Activity className="w-4 h-4 text-purple-500" />
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">LTP</p>
+                  <p className="text-sm font-bold">₹{currentPrice.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* SL/Target Progress Bar */}
+            {(position.stopLoss || position.target) && !isClosed && (
+              <div className="relative">
+                <div className="flex justify-between text-xs mb-1">
+                  {position.stopLoss && (
+                    <span className="text-red-500 font-medium flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      ₹{position.stopLoss}
+                    </span>
+                  )}
+                  <span className="text-gray-600 dark:text-gray-400 font-mono">
+                    ₹{currentPrice.toFixed(2)}
+                  </span>
+                  {position.target && (
+                    <span className="text-green-500 font-medium flex items-center gap-1">
+                      ₹{position.target}
+                      <Target className="w-3 h-3" />
+                    </span>
+                  )}
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <motion.div 
+                    className={cn(
+                      "h-full rounded-full",
+                      isProfitable 
+                        ? "bg-gradient-to-r from-green-400 to-green-600" 
+                        : "bg-gradient-to-r from-red-400 to-red-600"
+                    )}
+                    initial={{ width: "0%" }}
+                    animate={{ width: "65%" }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Quick Actions Row */}
+            {!isClosed && (
+              <div className="flex gap-2 pt-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onClose}
+                  disabled={isLoading}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg",
+                    "bg-gradient-to-r from-red-500 to-red-600 text-white",
+                    "font-medium text-sm transition-all",
+                    "disabled:opacity-50"
+                  )}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <X className="w-4 h-4" />
+                      Exit
+                    </>
+                  )}
+                </motion.button>
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onStopLoss}
+                  className="flex items-center justify-center w-10 h-10 rounded-lg bg-orange-500/10 hover:bg-orange-500/20"
+                >
+                  <Shield className="w-4 h-4 text-orange-500" />
+                </motion.button>
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onTarget}
+                  className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-500/10 hover:bg-green-500/20"
+                >
+                  <Target className="w-4 h-4 text-green-500" />
+                </motion.button>
+              </div>
+            )}
+
+            {/* Closed Position Indicator */}
+            {isClosed && (
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                  CLOSED
+                </Badge>
+                <span className="text-xs text-gray-500">
+                  Booked P&L • {new Date().toLocaleDateString('en-IN')}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Main Component
+export function PositionTracking({ 
+  positions, 
+  quotes, 
+  onPositionUpdate, 
+  tradingAccountId 
+}: PositionTrackingProps) {
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [stopLossDialogOpen, setStopLossDialogOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
@@ -41,188 +388,500 @@ export function PositionTracking({ positions, quotes, onPositionUpdate }: Positi
   const [targetValue, setTargetValue] = useState(0)
   const [loading, setLoading] = useState<string | null>(null)
 
+  // Calculate P&L Summary
+  const { totalPnL, dayPnL, winRate, totalPositions } = useMemo(() => {
+    let total = 0
+    let day = 0
+    let winners = 0
+    let activePositions = 0
+
+    positions.forEach((pos) => {
+      if (pos.quantity === 0) {
+        total += pos.unrealizedPnL ?? 0
+        day += pos.unrealizedPnL ?? 0
+        if (pos.unrealizedPnL > 0) winners++
+      } else {
+        const quote = pos.instrumentId ? quotes[pos.instrumentId] : null
+        const ltp = quote?.last_trade_price ?? pos.averagePrice
+        const pnl = (ltp - pos.averagePrice) * pos.quantity
+        total += pnl
+        day += pnl
+        if (pnl > 0) winners++
+        activePositions++
+      }
+    })
+
+    const winRate = positions.length > 0 ? (winners / positions.length) * 100 : 0
+
+    return { 
+      totalPnL: total, 
+      dayPnL: day, 
+      winRate,
+      totalPositions: activePositions
+    }
+  }, [positions, quotes])
+
+  // Filter positions
+  const filteredPositions = useMemo(() => {
+    return positions.filter(pos => {
+      switch (activeFilter) {
+        case 'long':
+          return pos.quantity > 0
+        case 'short':
+          return pos.quantity < 0
+        case 'profit':
+          if (pos.quantity === 0) return pos.unrealizedPnL > 0
+          const quote = pos.instrumentId ? quotes[pos.instrumentId] : null
+          const ltp = quote?.last_trade_price ?? pos.averagePrice
+          return (ltp - pos.averagePrice) * pos.quantity > 0
+        case 'loss':
+          if (pos.quantity === 0) return pos.unrealizedPnL < 0
+          const quoteLoss = pos.instrumentId ? quotes[pos.instrumentId] : null
+          const ltpLoss = quoteLoss?.last_trade_price ?? pos.averagePrice
+          return (ltpLoss - pos.averagePrice) * pos.quantity < 0
+        case 'today':
+          // Filter for today's positions (this would need actual date logic)
+          return true
+        default:
+          return true
+      }
+    })
+  }, [positions, quotes, activeFilter])
+
   const handleAction = async (action: 'close' | 'stoploss' | 'target', positionId: string, value?: number) => {
-    setLoading(positionId);
+    setLoading(positionId)
     try {
-      if (action === 'close') await closePosition(positionId, { user: { id: "current-user", clientId: "client-123" } }); // TODO: Get from actual session
-      if (action === 'stoploss' && value) await updateStopLoss(positionId, value);
-      if (action === 'target' && value) await updateTarget(positionId, value);
+      if (action === 'close') {
+        if (!tradingAccountId) throw new Error('Missing trading account')
+        await closePosition(positionId, { 
+          user: { 
+            id: "current-user", 
+            clientId: "client-123", 
+            tradingAccountId 
+          } 
+        })
+        toast({
+          title: "Position Closed",
+          description: "Your position has been closed successfully.",
+          className: "bg-green-500 text-white border-0"
+        })
+      } else if (action === 'stoploss' && value) {
+        await updateStopLoss(positionId, value)
+        toast({
+          title: "Stop Loss Set",
+          description: `Stop loss set at ₹${value}`,
+        })
+      } else if (action === 'target' && value) {
+        await updateTarget(positionId, value)
+        toast({
+          title: "Target Set",
+          description: `Target set at ₹${value}`,
+        })
+      }
 
-      onPositionUpdate();
-
-      if (action === 'stoploss') setStopLossDialogOpen(false);
-      if (action === 'target') setTargetDialogOpen(false);
-
-      toast({ title: `Position Action`, description: `Position ${action} request was successful.` });
+      onPositionUpdate()
+      
+      if (action === 'stoploss') setStopLossDialogOpen(false)
+      if (action === 'target') setTargetDialogOpen(false)
     } catch (error) {
-      toast({ title: `${action.charAt(0).toUpperCase() + action.slice(1)} Failed`, description: error instanceof Error ? error.message : "An unknown error occurred.", variant: "destructive" });
+      toast({ 
+        title: `Failed to ${action} position`, 
+        description: error instanceof Error ? error.message : "Unknown error", 
+        variant: "destructive" 
+      })
     } finally {
-      setLoading(null);
+      setLoading(null)
     }
   }
 
   const openDialog = (type: 'stoploss' | 'target', position: Position) => {
-    setSelectedPosition(position);
+    setSelectedPosition(position)
     if (type === 'stoploss') {
-      setStopLossValue(position.stopLoss || 0);
-      setStopLossDialogOpen(true);
+      setStopLossValue(position.stopLoss || 0)
+      setStopLossDialogOpen(true)
     } else {
-      setTargetValue(position.target || 0);
-      setTargetDialogOpen(true);
+      setTargetValue(position.target || 0)
+      setTargetDialogOpen(true)
     }
   }
 
   if (positions.length === 0) {
-    return <div className="text-center py-10 text-gray-500">You have no open positions.</div>
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center py-20 text-gray-500"
+      >
+        <Sparkles className="w-12 h-12 mb-4 text-gray-300" />
+        <p className="text-lg font-medium">No Open Positions</p>
+        <p className="text-sm text-gray-400 mt-1">Start trading to see your positions here</p>
+      </motion.div>
+    )
   }
 
   return (
     <>
-      <div className="space-y-2 pb-20">
-        {positions.map((position) => {
-          const quote = position.instrumentId ? quotes?.[position.instrumentId] : null;
-          const isFutures = position.segment === "NFO" && !position.optionType;
-          const isOption = position.segment === "NFO" && !!position.optionType;
-
-          // If position is closed (quantity === 0), show booked P&L from unrealizedPnL
-          let displayPnL: number;
-          let displayPnLPercent: number;
-          let currentPrice: number;
-          if (position.quantity === 0) {
-            displayPnL = position.unrealizedPnL ?? 0;
-            displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0;
-            currentPrice = position.averagePrice; // For closed, just show avg price
-          } else {
-            currentPrice = (quote?.display_price ?? quote?.last_trade_price ?? position.averagePrice ?? 0);
-            displayPnL = (currentPrice - position.averagePrice) * position.quantity;
-            displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / (Math.abs(position.quantity) * position.averagePrice)) * 100 : 0;
-          }
-
-          return (
-            <Card 
-              key={position.id} 
-              className={`border shadow-sm rounded-lg transition-all duration-200 ${
-                position.quantity === 0 
-                  ? 'bg-gray-50 opacity-85 hover:opacity-100' 
-                  : 'bg-white hover:shadow-md'
-              }`}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className={`font-semibold text-sm ${position.quantity === 0 ? 'text-gray-600' : 'text-gray-900'}`}>
-                      {position.symbol}
-                    </h3>
-                    {isFutures && <span className="bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs">FUT</span>}
-                    {isOption && <span className="bg-yellow-100 text-yellow-700 rounded px-2 py-0.5 text-xs">OPT</span>}
-                    {position.quantity === 0 ? (
-                      <Badge className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5">CLOSED</Badge>
-                    ) : (
-                      <Badge variant={position.quantity > 0 ? "default" : "destructive"} className={`text-xs px-2 py-0.5 ${position.quantity > 0 ? "bg-blue-100 text-blue-800" : "bg-red-100 text-red-800"}`}>
-                        {position.quantity > 0 ? "LONG" : "SHORT"}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="text-right">
-                      <div className={`font-mono font-semibold text-sm ${
-                        position.quantity === 0
-                          ? displayPnL >= 0 ? "text-green-500" : "text-red-500"
-                          : displayPnL >= 0 ? "text-green-600" : "text-red-600"
-                      }`}>
-                        {Number(displayPnL || 0) >= 0 ? "+" : ""}₹{Number(displayPnL || 0).toFixed(2)}
-                      </div>
-                      <div className={`text-xs ${
-                        position.quantity === 0
-                          ? displayPnL >= 0 ? "text-green-500" : "text-red-500"
-                          : displayPnL >= 0 ? "text-green-600" : "text-red-600"
-                      }`}>
-                        ({displayPnLPercent.toFixed(2)}%)
-                      </div>
-                      {position.quantity === 0 && (
-                        <div className="text-xs text-gray-500 font-medium mt-0.5">
-                          Booked P&L • {new Date().toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end"><DropdownMenuItem onClick={() => openDialog('stoploss', position)}><TrendingDown className="h-3 w-3 mr-2" />Set Stop Loss</DropdownMenuItem><DropdownMenuItem onClick={() => openDialog('target', position)}><Target className="h-3 w-3 mr-2" />Set Target</DropdownMenuItem><DropdownMenuItem onClick={() => handleAction('close', position.id)} className="text-red-600" disabled={loading === position.id}><X className="h-3 w-3 mr-2" />Close Position</DropdownMenuItem></DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-                {/* F&O Details */}
-                {(isFutures || isOption) && (
-                  <div className="flex flex-wrap gap-2 mb-2 text-xs">
-                    {position.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(position.expiry).toLocaleDateString()}</span>}
-                    {isOption && position.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{position.strikePrice}</span>}
-                    {isOption && position.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{position.optionType}</span>}
-                    {position.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {position.lotSize}</span>}
-                  </div>
+      {/* P&L Summary Cards - Always at top */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className={cn(
+            "border-0 shadow-lg",
+            "bg-gradient-to-br",
+            dayPnL >= 0 
+              ? "from-green-500/10 to-green-600/10 dark:from-green-500/20 dark:to-green-600/20" 
+              : "from-red-500/10 to-red-600/10 dark:from-red-500/20 dark:to-red-600/20"
+          )}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Day's MTM</p>
+                <Activity className="w-4 h-4 text-gray-400" />
+              </div>
+              <motion.p 
+                className={cn(
+                  "text-2xl font-bold font-mono",
+                  dayPnL >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                 )}
-                <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
-                  <div className="space-y-1"><div className="flex justify-between"><span>Quantity:</span><span className="font-mono">{Math.abs(position.quantity)}</span></div><div className="flex justify-between"><span>Avg Price:</span><span className="font-mono">₹{position.averagePrice.toFixed(2)}</span></div></div>
-                  <div className="space-y-1"><div className="flex justify-between"><span>Current:</span><span className="font-mono">₹{currentPrice.toFixed(2)}</span></div></div>
-                </div>
-                {(position.stopLoss || position.target) && (
-                  <div className="mt-2 pt-2 border-t flex gap-4 text-xs">
-                    {position.stopLoss && (<div className="flex items-center gap-1"><TrendingDown className="h-3 w-3 text-red-500" /><span className="text-gray-500">SL:</span><span className="font-mono text-red-600">₹{position.stopLoss}</span></div>)}
-                    {position.target && (<div className="flex items-center gap-1"><Target className="h-3 w-3 text-green-500" /><span className="text-gray-500">Target:</span><span className="font-mono text-green-600">₹{position.target}</span></div>)}
-                  </div>
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                {dayPnL >= 0 ? "+" : ""}₹{Math.abs(dayPnL).toFixed(2)}
+              </motion.p>
+            </CardContent>
+          </Card>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className={cn(
+            "border-0 shadow-lg",
+            "bg-gradient-to-br",
+            totalPnL >= 0 
+              ? "from-blue-500/10 to-blue-600/10 dark:from-blue-500/20 dark:to-blue-600/20" 
+              : "from-orange-500/10 to-orange-600/10 dark:from-orange-500/20 dark:to-orange-600/20"
+          )}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total P&L</p>
+                <TrendingUp className="w-4 h-4 text-gray-400" />
+              </div>
+              <motion.p 
+                className={cn(
+                  "text-2xl font-bold font-mono",
+                  totalPnL >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"
                 )}
-              </CardContent>
-            </Card>
-          )
-        })}
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                {totalPnL >= 0 ? "+" : ""}₹{Math.abs(totalPnL).toFixed(2)}
+              </motion.p>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
-      <Dialog open={stopLossDialogOpen} onOpenChange={setStopLossDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><TrendingDown className="h-5 w-5 text-red-600" />Set Stop Loss</DialogTitle></DialogHeader>
-          {selectedPosition && (<div className="space-y-4">
-            <div className="bg-gray-50 p-3 rounded-md border">
-              <h3 className="font-semibold">{selectedPosition.symbol}</h3>
-              <div className="flex gap-4 mt-1 text-sm text-gray-600">
-                <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
-                <span>Avg: ₹{selectedPosition.averagePrice}</span>
-              </div>
-              {(selectedPosition.segment === "NFO") && (
-                <div className="flex flex-wrap gap-2 mt-2 text-xs">
-                  {selectedPosition.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(selectedPosition.expiry).toLocaleDateString()}</span>}
-                  {selectedPosition.optionType && selectedPosition.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{selectedPosition.strikePrice}</span>}
-                  {selectedPosition.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{selectedPosition.optionType}</span>}
-                  {selectedPosition.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {selectedPosition.lotSize}</span>}
-                </div>
+
+      {/* Quick Stats Bar */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between mb-4 px-2"
+      >
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1">
+            <BarChart3 className="w-3 h-3 text-gray-500" />
+            <span className="font-medium">{totalPositions} Active</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Percent className="w-3 h-3 text-gray-500" />
+            <span className="font-medium">{winRate.toFixed(0)}% Win</span>
+          </div>
+        </div>
+        <Badge className="bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 text-xs">
+          Live
+        </Badge>
+      </motion.div>
+
+      {/* Compact Filter Tabs */}
+      <div className="mb-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-2 min-w-max px-1">
+          {POSITION_FILTERS.map((filter, index) => {
+            const Icon = filter.icon
+            const count = filter.id === 'all' 
+              ? positions.length 
+              : positions.filter(p => {
+                  switch (filter.id) {
+                    case 'long': return p.quantity > 0
+                    case 'short': return p.quantity < 0
+                    case 'profit': 
+                      if (p.quantity === 0) return p.unrealizedPnL > 0
+                      const q = p.instrumentId ? quotes[p.instrumentId] : null
+                      const ltp = q?.last_trade_price ?? p.averagePrice
+                      return (ltp - p.averagePrice) * p.quantity > 0
+                    case 'loss':
+                      if (p.quantity === 0) return p.unrealizedPnL < 0
+                      const ql = p.instrumentId ? quotes[p.instrumentId] : null
+                      const ltpl = ql?.last_trade_price ?? p.averagePrice
+                      return (ltpl - p.averagePrice) * p.quantity < 0
+                    default: return true
+                  }
+                }).length
+            
+            return (
+              <motion.button
+                key={filter.id}
+                onClick={() => setActiveFilter(filter.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium",
+                  "transition-all duration-200",
+                  activeFilter === filter.id 
+                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg" 
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                )}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {filter.label}
+                {count > 0 && (
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded-full text-xs",
+                    activeFilter === filter.id 
+                      ? "bg-white/20 text-white" 
+                      : "bg-gray-200 dark:bg-gray-700"
+                  )}>
+                    {count}
+                  </span>
+                )}
+              </motion.button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Positions List with Stagger Animation */}
+      <motion.div 
+        className="space-y-3 pb-20"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: { opacity: 0 },
+          visible: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.05
+            }
+          }
+        }}
+      >
+        <AnimatePresence mode="popLayout">
+          {filteredPositions.map((position) => {
+            const quote = position.instrumentId ? quotes[position.instrumentId] : null
+            
+            return (
+              <SwipeablePositionCard
+                key={position.id}
+                position={position}
+                quote={quote}
+                onClose={() => handleAction('close', position.id)}
+                onStopLoss={() => openDialog('stoploss', position)}
+                onTarget={() => openDialog('target', position)}
+                isLoading={loading === position.id}
+              />
+            )
+          })}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Stop Loss Dialog */}
+      <AnimatePresence>
+        {stopLossDialogOpen && (
+          <Dialog open={stopLossDialogOpen} onOpenChange={setStopLossDialogOpen}>
+            <DialogContent className="sm:max-w-md bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-0 shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-orange-500" />
+                  Set Stop Loss
+                </DialogTitle>
+              </DialogHeader>
+              {selectedPosition && (
+                <motion.div 
+                  className="space-y-4"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Card className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 border-0">
+                    <CardContent className="p-4">
+                      <h3 className="font-bold text-lg mb-2">{selectedPosition.symbol}</h3>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Hash className="w-3 h-3 text-gray-500" />
+                          <span className="text-gray-600 dark:text-gray-400">Qty:</span>
+                          <span className="font-medium">{Math.abs(selectedPosition.quantity)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3 text-gray-500" />
+                          <span className="text-gray-600 dark:text-gray-400">Avg:</span>
+                          <span className="font-medium">₹{selectedPosition.averagePrice}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="stoploss" className="flex items-center gap-2">
+                      Stop Loss Price
+                      <AlertCircle className="w-3 h-3 text-gray-400" />
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                      <Input 
+                        id="stoploss"
+                        type="number" 
+                        value={stopLossValue} 
+                        onChange={(e) => setStopLossValue(Number(e.target.value))} 
+                        step="0.05"
+                        className="pl-8 font-mono"
+                        placeholder="Enter stop loss price"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleAction('stoploss', selectedPosition.id, stopLossValue)} 
+                      disabled={loading === selectedPosition.id || !stopLossValue} 
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg",
+                        "bg-gradient-to-r from-orange-500 to-orange-600 text-white",
+                        "font-medium transition-all",
+                        "disabled:opacity-50"
+                      )}
+                    >
+                      {loading === selectedPosition.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Shield className="w-4 h-4" />
+                          Set Stop Loss
+                        </>
+                      )}
+                    </motion.button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setStopLossDialogOpen(false)} 
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </motion.div>
               )}
-            </div>
-            <div className="space-y-1"><Label>Stop Loss Price</Label><Input type="number" value={stopLossValue} onChange={(e) => setStopLossValue(Number(e.target.value))} step="0.05" /></div>
-            <div className="flex gap-2"><Button onClick={() => handleAction('stoploss', selectedPosition.id, stopLossValue)} disabled={loading === selectedPosition.id || !stopLossValue} className="flex-1 bg-red-600 hover:bg-red-700">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Stop Loss"}</Button><Button variant="outline" onClick={() => setStopLossDialogOpen(false)} className="flex-1">Cancel</Button></div>
-          </div>)}
-        </DialogContent>
-      </Dialog>
-      <Dialog open={targetDialogOpen} onOpenChange={setTargetDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-green-600" />Set Target</DialogTitle></DialogHeader>
-          {selectedPosition && (<div className="space-y-4">
-            <div className="bg-gray-50 p-3 rounded-md border">
-              <h3 className="font-semibold">{selectedPosition.symbol}</h3>
-              <div className="flex gap-4 mt-1 text-sm text-gray-600">
-                <span>{selectedPosition.quantity > 0 ? "LONG" : "SHORT"}</span>
-                <span>Avg: ₹{selectedPosition.averagePrice}</span>
-              </div>
-              {(selectedPosition.segment === "NFO") && (
-                <div className="flex flex-wrap gap-2 mt-2 text-xs">
-                  {selectedPosition.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(selectedPosition.expiry).toLocaleDateString()}</span>}
-                  {selectedPosition.optionType && selectedPosition.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{selectedPosition.strikePrice}</span>}
-                  {selectedPosition.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{selectedPosition.optionType}</span>}
-                  {selectedPosition.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {selectedPosition.lotSize}</span>}
-                </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
+
+      {/* Target Dialog */}
+      <AnimatePresence>
+        {targetDialogOpen && (
+          <Dialog open={targetDialogOpen} onOpenChange={setTargetDialogOpen}>
+            <DialogContent className="sm:max-w-md bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-0 shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-green-500" />
+                  Set Target Price
+                </DialogTitle>
+              </DialogHeader>
+              {selectedPosition && (
+                <motion.div 
+                  className="space-y-4"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Card className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 border-0">
+                    <CardContent className="p-4">
+                      <h3 className="font-bold text-lg mb-2">{selectedPosition.symbol}</h3>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Hash className="w-3 h-3 text-gray-500" />
+                          <span className="text-gray-600 dark:text-gray-400">Qty:</span>
+                          <span className="font-medium">{Math.abs(selectedPosition.quantity)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3 text-gray-500" />
+                          <span className="text-gray-600 dark:text-gray-400">Avg:</span>
+                          <span className="font-medium">₹{selectedPosition.averagePrice}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="target" className="flex items-center gap-2">
+                      Target Price
+                      <Sparkles className="w-3 h-3 text-gray-400" />
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                      <Input 
+                        id="target"
+                        type="number" 
+                        value={targetValue} 
+                        onChange={(e) => setTargetValue(Number(e.target.value))} 
+                        step="0.05"
+                        className="pl-8 font-mono"
+                        placeholder="Enter target price"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleAction('target', selectedPosition.id, targetValue)} 
+                      disabled={loading === selectedPosition.id || !targetValue} 
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg",
+                        "bg-gradient-to-r from-green-500 to-green-600 text-white",
+                        "font-medium transition-all",
+                        "disabled:opacity-50"
+                      )}
+                    >
+                      {loading === selectedPosition.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Target className="w-4 h-4" />
+                          Set Target
+                        </>
+                      )}
+                    </motion.button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setTargetDialogOpen(false)} 
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </motion.div>
               )}
-            </div>
-            <div className="space-y-1"><Label>Target Price</Label><Input type="number" value={targetValue} onChange={(e) => setTargetValue(Number(e.target.value))} step="0.05" /></div>
-            <div className="flex gap-2"><Button onClick={() => handleAction('target', selectedPosition.id, targetValue)} disabled={loading === selectedPosition.id || !targetValue} className="flex-1 bg-green-600 hover:bg-green-700">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Target"}</Button><Button variant="outline" onClick={() => setTargetDialogOpen(false)} className="flex-1">Cancel</Button></div>
-          </div>)}
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </>
   )
 }

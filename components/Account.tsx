@@ -8,17 +8,16 @@
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { LogOut, User, DollarSign, Briefcase, Copy, Check, LifeBuoy } from "lucide-react"
+import { LogOut, User, DollarSign, Briefcase, Copy, Check, LifeBuoy, ArrowRight } from "lucide-react"
 import { signOut } from "next-auth/react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ModeToggle } from "@/components/ui/modeToggle"
 import { toast } from "@/hooks/use-toast"
-import { addFunds, withdrawFunds, useTransactions } from "@/lib/hooks/use-trading-data"
-import { Loader2 } from "lucide-react"
+import { useTransactions } from "@/lib/hooks/use-trading-data"
 import Image from "next/image"
+import Link from "next/link"
 
 interface AccountProps {
     portfolio: any,
@@ -40,9 +39,6 @@ const StatCard = ({ icon, title, value, color }: { icon: React.ReactNode, title:
 
 export function Account({ portfolio, user, onUpdate }: AccountProps) {
     const formatCurrency = (amount: number) => `₹${(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    const [fundDialogOpen, setFundDialogOpen] = useState(false)
-    const [fundAmount, setFundAmount] = useState(0)
-    const [loading, setLoading] = useState(false)
     const [copied, setCopied] = useState(false)
     const [profileOpen, setProfileOpen] = useState(false)
 
@@ -69,47 +65,12 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
         URL.revokeObjectURL(url)
     }
 
-    const handleFundAction = async (type: 'CREDIT' | 'DEBIT') => {
-        if (!fundAmount || fundAmount <= 0) {
-            toast({
-                title: "Invalid Amount",
-                description: "Please enter a valid amount.",
-                variant: "destructive",
-            })
-            return
-        }
-
-        setLoading(true)
+    // CTA click logger for debugging navigation events
+    const logConsoleCtaClick = () => {
         try {
-            const payload = {
-                tradingAccountId: account?.id,
-                amount: fundAmount,
-                type,
-                description: type === 'CREDIT' ? 'Funds Added by User' : 'Funds Withdrawn by User'
-            }
-
-            if (type === 'CREDIT') {
-                await addFunds(payload)
-            } else {
-                await withdrawFunds(payload)
-            }
-
-            toast({
-                title: "Success",
-                description: `₹${fundAmount} has been ${type === 'CREDIT' ? 'added' : 'withdrawn'} successfully.`,
-            })
-            onUpdate()
-            setFundDialogOpen(false)
-            setFundAmount(0)
-        } catch (error) {
-            console.error(error)
-            toast({
-                title: "Failed",
-                description: "Something went wrong. Please try again.",
-                variant: "destructive",
-            })
-        } finally {
-            setLoading(false)
+            console.log('[Account] CTA clicked: Navigating to /console')
+        } catch (e) {
+            // No-op: console shouldn't fail, but keep robust guard
         }
     }
 
@@ -197,9 +158,21 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                             <StatCard icon={<User size={22} />} title="Used Margin" value={formatCurrency(account?.usedMargin)} color="bg-orange-100 text-orange-600" />
                         </div>
 
-                        {/* Actions - premium button, mobile stacking */}
+                        {/* Actions - premium console CTA with modern gradient and subtle motion */}
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <Button onClick={() => setFundDialogOpen(true)} className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-base py-3 rounded-xl shadow">Add / Withdraw Funds</Button>
+                            <Button
+                                asChild
+                                className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-cyan-500 text-white text-base py-3 shadow-lg ring-1 ring-white/10 transition-all duration-200 hover:shadow-xl hover:ring-white/30 hover:scale-[1.01]"
+                                aria-label="Open Trading Console"
+                            >
+                                <Link href="/console" prefetch onClick={logConsoleCtaClick}>
+                                    <span className="absolute inset-0 opacity-0 group-hover:opacity-10 bg-white/40 transition-opacity" />
+                                    <div className="relative flex items-center justify-center gap-2">
+                                        <span className="font-semibold tracking-wide">Open Trading Console</span>
+                                        <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                                    </div>
+                                </Link>
+                            </Button>
                             <div className="hidden sm:block" />
                             <div className="flex items-center justify-end text-xs text-gray-500">
                                 {accountId && <span>Account: {accountId.slice(0, 8)}…{accountId.slice(-4)}</span>}
@@ -378,26 +351,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                 </DrawerContent>
             </Drawer>
 
-            <Dialog open={fundDialogOpen} onOpenChange={setFundDialogOpen}>
-                <DialogContent className="sm:max-w-sm bg-white">
-                    <DialogHeader>
-                        <DialogTitle>Add / Withdraw Funds</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-center">
-                            <p className="text-blue-800 dark:text-blue-200 text-sm">Please contact your Relationship Manager to process fund transfers.</p>
-                        </div>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                            <Button
-                                onClick={() => setFundDialogOpen(false)}
-                                className="w-full"
-                            >
-                                Close
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* Fund transfer is handled within the Trading Console. Inline dialog removed in favor of a unified console experience. */}
 
             {/* Statement Section */}
             <Card className="rounded-2xl shadow-lg border-gray-100">

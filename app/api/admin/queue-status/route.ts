@@ -1,7 +1,7 @@
 // app/api/admin/queue-status/route.ts
 import { NextResponse } from "next/server";
-import { requestQueue } from "@/lib/request-queue";
-import { logger, LogCategory } from "@/lib/vortexLogger";
+import { requestQueue } from "@/lib/vortex/request-queue";
+import { logger, LogCategory } from "@/lib/vortex/vortexLogger";
 
 export async function GET() {
   try {

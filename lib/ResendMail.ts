@@ -110,3 +110,38 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
         throw new Error("Failed to send reset email");
     }
 };
+
+export const sendOtpEmail = async (
+  email: string,
+  otp: string,
+  purpose: string,
+  expiresAt?: Date,
+  maskedPhone?: string
+) => {
+  try {
+    const subjectPurpose = purpose ? purpose.charAt(0).toUpperCase() + purpose.slice(1) : "Verification";
+    const expiryText = expiresAt ? ` This OTP expires at ${expiresAt.toLocaleTimeString()}.` : " Valid for 5 minutes.";
+    const phoneText = maskedPhone ? ` Mobile: ${maskedPhone}.` : "";
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #111;">
+        <h2 style="color:#047857;">Your ${subjectPurpose} OTP</h2>
+        <p>Use the OTP below to continue.${phoneText}${expiryText}</p>
+        <div style="font-size:28px; font-weight:700; letter-spacing: 4px; padding: 16px 0;">${otp}</div>
+        <p>Do not share this OTP with anyone.</p>
+      </div>
+    `;
+
+    await resend.emails.send({
+      from: "onboarding@marketpulse360.live",
+      to: email,
+      subject: `Your ${subjectPurpose} OTP`,
+      html,
+    });
+
+    return { success: true } as const;
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" } as const;
+  }
+};

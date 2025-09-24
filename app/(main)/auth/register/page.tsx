@@ -1,13 +1,10 @@
-// @ts-nocheck
-import SignUpForm from '@/components/auth/SignUpForm'
+import MobileAuthFlow from '@/components/auth/MobileAuthFlow'
 import React from 'react'
 
 
 const RegisterPage = () => {
     return (
-        <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
-            <SignUpForm />
-        </div>
+        <MobileAuthFlow initialStep="register" />
     )
 }
 

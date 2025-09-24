@@ -1,4 +1,4 @@
-import { supabase } from './supabase-client'
+// Client-side funds helpers. All sensitive mutations go via server API.
 
 /**
  * Calculates the required margin for a position
@@ -21,8 +21,8 @@ export function calculateMarginRequired(price: number, quantity: number, segment
  * Server-side function to manage funds for a position
  */
 export async function manageFundsForPosition(
-  tradingAccountId: string, 
-  amount: number, 
+  tradingAccountId: string,
+  amount: number,
   action: 'BLOCK' | 'RELEASE'
 ) {
   try {
@@ -49,49 +49,24 @@ export async function manageFundsForPosition(
 }
 
 /**
- * Updates position and manages associated funds
+ * Updates position and manages associated funds via server API
  */
 export async function updatePositionWithFunds(
-  positionId: string, 
+  positionId: string,
   tradingAccountId: string,
   updates: any,
   shouldReleaseMargin: boolean = false
 ) {
   try {
-    // Get current position details first
-    const { data: position, error: positionError } = await supabase
-      .from('positions')
-      .select('*')
-      .eq('id', positionId)
-      .single()
-
-    if (positionError || !position) {
-      throw new Error('Failed to fetch position details')
+    const res = await fetch('/api/trading/positions', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positionId, tradingAccountId, updates, shouldReleaseMargin })
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err?.error || 'Failed to update position')
     }
-
-    // If we're closing the position, calculate margin to release
-    if (shouldReleaseMargin) {
-      const marginToRelease = calculateMarginRequired(
-        position.averagePrice,
-        position.quantity,
-        position.segment || 'NSE',
-        position.productType
-      )
-
-      // Release the blocked margin
-      await manageFundsForPosition(tradingAccountId, marginToRelease, 'RELEASE')
-    }
-
-    // Update the position
-    const { error: updateError } = await supabase
-      .from('positions')
-      .update(updates)
-      .eq('id', positionId)
-
-    if (updateError) {
-      throw new Error('Failed to update position')
-    }
-
     return true
   } catch (error) {
     console.error('Position update error:', error)

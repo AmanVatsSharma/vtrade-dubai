@@ -438,6 +438,7 @@ DATABASE_URL="your-production-database-url"
 JWT_SECRET="your-secure-jwt-secret"
 FRONTEND_URL="https://yourdomain.com"
 NODE_ENV="production"
+DISABLE_VORTEX_LOGGER="true"  # Optional: Set to 'true' to disable all Vortex logging
 ```
 
 ### Build and Deploy

@@ -10,7 +10,7 @@ interface QueuedRequest {
   priority?: number;
 }
 
-class RequestQueue {
+class RequestQueue {  
   private queue: QueuedRequest[] = [];
   private isProcessing = false;
   private lastRequestTime = 0;

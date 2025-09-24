@@ -48,7 +48,10 @@ const LoginForm = () => {
                         router.push(target)
                     }
                 })
-                .catch(() => setError("Something went wrong!"))
+                .catch((error) => {
+                    console.error("Login error:", error)
+                    setError("Something went wrong! Please try again.")
+                })
         })
     }
 

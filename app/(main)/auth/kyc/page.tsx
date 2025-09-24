@@ -24,6 +24,7 @@ export default function KYC() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [existingKYC, setExistingKYC] = useState<KYCData | null>(null);
+  const [isLoadingKYC, setIsLoadingKYC] = useState(true);
 
   // Check authentication status
   useEffect(() => {
@@ -32,13 +33,46 @@ export default function KYC() {
     }
   }, [status, router]);
 
+  // Add a timeout to handle cases where session loading takes too long
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (status === 'loading' && !session) {
+        console.log('Session loading timeout - redirecting to login');
+        router.push('/auth/login');
+      }
+    }, 10000); // 10 second timeout
+
+    return () => clearTimeout(timeout);
+  }, [status, session, router]);
+
   // Fetch existing KYC data
   useEffect(() => {
     const fetchKYCData = async () => {
-      if (!session?.user?.id) return;
+      if (!session?.user?.id) {
+        setIsLoadingKYC(false);
+        return;
+      }
+
+      setIsLoadingKYC(true);
+      setError("");
 
       try {
-        const response = await fetch('/api/kyc');
+        const response = await fetch('/api/kyc', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            setError("Please login first");
+            router.push('/auth/login');
+            return;
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
 
         if (data.kyc) {
@@ -48,13 +82,18 @@ export default function KYC() {
         }
       } catch (err) {
         console.error('Error fetching KYC data:', err);
+        setError("Failed to load KYC data. Please refresh the page.");
+      } finally {
+        setIsLoadingKYC(false);
       }
     };
 
     if (session?.user?.id) {
       fetchKYCData();
+    } else {
+      setIsLoadingKYC(false);
     }
-  }, [session]);
+  }, [session, router]);
 
   const uploadToBankProofUrl = async (file: File): Promise<string> => {
     // TODO: Implement actual file upload to your storage service
@@ -85,6 +124,24 @@ export default function KYC() {
 
     if (!session?.user?.id) {
       setError("Please login first");
+      return;
+    }
+
+    // Validate required fields
+    if (!aadhaar || !pan) {
+      setError("Please fill in all required fields");
+      return;
+    }
+
+    // Validate Aadhaar number format
+    if (!/^\d{12}$/.test(aadhaar)) {
+      setError("Please enter a valid 12-digit Aadhaar number");
+      return;
+    }
+
+    // Validate PAN number format
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
+      setError("Please enter a valid PAN number (e.g., ABCDE1234F)");
       return;
     }
 
@@ -125,22 +182,53 @@ export default function KYC() {
       setTimeout(() => router.push("/dashboard"), 2000);
 
     } catch (err: any) {
+      console.error("KYC submission error:", err);
       setError(err.message || "❌ Failed to submit KYC. Try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (status === 'loading') {
+  if (status === 'loading' || isLoadingKYC) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading KYC information...</p>
+        </div>
       </div>
     );
   }
 
   if (status === 'unauthenticated') {
     return null; // Will redirect via useEffect
+  }
+
+  // Show error state with retry option
+  if (error && !isLoadingKYC && !existingKYC) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4">
+        <div className="w-full max-w-md bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-slate-100 text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Error Loading KYC</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-lg shadow-lg transition"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => router.push('/auth/login')}
+              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 rounded-lg transition"
+            >
+              Back to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

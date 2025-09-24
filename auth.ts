@@ -1,12 +1,12 @@
 // auth.ts
 // @ts-nocheck
 import { prisma } from "@/lib/prisma"
-import { signInSchema } from "@/schemas"
+import { signInSchema, mobileSignInSchema } from "@/schemas"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
-import { getUserById } from "./data/user"
+import { getUserById, getUserByIdentifier } from "./data/user"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
 
@@ -17,31 +17,81 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             credentials: {
                 email: {},
                 password: {},
+                identifier: {},
             },
             async authorize(credentials) {
-                const validatedFields = signInSchema.safeParse(credentials)
+                // Handle legacy email login
+                if (credentials.email) {
+                    const validatedFields = signInSchema.safeParse(credentials)
 
-                if (!validatedFields.success) {
+                    if (!validatedFields.success) {
+                        return null
+                    }
+
+                    const { email, password } = validatedFields.data
+
+                    const user = await prisma.user.findUnique({
+                        where: { email }
+                    })
+
+                    if (!user || !user.password) {
+                        return null
+                    }
+
+                    const passwordsMatch = await bcrypt.compare(password, user.password)
+
+                    if (!passwordsMatch) {
+                        return null
+                    }
+
+                    return user
+                }
+
+                // Handle mobile/clientId login
+                if (credentials.identifier) {
+                    const validatedFields = mobileSignInSchema.safeParse(credentials)
+
+                    if (!validatedFields.success) {
+                        return null
+                    }
+
+                    const { identifier, password } = validatedFields.data
+
+                    const user = await getUserByIdentifier(identifier)
+
+                    if (!user || !user.password) {
+                        return null
+                    }
+
+                    const passwordsMatch = await bcrypt.compare(password, user.password)
+
+                    if (!passwordsMatch) {
+                        return null
+                    }
+
+                    return user
+                }
+
+                // Handle mobile authentication with session token
+                if (credentials.sessionToken) {
+                    const sessionAuth = await prisma.sessionAuth.findUnique({
+                        where: { sessionToken: credentials.sessionToken },
+                        include: { user: true }
+                    })
+
+                    if (!sessionAuth || sessionAuth.expiresAt < new Date()) {
+                        return null
+                    }
+
+                    // Verify mPin if required
+                    if (sessionAuth.isMpinVerified) {
+                        return sessionAuth.user
+                    }
+
                     return null
                 }
 
-                const { email, password } = validatedFields.data
-
-                const user = await prisma.user.findUnique({
-                    where: { email }
-                })
-
-                if (!user || !user.password) {
-                    return null
-                }
-
-                const passwordsMatch = await bcrypt.compare(password, user.password)
-
-                if (!passwordsMatch) {
-                    return null
-                }
-
-                return user
+                return null
             },
         }),
     ],
@@ -85,6 +135,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 const anyToken = token as any;
                 anySessionUser.kycStatus = anyToken.kycStatus as string | undefined;
                 anySessionUser.tradingAccountId = anyToken.tradingAccountId as string | undefined;
+                anySessionUser.phone = anyToken.phone as string | undefined;
+                anySessionUser.clientId = anyToken.clientId as string | undefined;
+                anySessionUser.hasMpin = anyToken.hasMpin as boolean | undefined;
+                anySessionUser.phoneVerified = anyToken.phoneVerified as boolean | undefined;
+                anySessionUser.role = anyToken.role as string | undefined;
             }
             return session;
         },
@@ -94,9 +149,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 token.id = user.id
                 token.name = user.name
                 token.email = user.email
+                token.phone = user.phone
+                token.clientId = user.clientId
+                token.role = user.role
             }
 
-            // Always ensure KYC status is present on the token
+            // Always ensure KYC status and mPin status are present on the token
             if (token.id) {
                 try {
                     const dbUser = await prisma.user.findUnique({
@@ -106,6 +164,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     const anyToken = token as any;
                     anyToken.kycStatus = dbUser?.kyc?.status ?? undefined
                     anyToken.tradingAccountId = dbUser?.tradingAccount?.id ?? undefined
+                    anyToken.hasMpin = !!dbUser?.mPin
+                    anyToken.phoneVerified = !!dbUser?.phoneVerified
+                    anyToken.role = dbUser?.role ?? undefined
                 } catch (e) {
                     // noop: if prisma fails, keep token as-is
                 }
