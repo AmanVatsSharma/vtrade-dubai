@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
 import { TrendingUp, PieChart, BarChart3, RefreshCw, Eye, EyeOff } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,11 +10,33 @@ import { BalanceTrendChart } from "../account/balance-trend-chart"
 import { ExposurePieChart } from "../account/exposure-pie-chart"
 import { PLTrendChart } from "../account/pl-trend-chart"
 import { QuickActionsMenu } from "../account/quick-actions-menu"
+import { useSession } from "next-auth/react"
+import { usePortfolio, usePositions } from "@/lib/hooks/use-trading-data"
 
 export function AccountSection() {
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Session + trading data hooks
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const { portfolio, isLoading: isPortfolioLoading, error: portfolioError, ensure } = usePortfolio(
+    userId,
+    (session?.user as any)?.name ?? null,
+    (session?.user as any)?.email ?? null
+  )
+  const { positions, isLoading: isPositionsLoading, error: positionsError } = usePositions(userId)
+  const unrealizedPnL = useMemo(() => {
+    try {
+      return (positions || []).reduce((sum: number, p: any) => sum + (Number(p.unrealizedPnL) || 0), 0)
+    } catch (e) {
+      console.warn("AccountSection: failed to compute unrealizedPnL", e)
+      return 0
+    }
+  }, [positions])
+  console.log("AccountSection: portfolio", portfolio, { isPortfolioLoading, portfolioError })
+  console.log("AccountSection: positions count", positions?.length, { isPositionsLoading, positionsError })
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -70,7 +92,16 @@ export function AccountSection() {
       </div>
 
       {/* Account Summary Grid */}
-      <AccountSummaryGrid balanceVisible={balanceVisible} />
+      <AccountSummaryGrid
+        balanceVisible={balanceVisible}
+        account={{
+          totalValue: (portfolio as any)?.account?.totalValue ?? 0,
+          availableMargin: (portfolio as any)?.account?.availableMargin ?? 0,
+          usedMargin: (portfolio as any)?.account?.usedMargin ?? 0,
+          balance: (portfolio as any)?.account?.balance ?? 0,
+        }}
+        unrealizedPnL={unrealizedPnL}
+      />
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

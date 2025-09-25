@@ -6,6 +6,8 @@ import { ArrowUpFromLine, Building2, Clock, CheckCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { WithdrawalRequestForm } from "../withdrawals/withdrawal-request-form"
 import { WithdrawalsList } from "../withdrawals/withdrawals-list"
+import { useSession } from "next-auth/react"
+import { usePortfolio } from "@/lib/hooks/use-trading-data"
 
 export interface BankAccount {
   id: string
@@ -91,6 +93,11 @@ export function WithdrawalsSection() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>(mockWithdrawals)
   const [bankAccounts] = useState<BankAccount[]>(mockBankAccounts)
 
+  // Pull available balance from the user's portfolio
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const { portfolio } = usePortfolio(userId, (session?.user as any)?.name ?? null, (session?.user as any)?.email ?? null)
+
   const handleWithdrawalRequest = (amount: number, bankAccountId: string) => {
     const selectedBank = bankAccounts.find((bank) => bank.id === bankAccountId)
     if (!selectedBank) return
@@ -113,7 +120,7 @@ export function WithdrawalsSection() {
 
   const pendingWithdrawals = withdrawals.filter((w) => w.status === "pending" || w.status === "processing").length
 
-  const availableBalance = 125000.75 // This would come from account data
+  const availableBalance = (portfolio as any)?.account?.availableMargin ?? (portfolio as any)?.account?.balance ?? 0
 
   return (
     <motion.div

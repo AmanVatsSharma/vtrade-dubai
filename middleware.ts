@@ -90,7 +90,8 @@ export default auth((req) => {
   const isAuthRoute = authRoutes.includes(nextUrl.pathname);
   const isPhoneVerificationRoute = phoneVerificationRoutes.includes(nextUrl.pathname);
   const isMpinRoute = mpinRoutes.includes(nextUrl.pathname);
-  const isAdminRoute = adminRoutes.some(route => nextUrl.pathname.startsWith(route));
+  // Only treat "/admin" root and children as admin routes; do NOT match routes like "/admin-console"
+  const isAdminRoute = nextUrl.pathname === "/admin" || nextUrl.pathname.startsWith("/admin/");
 
   // 1. Allow NextAuth specific API routes to always pass through
   if (isApiAuthRoute) {

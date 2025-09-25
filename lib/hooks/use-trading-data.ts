@@ -622,7 +622,13 @@ export function useOrdersAndPositions(userId?: string) {
 
 export function useTransactions(tradingAccountId?: string) {
   const { data, loading, error, refetch } = useQuery(GET_TRANSACTIONS, { variables: { tradingAccountId: tradingAccountId ?? "" }, skip: !tradingAccountId, errorPolicy: "all" })
-  const transactions = data?.transactionsCollection?.edges?.map((e: any) => e.node) ?? []
+  const transactions = useMemo(() => {
+    try {
+      return data?.transactionsCollection?.edges?.map((e: any) => e.node) ?? []
+    } catch {
+      return []
+    }
+  }, [data])
   return { transactions, isLoading: loading, isError: !!error, error, mutate: refetch }
 }
 

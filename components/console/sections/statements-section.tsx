@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { FileText, Download } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { StatementsTable } from "../statements/statements-table"
 import { FilterBar } from "../statements/filter-bar"
 import { ExportDialog } from "../statements/export-dialog"
+import { useSession } from "next-auth/react"
+import { usePortfolio, useTransactions } from "@/lib/hooks/use-trading-data"
 
 export interface Transaction {
   id: string
@@ -20,92 +22,37 @@ export interface Transaction {
   category: "trading" | "deposit" | "withdrawal" | "brokerage" | "charges"
 }
 
-const mockTransactions: Transaction[] = [
-  {
-    id: "TXN001",
-    date: "2024-01-15",
-    time: "14:30:25",
-    type: "credit",
-    amount: 50000,
-    description: "Fund deposit via UPI",
-    balance: 125000.75,
-    category: "deposit",
-  },
-  {
-    id: "TXN002",
-    date: "2024-01-15",
-    time: "10:15:42",
-    type: "debit",
-    amount: 2500,
-    description: "Stock purchase - RELIANCE",
-    balance: 75000.75,
-    category: "trading",
-  },
-  {
-    id: "TXN003",
-    date: "2024-01-14",
-    time: "16:45:18",
-    type: "credit",
-    amount: 1200,
-    description: "Dividend received - TCS",
-    balance: 78500.75,
-    category: "trading",
-  },
-  {
-    id: "TXN004",
-    date: "2024-01-14",
-    time: "11:20:33",
-    type: "debit",
-    amount: 25,
-    description: "Brokerage charges",
-    balance: 77300.75,
-    category: "brokerage",
-  },
-  {
-    id: "TXN005",
-    date: "2024-01-13",
-    time: "09:30:15",
-    type: "debit",
-    amount: 15000,
-    description: "Withdrawal to bank account",
-    balance: 77325.75,
-    category: "withdrawal",
-  },
-  {
-    id: "TXN006",
-    date: "2024-01-12",
-    time: "13:45:22",
-    type: "credit",
-    amount: 3500,
-    description: "Stock sale - INFY",
-    balance: 92325.75,
-    category: "trading",
-  },
-  {
-    id: "TXN007",
-    date: "2024-01-12",
-    time: "10:15:08",
-    type: "debit",
-    amount: 50,
-    description: "Transaction charges",
-    balance: 88825.75,
-    category: "charges",
-  },
-  {
-    id: "TXN008",
-    date: "2024-01-11",
-    time: "15:20:45",
-    type: "debit",
-    amount: 8000,
-    description: "Stock purchase - HDFC Bank",
-    balance: 88875.75,
-    category: "trading",
-  },
-]
+// Live transactions will be fetched based on the logged-in user's trading account
 
 export function StatementsSection() {
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions)
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>(mockTransactions)
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const tradingAccountId = (session?.user as any)?.tradingAccountId as string | undefined
+  const { portfolio } = usePortfolio(userId, (session?.user as any)?.name ?? null, (session?.user as any)?.email ?? null)
+  const resolvedAccountId = tradingAccountId || (portfolio as any)?.account?.id
+  const { transactions, isLoading } = useTransactions(resolvedAccountId)
+  const transactionsKey = useMemo(() => JSON.stringify(transactions ?? []), [transactions])
+  const mapped: Transaction[] = useMemo(() => {
+    try {
+      const list = (transactions || []).map((t: any) => ({
+        id: t.id,
+        date: new Date(t.createdAt).toISOString().split("T")[0],
+        time: new Date(t.createdAt).toLocaleTimeString(),
+        type: (t.type || "CREDIT").toLowerCase() === "credit" ? "credit" : "debit",
+        amount: Number(t.amount) || 0,
+        description: t.description || "",
+        balance: 0,
+        category: (t.type || "trading").toLowerCase() as any,
+      }))
+      return list
+    } catch (e) {
+      console.warn("StatementsSection: failed to map transactions", e)
+      return []
+    }
+  // Memoization key shields against unstable array identity
+  }, [transactionsKey])
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
+  useEffect(() => setFilteredTransactions(mapped), [mapped])
   const [showExportDialog, setShowExportDialog] = useState(false)
 
   return (
@@ -206,9 +153,9 @@ export function StatementsSection() {
       <Card>
         <CardContent className="p-0">
           <FilterBar
-            transactions={transactions}
+            transactions={mapped}
             onFilterChange={setFilteredTransactions}
-            totalTransactions={transactions.length}
+            totalTransactions={mapped.length}
             filteredCount={filteredTransactions.length}
           />
         </CardContent>

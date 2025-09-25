@@ -5,35 +5,35 @@
 
 
 :root {
-  /* Updated color scheme for trading dashboard with cyan primary and professional neutrals */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.3 0 0);
-  --card: oklch(0.98 0 0);
+  /* Premium light theme: subtle grey canvas and pure white cards */
+  --background: oklch(0.98 0 0); /* very light grey */
+  --foreground: oklch(0.25 0 0);
+  --card: oklch(1 0 0); /* pure white */
   --card-foreground: oklch(0.25 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.3 0 0);
-  --primary: oklch(0.55 0.15 195); /* Cyan-600 #0891b2 */
+  --primary: oklch(0.55 0.15 195);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.6 0.15 264); /* Indigo #6366f1 */
+  --secondary: oklch(0.6 0.15 264);
   --secondary-foreground: oklch(1 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.6 0.15 264); /* Indigo accent */
+  --accent: oklch(0.6 0.15 264);
   --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.55 0.2 25); /* Red for losses */
+  --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(1 0 0);
-  --success: oklch(0.6 0.15 142); /* Green for profits */
+  --success: oklch(0.6 0.15 142);
   --success-foreground: oklch(1 0 0);
-  --border: oklch(0.9 0 0);
+  --border: oklch(0.9 0 0); /* slightly darker than background */
   --input: oklch(0.98 0 0);
   --ring: oklch(0.55 0.15 195 / 0.5);
-  --chart-1: oklch(0.55 0.2 264); /* Blue */
-  --chart-2: oklch(0.6 0.2 35); /* Orange */
-  --chart-3: oklch(0.6 0.15 142); /* Green */
-  --chart-4: oklch(0.6 0.2 350); /* Pink */
-  --chart-5: oklch(0.5 0.2 220); /* Blue variant */
+  --chart-1: oklch(0.55 0.2 264);
+  --chart-2: oklch(0.6 0.2 35);
+  --chart-3: oklch(0.6 0.15 142);
+  --chart-4: oklch(0.6 0.2 350);
+  --chart-5: oklch(0.5 0.2 220);
   --radius: 0.5rem;
-  --sidebar: oklch(0.98 0 0);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.25 0 0);
   --sidebar-primary: oklch(1 0 0);
   --sidebar-primary-foreground: oklch(0.3 0 0);
@@ -44,14 +44,14 @@
 }
 
 .dark {
-  /* Dark theme optimized for trading with better contrast */
+  /* Dark theme stays high contrast */
   --background: oklch(0.08 0 0);
   --foreground: oklch(0.95 0 0);
   --card: oklch(0.12 0 0);
   --card-foreground: oklch(0.95 0 0);
   --popover: oklch(0.12 0 0);
   --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.65 0.15 195); /* Brighter cyan for dark mode */
+  --primary: oklch(0.65 0.15 195);
   --primary-foreground: oklch(0.08 0 0);
   --secondary: oklch(0.2 0 0);
   --secondary-foreground: oklch(0.95 0 0);
@@ -59,9 +59,9 @@
   --muted-foreground: oklch(0.7 0 0);
   --accent: oklch(0.2 0 0);
   --accent-foreground: oklch(0.95 0 0);
-  --destructive: oklch(0.6 0.2 25); /* Brighter red for dark mode */
+  --destructive: oklch(0.6 0.2 25);
   --destructive-foreground: oklch(1 0 0);
-  --success: oklch(0.65 0.15 142); /* Brighter green for dark mode */
+  --success: oklch(0.65 0.15 142);
   --success-foreground: oklch(0.08 0 0);
   --border: oklch(0.2 0 0);
   --input: oklch(0.2 0 0);
@@ -130,5 +130,17 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .neon-border {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary), transparent 70%),
+                0 0 12px 0 color-mix(in oklab, var(--primary), transparent 80%);
+  }
+  .glass-surface {
+    background-color: color-mix(in oklab, var(--card), transparent 30%);
+    backdrop-filter: blur(10px);
+    border: 1px solid oklch(var(--border) / 0.8);
   }
 }

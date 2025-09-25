@@ -8,13 +8,26 @@ import { cn } from "@/lib/utils"
 
 interface AccountSummaryGridProps {
   balanceVisible: boolean
+  account?: {
+    totalValue?: number
+    availableMargin?: number
+    usedMargin?: number
+    balance?: number
+  }
+  unrealizedPnL?: number
 }
 
-export function AccountSummaryGrid({ balanceVisible }: AccountSummaryGridProps) {
+export function AccountSummaryGrid({ balanceVisible, account, unrealizedPnL = 0 }: AccountSummaryGridProps) {
+  // Dynamic values from props if provided; fallback to zeros
+  const totalValue = Number(account?.totalValue ?? 0)
+  const usedMargin = Number(account?.usedMargin ?? 0)
+  const availableMargin = Number(account?.availableMargin ?? 0)
+  const balance = Number(account?.balance ?? totalValue)
+
   const accountData = [
     {
       title: "Total Balance",
-      value: 125000.75,
+      value: balance || totalValue || 0,
       change: 2.5,
       icon: DollarSign,
       color: "text-primary",
@@ -22,7 +35,7 @@ export function AccountSummaryGrid({ balanceVisible }: AccountSummaryGridProps) 
     },
     {
       title: "Used Margin",
-      value: 45000.0,
+      value: usedMargin,
       change: -1.2,
       icon: CreditCard,
       color: "text-orange-600",
@@ -30,7 +43,7 @@ export function AccountSummaryGrid({ balanceVisible }: AccountSummaryGridProps) 
     },
     {
       title: "Free Margin",
-      value: 80000.75,
+      value: availableMargin,
       change: 3.8,
       icon: Target,
       color: "text-green-600",
@@ -38,7 +51,7 @@ export function AccountSummaryGrid({ balanceVisible }: AccountSummaryGridProps) 
     },
     {
       title: "Credit Taken",
-      value: 25000.0,
+      value: 0,
       change: 0,
       icon: CreditCard,
       color: "text-blue-600",
@@ -46,7 +59,7 @@ export function AccountSummaryGrid({ balanceVisible }: AccountSummaryGridProps) 
     },
     {
       title: "Capital Assets",
-      value: 95000.5,
+      value: 0,
       change: 1.8,
       icon: PieChart,
       color: "text-purple-600",
@@ -54,7 +67,7 @@ export function AccountSummaryGrid({ balanceVisible }: AccountSummaryGridProps) 
     },
     {
       title: "Unrealised P&L",
-      value: 3250.25,
+      value: unrealizedPnL,
       change: 15.6,
       icon: TrendingUp,
       color: "text-green-600",

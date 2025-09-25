@@ -9,9 +9,15 @@ import { StatementsSection } from "@/components/console/sections/statements-sect
 import { WithdrawalsSection } from "@/components/console/sections/withdrawals-section"
 import { SidebarMenu } from "@/components/console/sidebar-menu"
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 
 export default function ConsolePage() {
   const [activeSection, setActiveSection] = useState("account")
+
+  // Session: used to gate access and provide user context across sections
+  const { data: session, status } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  console.log("/console: session status", { status, userId, sessionUser: session?.user })
 
   const renderSection = () => {
     switch (activeSection) {
@@ -30,6 +36,26 @@ export default function ConsolePage() {
       default:
         return <AccountSection />
     }
+  }
+
+  // Graceful handling for loading and unauthenticated states
+  if (status === "loading") {
+    return (
+      <div className="flex h-screen items-center justify-center text-muted-foreground">
+        Loading your console...
+      </div>
+    )
+  }
+
+  if (!userId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-xl font-semibold">Please sign in</div>
+          <div className="text-sm text-muted-foreground">Your trading console requires an active session.</div>
+        </div>
+      </div>
+    )
   }
 
   return (

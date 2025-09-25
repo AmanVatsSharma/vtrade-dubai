@@ -9,22 +9,27 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 import { ChangeMPINDialog } from "../dialogs/change-mpin-dialog"
+import { useSession } from "next-auth/react"
 
 export function ProfileSection() {
   const [copied, setCopied] = useState(false)
   const [showMPINDialog, setShowMPINDialog] = useState(false)
   const { toast } = useToast()
 
-  const clientId = "TRD2024001234"
+  // Read session details (exposed via NextAuth callbacks)
+  const { data: session } = useSession()
+  const sUser = (session?.user || {}) as any
+  const clientId = sUser?.clientId ?? "-"
   const userProfile = {
-    name: "John Doe",
-    email: "john.doe@example.com",
-    mobile: "+91 98765 43210",
-    joinDate: "March 15, 2024",
-    kycStatus: "Verified",
-    accountType: "Premium",
-    tradingStatus: "Active",
+    name: sUser?.name ?? "-",
+    email: sUser?.email ?? "-",
+    mobile: sUser?.phone ?? "-",
+    joinDate: "-", // optional: could be fetched from users table if exposed
+    kycStatus: sUser?.kycStatus ?? "-",
+    accountType: (sUser?.role as string | undefined) ?? "USER",
+    tradingStatus: sUser?.tradingAccountId ? "Active" : "Inactive",
   }
+  console.log("ProfileSection: session user", sUser)
 
   const copyClientId = async () => {
     try {
