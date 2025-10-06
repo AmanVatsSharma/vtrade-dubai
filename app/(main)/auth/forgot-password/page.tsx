@@ -96,13 +96,18 @@ const ForgotPasswordPage = () => {
                 type="submit"
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
               >
-                {isPending ? "Sending reset link..." : "Send reset link"}
+                {isPending ? "Sending reset instructions..." : "Send reset instructions"}
               </Button>
 
               {/* Info */}
-              <p className="text-xs text-center text-gray-500">
-                If the identifier matches an account with an email, we’ll send a reset link (expires in 1 hour).
-              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-gray-600">
+                <p className="font-semibold text-blue-800 mb-2">📧 How it works:</p>
+                <ul className="space-y-1 text-gray-700">
+                  <li>• Reset link will be sent to your email (valid for 1 hour)</li>
+                  <li>• OTP will be sent to your registered mobile (valid for 5 minutes)</li>
+                  <li>• You can use either method to reset your password</li>
+                </ul>
+              </div>
 
               <div className="text-center text-sm text-gray-600 mt-2">
                 <Link href="/auth/login" className="text-emerald-600 hover:text-emerald-700 font-medium">
@@ -118,5 +123,3 @@ const ForgotPasswordPage = () => {
 }
 
 export default ForgotPasswordPage
-
-

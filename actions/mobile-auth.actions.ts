@@ -587,7 +587,7 @@ export const verifyMpin = async (values: z.infer<typeof mpinVerificationSchema>)
     }
 
     return {
-      success: "Login successful! Welcome back to MarketPu.",
+      success: "Login successful! Welcome back to MarketPulse360.",
       redirectTo: "/dashboard"
     }
 
@@ -777,10 +777,10 @@ export const registerWithMobile = async (values: z.infer<typeof signUpSchema>, r
       
       return {
         success: isDevelopmentMode
-          ? `Registration successful! OTP generated. Check server console for the OTP code.`
+          ? `🎉 Registration successful! Your Client ID is ${clientId}. OTP generated - check server console.`
           : otpResult.data?.fallback
-            ? `Registration successful! OTP generated. SMS failed; check with support or console.`
-            : `Registration successful! OTP sent to your mobile${otpResult.data?.emailEnqueued ? " and email" : ""} for verification.`,
+            ? `🎉 Registration successful! Your Client ID is ${clientId}. OTP generated - SMS failed; check support.`
+            : `🎉 Registration successful! Your Client ID is ${clientId}. OTP sent to your mobile${otpResult.data?.emailEnqueued ? " and email" : ""}.`,
         sessionToken,
         requiresOtp: true,
         userData: {

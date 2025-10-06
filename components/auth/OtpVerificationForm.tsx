@@ -104,13 +104,15 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
   const getPurposeMessage = () => {
     switch (userData?.purpose) {
       case "PHONE_VERIFICATION":
-        return "Please verify your contact to continue"
+        return "Verify your mobile number to continue with account setup"
       case "MPIN_SETUP":
-        return "Verify your contact to set up mPin"
+        return "Verify OTP to set up your secure mPin"
       case "LOGIN_VERIFICATION":
-        return "Complete your login verification"
+        return "Complete your login with OTP verification"
+      case "PASSWORD_RESET":
+        return "Verify OTP to reset your password"
       default:
-        return "Please verify the OTP sent to your contact"
+        return "Enter the OTP sent to your registered contact"
     }
   }
 

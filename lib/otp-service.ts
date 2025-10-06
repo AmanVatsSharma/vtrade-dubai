@@ -5,7 +5,7 @@ import { sendOtpEmail } from "@/lib/ResendMail";
 import bcrypt from "bcryptjs";
 import { withOtpTransaction, withPhoneVerificationTransaction } from "@/lib/database-transactions";
 
-export type OtpPurpose = "LOGIN_VERIFICATION" | "MPIN_SETUP" | "MPIN_RESET" | "PHONE_VERIFICATION" | "TRANSACTION_AUTH";
+export type OtpPurpose = "LOGIN_VERIFICATION" | "MPIN_SETUP" | "MPIN_RESET" | "PHONE_VERIFICATION" | "TRANSACTION_AUTH" | "PASSWORD_RESET";
 
 export interface OtpServiceResponse {
   success: boolean;
@@ -258,6 +258,7 @@ export class OtpService {
       MPIN_RESET: "mPin reset",
       PHONE_VERIFICATION: "phone verification",
       TRANSACTION_AUTH: "transaction",
+      PASSWORD_RESET: "password reset",
     };
 
     return purposeMap[purpose] || "verification";

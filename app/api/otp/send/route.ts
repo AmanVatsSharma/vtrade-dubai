@@ -8,7 +8,8 @@ const VALID_PURPOSES: OtpPurpose[] = [
   "MPIN_SETUP",
   "MPIN_RESET",
   "PHONE_VERIFICATION",
-  "TRANSACTION_AUTH"
+  "TRANSACTION_AUTH",
+  "PASSWORD_RESET"
 ];
 
 export async function POST(request: NextRequest) {

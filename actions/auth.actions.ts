@@ -322,20 +322,76 @@ export const resetPassword = async (values: { identifier: string }): Promise<Pas
         // For security, never reveal whether the user exists
         if (!existingUser) {
             return {
-                success: "If an account exists, you will receive password reset instructions shortly"
+                success: "If an account exists, you will receive password reset instructions via email and SMS"
             };
         }
 
+        let emailSent = false;
+        let smsSent = false;
+
         // Generate a password reset token tied to the user's email
         if (existingUser.email) {
-            const passwordResetToken = await generatePasswordResetVerificationToken(existingUser.email, existingUser.id);
+            try {
+                const passwordResetToken = await generatePasswordResetVerificationToken(existingUser.email, existingUser.id);
+                
+                // Send password reset email with link
+                await sendPasswordResetEmail(passwordResetToken.email, passwordResetToken.token);
+                emailSent = true;
+                console.log(`✅ Password reset email sent to ${existingUser.email}`);
+            } catch (emailError) {
+                console.error("Failed to send password reset email:", emailError);
+            }
+        }
 
-            // Send password reset email with link
-            await sendPasswordResetEmail(passwordResetToken.email, passwordResetToken.token);
+        // Also send OTP via SMS if user has phone number
+        if (existingUser.phone) {
+            try {
+                const { sendOtpSMS, generateOTP } = await import("@/lib/aws-sns");
+                const { sendOtpEmail } = await import("@/lib/ResendMail");
+                
+                const otp = generateOTP(6);
+                const hashedOtp = await bcrypt.hash(otp, 10);
+                const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+                // Save OTP to database
+                await prisma.otpToken.create({
+                    data: {
+                        userId: existingUser.id,
+                        phone: existingUser.phone,
+                        otp: hashedOtp,
+                        purpose: "PASSWORD_RESET",
+                        expiresAt,
+                        attempts: 0,
+                        isUsed: false,
+                    }
+                });
+
+                // Send OTP via SMS
+                const smsResult = await sendOtpSMS(existingUser.phone, otp, "password reset");
+                if (smsResult.success) {
+                    smsSent = true;
+                    console.log(`✅ Password reset OTP sent to mobile ${existingUser.phone}`);
+                } else {
+                    console.error("Failed to send SMS OTP:", smsResult.error);
+                }
+
+                // Also send OTP via email as backup
+                if (existingUser.email) {
+                    await sendOtpEmail(existingUser.email, otp, "password reset", expiresAt, existingUser.phone);
+                }
+            } catch (smsError) {
+                console.error("Failed to send password reset OTP:", smsError);
+            }
         }
 
         return {
-            success: "If an account exists, you will receive password reset instructions shortly"
+            success: emailSent && smsSent 
+                ? "Password reset link sent to your email and OTP sent to your mobile" 
+                : emailSent 
+                    ? "Password reset link sent to your email"
+                    : smsSent
+                        ? "Password reset OTP sent to your mobile"
+                        : "If an account exists, you will receive password reset instructions"
         };
     } catch (error) {
         console.error("Password reset error:", error);

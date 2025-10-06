@@ -29,6 +29,7 @@ export default function KYC() {
   // Check authentication status
   useEffect(() => {
     if (status === 'unauthenticated') {
+      console.log('KYC: User unauthenticated, redirecting to login');
       router.push('/auth/login');
     }
   }, [status, router]);
@@ -37,10 +38,14 @@ export default function KYC() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (status === 'loading' && !session) {
-        console.log('Session loading timeout - redirecting to login');
-        router.push('/auth/login');
+        console.log('Session loading timeout - will retry fetching session');
+        // Don't redirect immediately, let the session retry
+        // Refresh the page to force session reload
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
       }
-    }, 10000); // 10 second timeout
+    }, 15000); // 15 second timeout (increased)
 
     return () => clearTimeout(timeout);
   }, [status, session, router]);
@@ -49,6 +54,10 @@ export default function KYC() {
   useEffect(() => {
     const fetchKYCData = async () => {
       if (!session?.user?.id) {
+        // If session is loading, wait for it
+        if (status === 'loading') {
+          return;
+        }
         setIsLoadingKYC(false);
         return;
       }
@@ -62,12 +71,34 @@ export default function KYC() {
           headers: {
             'Content-Type': 'application/json',
           },
+          cache: 'no-store',
         });
 
         if (!response.ok) {
           if (response.status === 401) {
-            setError("Please login first");
-            router.push('/auth/login');
+            console.log('KYC API returned 401, session may not be ready. Retrying in 2s...');
+            // Wait a bit and retry once
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const retryResponse = await fetch('/api/kyc', {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              cache: 'no-store',
+            });
+            
+            if (!retryResponse.ok) {
+              setError("Session expired. Please login again.");
+              setTimeout(() => router.push('/auth/login'), 2000);
+              return;
+            }
+            
+            const retryData = await retryResponse.json();
+            if (retryData.kyc) {
+              setExistingKYC(retryData.kyc);
+              setAadhaar(retryData.kyc.aadhaarNumber || "");
+              setPan(retryData.kyc.panNumber || "");
+            }
             return;
           }
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -90,10 +121,10 @@ export default function KYC() {
 
     if (session?.user?.id) {
       fetchKYCData();
-    } else {
+    } else if (status !== 'loading') {
       setIsLoadingKYC(false);
     }
-  }, [session, router]);
+  }, [session, status, router]);
 
   const uploadToBankProofUrl = async (file: File): Promise<string> => {
     // TODO: Implement actual file upload to your storage service

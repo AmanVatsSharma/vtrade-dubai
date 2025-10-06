@@ -91,6 +91,9 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
                     </div>
                   </FormControl>
                   <FormMessage />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Use your full legal name as per PAN card
+                  </div>
                 </FormItem>
               )}
             />
@@ -151,6 +154,9 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
                     </div>
                   </FormControl>
                   <FormMessage />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Must start with 6-9 and be exactly 10 digits
+                  </div>
                 </FormItem>
               )}
             />
@@ -194,7 +200,7 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
           <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded-md">
             <p className="font-semibold mb-1">By creating an account, you agree to:</p>
             <ul className="space-y-1">
-              <li>• MarketPu's Terms of Service</li>
+              <li>• MarketPulse360's Terms of Service</li>
               <li>• Privacy Policy and Data Protection</li>
               <li>• Trading Guidelines and Risk Disclosure</li>
             </ul>
@@ -222,8 +228,8 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
           </Button>
 
           <div className="text-center text-sm text-gray-600 mt-4">
-            <p>🔒 Your data is secured with bank-grade encryption</p>
-            <p className="mt-1">📱 Instant mobile verification for quick account setup</p>
+            <p>🔒 Bank-grade security with end-to-end encryption</p>
+            <p className="mt-1">📱 Quick setup with instant mobile verification</p>
           </div>
         </form>
       </Form>

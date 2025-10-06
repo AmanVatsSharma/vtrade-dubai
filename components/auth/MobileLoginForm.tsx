@@ -94,6 +94,9 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
                     </div>
                   </FormControl>
                   <FormMessage />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Client ID will be sent to your email after registration
+                  </div>
                 </FormItem>
               )}
             />
@@ -159,13 +162,13 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
                 Signing in...
               </div>
             ) : (
-              "Sign in to MarketPu"
+              "Sign in to MarketPulse360"
             )}
           </Button>
 
           <div className="text-center text-sm text-gray-600 mt-4">
-            <p>🔒 Secure login with OTP verification</p>
-            <p className="mt-1">💡 Use your mobile number or Client ID to log in</p>
+            <p>🔒 Secure login with OTP & mPin verification</p>
+            <p className="mt-1">💡 Use your mobile number or Client ID</p>
           </div>
         </form>
       </Form>

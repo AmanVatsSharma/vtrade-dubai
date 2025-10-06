@@ -109,9 +109,14 @@ const PasswordResetContent = () => {
                   {isPending ? "Updating..." : "Update password"}
                 </Button>
 
-                <p className="text-xs text-center text-gray-500">
-                  Your reset link expires in 1 hour. If it has expired, request a new one.
-                </p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600">
+                  <p className="font-semibold mb-1">Important:</p>
+                  <ul className="space-y-1">
+                    <li>• Your reset link is valid for 1 hour only</li>
+                    <li>• Password must be 8-32 characters long</li>
+                    <li>• If expired, request a new reset link</li>
+                  </ul>
+                </div>
               </form>
             </Form>
           )}
