@@ -75,7 +75,7 @@ export interface PnLData {
 }
 
 export interface TabConfig {
-  id: "watchlist" | "orders" | "positions" | "account"
+  id: "home" | "watchlist" | "orders" | "positions" | "account"
   icon: React.ComponentType<{ className?: string }>
   label: string
 }
@@ -91,7 +91,7 @@ export interface TradingDashboardProps {
 }
 
 export interface TradingDashboardState {
-  currentTab: "watchlist" | "orders" | "positions" | "account"
+  currentTab: "home" | "watchlist" | "orders" | "positions" | "account"
   orderDialogOpen: boolean
   selectedStockForOrder: Stock | null
   error: string | null

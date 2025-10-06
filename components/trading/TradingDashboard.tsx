@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useMemo, useCallback, useEffect } from "react"
-import { TrendingUp, Wallet, FileText, Eye, Loader2, RefreshCcw, Wifi, WifiOff, AlertCircle } from "lucide-react"
+import { TrendingUp, Wallet, FileText, Eye, Loader2, RefreshCcw, Wifi, WifiOff, AlertCircle, Home } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,6 +15,7 @@ import { PositionTracking } from "@/components/position-tracking"
 import { Account } from "@/components/Account"
 import { WatchlistManager } from "@/components/watchlist/WatchlistManager"
 import { OrderDialog } from "@/components/OrderDialog"
+import { TradingHome } from "@/components/trading/TradingHome"
 import type {
   TradingDashboardProps,
   TabConfig,
@@ -36,6 +37,7 @@ import type {
 
 // Constants
 const TAB_CONFIGS: TabConfig[] = [
+  { id: "home", icon: Home, label: "Home" },
   { id: "watchlist", icon: Eye, label: "Watchlist" },
   { id: "orders", icon: FileText, label: "Orders" },
   { id: "positions", icon: TrendingUp, label: "Positions" },
@@ -101,7 +103,7 @@ IndexDisplay.displayName = "IndexDisplay"
 // Main Trading Dashboard Component
 const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) => {
   // State
-  const [currentTab, setCurrentTab] = useState<"watchlist" | "orders" | "positions" | "account">("watchlist")
+  const [currentTab, setCurrentTab] = useState<"home" | "watchlist" | "orders" | "positions" | "account">("home")
   const [orderDialogOpen, setOrderDialogOpen] = useState(false)
   const [selectedStockForOrder, setSelectedStockForOrder] = useState<Stock | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -246,6 +248,14 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     }
 
     switch (currentTab) {
+      case "home":
+        return (
+          <TradingHome 
+            userName={session?.user?.name}
+            session={session}
+            portfolio={portfolio}
+          />
+        )
       case "watchlist":
         return (
           <WatchlistManager 
@@ -347,7 +357,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
-        <div className="grid grid-cols-4 gap-1 p-2 max-w-4xl mx-auto">
+        <div className="grid grid-cols-5 gap-1 p-2 max-w-4xl mx-auto">
           {TAB_CONFIGS.map(({ id, icon: Icon, label }) => (
             <Button
               key={id}
