@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DepositForm } from "../deposits/deposit-form"
 import { DepositHistory } from "../deposits/deposit-history"
 import { UPIPaymentModal } from "../deposits/upi-payment-modal"
+import { useSession } from "next-auth/react"
+import { useConsoleData } from "@/lib/hooks/use-console-data"
+import { useToast } from "@/hooks/use-toast"
 
 export interface DepositRecord {
   id: string
@@ -52,47 +55,94 @@ const mockDeposits: DepositRecord[] = [
 ]
 
 export function DepositsSection() {
-  const [deposits, setDeposits] = useState<DepositRecord[]>(mockDeposits)
   const [showUPIModal, setShowUPIModal] = useState(false)
   const [depositAmount, setDepositAmount] = useState<number>(0)
+  const { toast } = useToast()
 
-  const handleDepositSubmit = (amount: number, method: string) => {
+  // Get console data
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const { consoleData, isLoading, error, createDepositRequest } = useConsoleData(userId)
+
+  const deposits = consoleData?.deposits || []
+  const bankAccounts = consoleData?.bankAccounts || []
+
+  const handleDepositSubmit = async (amount: number, method: string) => {
     if (method === "upi") {
       setDepositAmount(amount)
       setShowUPIModal(true)
     } else {
       // Handle other payment methods
-      const newDeposit: DepositRecord = {
-        id: `DEP${String(deposits.length + 1).padStart(3, "0")}`,
+      const result = await createDepositRequest({
         amount,
-        method: method as "bank" | "cash",
-        status: "pending",
-        date: new Date().toISOString().split("T")[0],
-        time: new Date().toLocaleTimeString(),
-        reference: `${method.toUpperCase()}-DEP-${deposits.length + 1}`,
+        method: method.toLowerCase(),
+        bankAccountId: bankAccounts.find(ba => ba.isDefault)?.id,
+        reference: `${method.toUpperCase()}-DEP-${Date.now()}`
+      })
+
+      if (result.success) {
+        toast({
+          title: "Deposit Request Created",
+          description: "Your deposit request has been submitted successfully.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        })
       }
-      setDeposits([newDeposit, ...deposits])
     }
   }
 
-  const handleUPISuccess = (utr: string) => {
-    const newDeposit: DepositRecord = {
-      id: `DEP${String(deposits.length + 1).padStart(3, "0")}`,
+  const handleUPISuccess = async (utr: string) => {
+    const result = await createDepositRequest({
       amount: depositAmount,
       method: "upi",
-      status: "pending",
-      date: new Date().toISOString().split("T")[0],
-      time: new Date().toLocaleTimeString(),
+      bankAccountId: bankAccounts.find(ba => ba.isDefault)?.id,
       utr,
-      reference: `UPI-DEP-${deposits.length + 1}`,
+      reference: `UPI-DEP-${Date.now()}`
+    })
+
+    if (result.success) {
+      toast({
+        title: "Deposit Request Created",
+        description: "Your UPI deposit request has been submitted successfully.",
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
     }
-    setDeposits([newDeposit, ...deposits])
+    
     setShowUPIModal(false)
   }
 
-  const totalDeposited = deposits.filter((d) => d.status === "completed").reduce((sum, d) => sum + d.amount, 0)
+  const totalDeposited = deposits.filter((d) => d.status === "COMPLETED").reduce((sum, d) => sum + Number(d.amount), 0)
+  const pendingDeposits = deposits.filter((d) => d.status === "PENDING" || d.status === "PROCESSING").length
 
-  const pendingDeposits = deposits.filter((d) => d.status === "pending").length
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        Loading deposits data...
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-xl font-semibold text-destructive">Error loading deposits</div>
+          <div className="text-sm text-muted-foreground">{error}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div

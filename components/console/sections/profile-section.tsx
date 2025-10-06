@@ -10,25 +10,31 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 import { ChangeMPINDialog } from "../dialogs/change-mpin-dialog"
 import { useSession } from "next-auth/react"
+import { useConsoleData } from "@/lib/hooks/use-console-data"
 
 export function ProfileSection() {
   const [copied, setCopied] = useState(false)
   const [showMPINDialog, setShowMPINDialog] = useState(false)
   const { toast } = useToast()
 
-  // Read session details (exposed via NextAuth callbacks)
+  // Read session details and console data
   const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const { consoleData, isLoading, error } = useConsoleData(userId)
+  
   const sUser = (session?.user || {}) as any
-  const clientId = sUser?.clientId ?? "-"
+  const clientId = consoleData?.user?.clientId ?? sUser?.clientId ?? "-"
   const userProfile = {
-    name: sUser?.name ?? "-",
-    email: sUser?.email ?? "-",
-    mobile: sUser?.phone ?? "-",
-    joinDate: "-", // optional: could be fetched from users table if exposed
-    kycStatus: sUser?.kycStatus ?? "-",
-    accountType: (sUser?.role as string | undefined) ?? "USER",
-    tradingStatus: sUser?.tradingAccountId ? "Active" : "Inactive",
+    name: consoleData?.user?.name ?? sUser?.name ?? "-",
+    email: consoleData?.user?.email ?? sUser?.email ?? "-",
+    mobile: consoleData?.user?.phone ?? sUser?.phone ?? "-",
+    joinDate: consoleData?.user?.createdAt ? new Date(consoleData.user.createdAt).toLocaleDateString() : "-",
+    kycStatus: consoleData?.user?.kycStatus ?? "-",
+    accountType: consoleData?.user?.role ?? (sUser?.role as string | undefined) ?? "USER",
+    tradingStatus: consoleData?.tradingAccount ? "Active" : "Inactive",
   }
+  
+  console.log("ProfileSection: console data", consoleData)
   console.log("ProfileSection: session user", sUser)
 
   const copyClientId = async () => {
@@ -47,6 +53,27 @@ export function ProfileSection() {
         variant: "destructive",
       })
     }
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        Loading profile data...
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-xl font-semibold text-destructive">Error loading profile</div>
+          <div className="text-sm text-muted-foreground">{error}</div>
+        </div>
+      </div>
+    )
   }
 
   return (

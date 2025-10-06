@@ -10,6 +10,7 @@ import { FilterBar } from "../statements/filter-bar"
 import { ExportDialog } from "../statements/export-dialog"
 import { useSession } from "next-auth/react"
 import { usePortfolio, useTransactions } from "@/lib/hooks/use-trading-data"
+import { useConsoleData } from "@/lib/hooks/use-console-data"
 
 export interface Transaction {
   id: string
@@ -27,10 +28,15 @@ export interface Transaction {
 export function StatementsSection() {
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
-  const tradingAccountId = (session?.user as any)?.tradingAccountId as string | undefined
-  const { portfolio } = usePortfolio(userId, (session?.user as any)?.name ?? null, (session?.user as any)?.email ?? null)
-  const resolvedAccountId = tradingAccountId || (portfolio as any)?.account?.id
-  const { transactions, isLoading } = useTransactions(resolvedAccountId)
+  const { consoleData, isLoading: isConsoleLoading, error: consoleError } = useConsoleData(userId)
+  
+  // Fallback to existing transactions hook
+  const tradingAccountId = consoleData?.tradingAccount?.id || (session?.user as any)?.tradingAccountId
+  const { transactions: fallbackTransactions, isLoading: isTransactionsLoading } = useTransactions(tradingAccountId)
+  
+  const transactions = consoleData?.transactions || fallbackTransactions || []
+  const isLoading = isConsoleLoading || isTransactionsLoading
+  
   const transactionsKey = useMemo(() => JSON.stringify(transactions ?? []), [transactions])
   const mapped: Transaction[] = useMemo(() => {
     try {
@@ -54,6 +60,27 @@ export function StatementsSection() {
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
   useEffect(() => setFilteredTransactions(mapped), [mapped])
   const [showExportDialog, setShowExportDialog] = useState(false)
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        Loading statements data...
+      </div>
+    )
+  }
+
+  // Error state
+  if (consoleError) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-xl font-semibold text-destructive">Error loading statements</div>
+          <div className="text-sm text-muted-foreground">{consoleError}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div

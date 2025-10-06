@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { WithdrawalRequestForm } from "../withdrawals/withdrawal-request-form"
 import { WithdrawalsList } from "../withdrawals/withdrawals-list"
 import { useSession } from "next-auth/react"
-import { usePortfolio } from "@/lib/hooks/use-trading-data"
+import { useConsoleData } from "@/lib/hooks/use-console-data"
+import { useToast } from "@/hooks/use-toast"
 
 export interface BankAccount {
   id: string
@@ -90,37 +91,62 @@ const mockWithdrawals: WithdrawalRecord[] = [
 ]
 
 export function WithdrawalsSection() {
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>(mockWithdrawals)
-  const [bankAccounts] = useState<BankAccount[]>(mockBankAccounts)
+  const { toast } = useToast()
 
-  // Pull available balance from the user's portfolio
+  // Get console data
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
-  const { portfolio } = usePortfolio(userId, (session?.user as any)?.name ?? null, (session?.user as any)?.email ?? null)
+  const { consoleData, isLoading, error, createWithdrawalRequest } = useConsoleData(userId)
 
-  const handleWithdrawalRequest = (amount: number, bankAccountId: string) => {
-    const selectedBank = bankAccounts.find((bank) => bank.id === bankAccountId)
-    if (!selectedBank) return
+  const withdrawals = consoleData?.withdrawals || []
+  const bankAccounts = consoleData?.bankAccounts || []
 
-    const newWithdrawal: WithdrawalRecord = {
-      id: `WD${String(withdrawals.length + 1).padStart(3, "0")}`,
+  const handleWithdrawalRequest = async (amount: number, bankAccountId: string) => {
+    const result = await createWithdrawalRequest({
       amount,
-      bankAccount: selectedBank,
-      status: "pending",
-      requestDate: new Date().toISOString().split("T")[0],
-      requestTime: new Date().toLocaleTimeString(),
-      reference: `WD-2024-${String(withdrawals.length + 1).padStart(3, "0")}`,
-      charges: 0,
-    }
+      bankAccountId,
+      reference: `WD-${Date.now()}`,
+      charges: 0
+    })
 
-    setWithdrawals([newWithdrawal, ...withdrawals])
+    if (result.success) {
+      toast({
+        title: "Withdrawal Request Created",
+        description: "Your withdrawal request has been submitted successfully.",
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
+    }
   }
 
-  const totalWithdrawn = withdrawals.filter((w) => w.status === "completed").reduce((sum, w) => sum + w.amount, 0)
+  const totalWithdrawn = withdrawals.filter((w) => w.status === "COMPLETED").reduce((sum, w) => sum + Number(w.amount), 0)
+  const pendingWithdrawals = withdrawals.filter((w) => w.status === "PENDING" || w.status === "PROCESSING").length
+  const availableBalance = consoleData?.tradingAccount?.availableMargin ?? consoleData?.tradingAccount?.balance ?? 0
 
-  const pendingWithdrawals = withdrawals.filter((w) => w.status === "pending" || w.status === "processing").length
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        Loading withdrawals data...
+      </div>
+    )
+  }
 
-  const availableBalance = (portfolio as any)?.account?.availableMargin ?? (portfolio as any)?.account?.balance ?? 0
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-xl font-semibold text-destructive">Error loading withdrawals</div>
+          <div className="text-sm text-muted-foreground">{error}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div

@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button"
 import { BankAccountsList } from "../bank-accounts/bank-accounts-list"
 import { AddBankAccountDialog } from "../bank-accounts/add-bank-account-dialog"
 import { EditBankAccountDialog } from "../bank-accounts/edit-bank-account-dialog"
+import { useSession } from "next-auth/react"
+import { useConsoleData } from "@/lib/hooks/use-console-data"
+import { useToast } from "@/hooks/use-toast"
 import type { BankAccount } from "../withdrawals/withdrawals-section"
 
 const mockBankAccounts: BankAccount[] = [
@@ -41,64 +44,114 @@ const mockBankAccounts: BankAccount[] = [
 ]
 
 export function BankAccountsSection() {
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(mockBankAccounts)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null)
+  const { toast } = useToast()
 
-  const handleAddAccount = (newAccount: Omit<BankAccount, "id">) => {
-    const account: BankAccount = {
-      ...newAccount,
-      id: `BA${String(bankAccounts.length + 1).padStart(3, "0")}`,
-    }
+  // Get console data
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const { consoleData, isLoading, error, addBankAccount, updateBankAccount, deleteBankAccount } = useConsoleData(userId)
 
-    // If this is the first account or marked as default, make it default
-    if (bankAccounts.length === 0 || newAccount.isDefault) {
-      setBankAccounts((prev) => [account, ...prev.map((acc) => ({ ...acc, isDefault: false }))])
+  const bankAccounts = consoleData?.bankAccounts || []
+
+  const handleAddAccount = async (newAccount: Omit<BankAccount, "id" | "createdAt">) => {
+    const result = await addBankAccount(newAccount)
+    
+    if (result.success) {
+      toast({
+        title: "Bank Account Added",
+        description: "Your bank account has been added successfully.",
+      })
+      setShowAddDialog(false)
     } else {
-      setBankAccounts((prev) => [account, ...prev])
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
     }
   }
 
-  const handleEditAccount = (updatedAccount: BankAccount) => {
-    setBankAccounts((prev) =>
-      prev.map((acc) => {
-        if (acc.id === updatedAccount.id) {
-          return updatedAccount
-        }
-        // If the updated account is set as default, remove default from others
-        if (updatedAccount.isDefault && acc.isDefault) {
-          return { ...acc, isDefault: false }
-        }
-        return acc
-      }),
-    )
-    setEditingAccount(null)
-  }
-
-  const handleDeleteAccount = (accountId: string) => {
-    const accountToDelete = bankAccounts.find((acc) => acc.id === accountId)
-    const remainingAccounts = bankAccounts.filter((acc) => acc.id !== accountId)
-
-    // If deleting the default account and there are other accounts, make the first one default
-    if (accountToDelete?.isDefault && remainingAccounts.length > 0) {
-      remainingAccounts[0].isDefault = true
+  const handleEditAccount = async (updatedAccount: BankAccount) => {
+    const result = await updateBankAccount(updatedAccount.id, updatedAccount)
+    
+    if (result.success) {
+      toast({
+        title: "Bank Account Updated",
+        description: "Your bank account has been updated successfully.",
+      })
+      setEditingAccount(null)
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
     }
-
-    setBankAccounts(remainingAccounts)
   }
 
-  const handleSetDefault = (accountId: string) => {
-    setBankAccounts((prev) =>
-      prev.map((acc) => ({
-        ...acc,
-        isDefault: acc.id === accountId,
-      })),
-    )
+  const handleDeleteAccount = async (accountId: string) => {
+    const result = await deleteBankAccount(accountId)
+    
+    if (result.success) {
+      toast({
+        title: "Bank Account Deleted",
+        description: "Your bank account has been deleted successfully.",
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSetDefault = async (accountId: string) => {
+    const account = bankAccounts.find(acc => acc.id === accountId)
+    if (!account) return
+
+    const result = await updateBankAccount(accountId, { ...account, isDefault: true })
+    
+    if (result.success) {
+      toast({
+        title: "Default Account Updated",
+        description: "Your default bank account has been updated successfully.",
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
+    }
   }
 
   const defaultAccount = bankAccounts.find((acc) => acc.isDefault)
   const savingsAccounts = bankAccounts.filter((acc) => acc.accountType === "savings").length
   const currentAccounts = bankAccounts.filter((acc) => acc.accountType === "current").length
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        Loading bank accounts data...
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-xl font-semibold text-destructive">Error loading bank accounts</div>
+          <div className="text-sm text-muted-foreground">{error}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div

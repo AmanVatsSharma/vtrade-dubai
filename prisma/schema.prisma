@@ -201,6 +201,12 @@ model User {
   OtpToken           OtpToken[]
   SessionAuth        SessionAuth[]
   AuthEvents         AuthEvent[]
+  
+  // Console-specific relations
+  bankAccounts       BankAccount[]
+  deposits           Deposit[]
+  withdrawals        Withdrawal[]
+  userProfile        UserProfile?
 
   @@map("users")
 }
@@ -310,9 +316,11 @@ model TradingAccount {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
 
-  orders    Order[]
-  positions Position[]
-  trades    Transaction[]
+  orders      Order[]
+  positions   Position[]
+  trades      Transaction[]
+  deposits    Deposit[]
+  withdrawals Withdrawal[]
 
   @@map("trading_accounts")
 }
@@ -484,4 +492,117 @@ model TradingLog {
   @@index([level])
   @@index([createdAt])
   @@map("trading_logs")
+}
+
+// Console-specific models for real user data
+model BankAccount {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankName          String
+  accountNumber     String
+  ifscCode          String
+  accountHolderName String
+  accountType       String   @default("savings") // savings, current
+  isDefault         Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  deposits    Deposit[]
+  withdrawals Withdrawal[]
+
+  @@unique([userId, accountNumber])
+  @@index([userId])
+  @@map("bank_accounts")
+}
+
+model Deposit {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradingAccountId String
+  tradingAccount TradingAccount  @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+  bankAccountId String?
+  bankAccount   BankAccount?     @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  amount        Decimal          @db.Decimal(18, 2)
+  method        String           // upi, bank_transfer, neft, rtgs, cash
+  status        DepositStatus    @default(PENDING)
+  utr           String?          // UTR number for tracking
+  reference     String?          // Reference number
+  remarks       String?
+  processedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([tradingAccountId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("deposits")
+}
+
+model Withdrawal {
+  id            String             @id @default(uuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradingAccountId String
+  tradingAccount TradingAccount    @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+  bankAccountId String
+  bankAccount   BankAccount        @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  amount        Decimal            @db.Decimal(18, 2)
+  status        WithdrawalStatus   @default(PENDING)
+  reference     String?            // Reference number
+  remarks       String?
+  charges       Decimal            @default(0) @db.Decimal(18, 2)
+  processedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([tradingAccountId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("withdrawals")
+}
+
+model UserProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName         String?
+  lastName          String?
+  dateOfBirth       DateTime?
+  gender            String?
+  address           String?
+  city              String?
+  state             String?
+  pincode           String?
+  panNumber         String?
+  aadhaarNumber     String?
+  occupation        String?
+  annualIncome      Decimal? @db.Decimal(18, 2)
+  riskProfile       String?  @default("MODERATE") // CONSERVATIVE, MODERATE, AGGRESSIVE
+  investmentExperience String? // BEGINNER, INTERMEDIATE, ADVANCED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+// Additional enums for console functionality
+enum DepositStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
 }

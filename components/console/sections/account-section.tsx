@@ -12,21 +12,21 @@ import { PLTrendChart } from "../account/pl-trend-chart"
 import { QuickActionsMenu } from "../account/quick-actions-menu"
 import { useSession } from "next-auth/react"
 import { usePortfolio, usePositions } from "@/lib/hooks/use-trading-data"
+import { useConsoleData } from "@/lib/hooks/use-console-data"
 
 export function AccountSection() {
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Session + trading data hooks
+  // Session + console data hooks
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
-  const { portfolio, isLoading: isPortfolioLoading, error: portfolioError, ensure } = usePortfolio(
-    userId,
-    (session?.user as any)?.name ?? null,
-    (session?.user as any)?.email ?? null
-  )
+  const { consoleData, isLoading: isConsoleLoading, error: consoleError, refetch } = useConsoleData(userId)
+  
+  // Fallback to existing trading data hooks for positions
   const { positions, isLoading: isPositionsLoading, error: positionsError } = usePositions(userId)
+  
   const unrealizedPnL = useMemo(() => {
     try {
       return (positions || []).reduce((sum: number, p: any) => sum + (Number(p.unrealizedPnL) || 0), 0)
@@ -35,7 +35,8 @@ export function AccountSection() {
       return 0
     }
   }, [positions])
-  console.log("AccountSection: portfolio", portfolio, { isPortfolioLoading, portfolioError })
+  
+  console.log("AccountSection: console data", consoleData, { isConsoleLoading, consoleError })
   console.log("AccountSection: positions count", positions?.length, { isPositionsLoading, positionsError })
 
   // Auto-refresh every 30 seconds
@@ -47,12 +48,37 @@ export function AccountSection() {
     return () => clearInterval(interval)
   }, [])
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true)
-    setTimeout(() => {
+    try {
+      await refetch()
       setLastUpdated(new Date())
+    } catch (error) {
+      console.error("Error refreshing data:", error)
+    } finally {
       setIsRefreshing(false)
-    }, 1000)
+    }
+  }
+
+  // Loading state
+  if (isConsoleLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        Loading account data...
+      </div>
+    )
+  }
+
+  // Error state
+  if (consoleError) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center space-y-2">
+          <div className="text-xl font-semibold text-destructive">Error loading account data</div>
+          <div className="text-sm text-muted-foreground">{consoleError}</div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -95,10 +121,11 @@ export function AccountSection() {
       <AccountSummaryGrid
         balanceVisible={balanceVisible}
         account={{
-          totalValue: (portfolio as any)?.account?.totalValue ?? 0,
-          availableMargin: (portfolio as any)?.account?.availableMargin ?? 0,
-          usedMargin: (portfolio as any)?.account?.usedMargin ?? 0,
-          balance: (portfolio as any)?.account?.balance ?? 0,
+          totalValue: consoleData?.tradingAccount ? 
+            (consoleData.tradingAccount.balance + consoleData.tradingAccount.availableMargin + consoleData.tradingAccount.usedMargin) : 0,
+          availableMargin: consoleData?.tradingAccount?.availableMargin ?? 0,
+          usedMargin: consoleData?.tradingAccount?.usedMargin ?? 0,
+          balance: consoleData?.tradingAccount?.balance ?? 0,
         }}
         unrealizedPnL={unrealizedPnL}
       />
