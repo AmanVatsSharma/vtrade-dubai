@@ -152,17 +152,26 @@ export function AdminDashboard() {
 
     try {
       console.log(`[VORTEX_DASHBOARD] Fetching ${type} data`);
+      let url = '';
+      switch (type) {
+        case 'profile':
+          url = '/admin/api/vortex/profile';
+          break;
+        case 'positions':
+          url = '/admin/api/vortex/positions';
+          break;
+        case 'orders':
+          url = '/admin/api/vortex/orders';
+          break;
+        case 'funds':
+          url = '/admin/api/vortex/funds';
+          break;
+      }
 
-      // This would be implemented with actual Vortex API calls
-      // For now, we'll simulate the data structure
-      const mockData = {
-        profile: { name: 'Admin User', email: 'admin@example.com' },
-        positions: [],
-        orders: [],
-        funds: { available: 100000, used: 0 }
-      };
-
-      setVortexData(prev => ({ ...prev, [type]: mockData[type] }));
+      const resp = await fetch(url);
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error || 'Request failed');
+      setVortexData(prev => ({ ...prev, [type]: json.data }));
       console.log(`[VORTEX_DASHBOARD] ${type} data fetched successfully`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

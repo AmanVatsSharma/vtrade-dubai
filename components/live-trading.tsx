@@ -42,9 +42,7 @@ export default function LiveTrading({ className }: LiveTradingProps) {
     subscribeToOHLCV,
     subscribeToFull,
     getPrice
-  } = useVortexWebSocket({
-    autoConnect: false
-  });
+  } = useVortexWebSocket({ autoConnect: false });
 
   const currentPrice = getPrice(selectedExchange, parseInt(instrumentToken));
 

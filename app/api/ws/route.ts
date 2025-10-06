@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       supportedModes: ['ltp', 'ohlcv', 'full'],
       supportedExchanges: ['NSE_EQ', 'NSE_FO', 'NSE_CUR', 'MCX_FO'],
       sessionId: sessionInfo.sessionId,
-      expiresAt: sessionInfo.expiresAt
+      expiresAt: null
     };
 
     logger.info(LogCategory.VORTEX_API, 'WebSocket info provided', {

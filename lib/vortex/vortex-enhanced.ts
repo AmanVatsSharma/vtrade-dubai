@@ -58,7 +58,7 @@ export class VortexAPI {
 
   constructor() {
     this.config = {
-      applicationId: process.env.VORTEX_APPLICATION_ID || '',
+      applicationId: process.env.VORTEX_APPLICATION_ID || process.env.NEXT_PUBLIC_VORTEX_APPLICATION_ID || '',
       apiKey: process.env.VORTEX_X_API_KEY || '',
       baseUrl: 'https://vortex-api.rupeezy.in/v2'
     };
@@ -515,6 +515,7 @@ export class VortexAPI {
         userId: session.userId,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
+        accessToken: session.accessToken,
         profile,
         isValid: true
       };

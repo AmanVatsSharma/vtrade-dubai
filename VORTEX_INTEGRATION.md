@@ -60,6 +60,7 @@ DIRECT_URL="postgresql://postgres:postgres@localhost:5432/nextjs_graphql_autocru
 VORTEX_APPLICATION_ID="your-vortex-application-id"
 VORTEX_X_API_KEY="your-vortex-x-api-key"
 NEXT_PUBLIC_VORTEX_APPLICATION_ID="your-vortex-application-id"
+DISABLE_VORTEX_LOGGER="false"
 
 # Application Configuration
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
