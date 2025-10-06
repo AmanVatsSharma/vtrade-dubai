@@ -48,7 +48,8 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
     } catch (logError) {
       console.error('Failed to log security event:', logError);
     }
-    return { error: "Invalid fields!" }
+    const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ");
+    return { error: `Invalid input: ${errors}` }
   }
 
   const { identifier, password } = validatedFields.data
@@ -79,7 +80,7 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
       } catch (logError) {
         console.error('Failed to log security event:', logError);
       }
-      return { error: "Invalid mobile number or Client ID!" }
+      return { error: "Invalid credentials. Please check your mobile number/Client ID and password." }
     }
 
     // Verify password
@@ -99,7 +100,7 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
       } catch (logError) {
         console.error('Failed to log security event:', logError);
       }
-      return { error: "Invalid password!" }
+      return { error: "Invalid credentials. Please check your mobile number/Client ID and password." }
     }
 
     // Check if phone is verified (required for mobile login)
@@ -272,7 +273,10 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
 
   } catch (error) {
     console.error("Mobile login error:", error);
-    return { error: "Something went wrong!" }
+    if (error instanceof Error) {
+      return { error: `Login failed: ${error.message}` }
+    }
+    return { error: "An unexpected error occurred. Please try again later." }
   }
 }
 
@@ -283,7 +287,8 @@ export const verifyOtp = async (values: z.infer<typeof otpVerificationSchema>): 
   const validatedFields = otpVerificationSchema.safeParse(values)
 
   if (!validatedFields.success) {
-    return { error: "Invalid fields!" }
+    const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ");
+    return { error: `Invalid OTP or session: ${errors}` }
   }
 
   const { otp, sessionToken } = validatedFields.data
@@ -431,7 +436,8 @@ export const setupMpin = async (
   const validatedFields = mpinSetupSchema.safeParse(values)
 
   if (!validatedFields.success) {
-    return { error: "Invalid mPin format!" }
+    const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ");
+    return { error: `Invalid mPin: ${errors}` }
   }
 
   const { mpin } = validatedFields.data
@@ -514,7 +520,8 @@ export const verifyMpin = async (values: z.infer<typeof mpinVerificationSchema>)
   const validatedFields = mpinVerificationSchema.safeParse(values)
 
   if (!validatedFields.success) {
-    return { error: "Invalid mPin format!" }
+    const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ");
+    return { error: `Invalid mPin: ${errors}` }
   }
 
   const { mpin, sessionToken } = validatedFields.data

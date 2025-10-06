@@ -31,7 +31,7 @@ export const generateVerificationToken = async (email: string) => {
     return verificationToken;
 }
 
-export const generatePasswordResetVerificationToken = async (email: string) => {
+export const generatePasswordResetVerificationToken = async (email: string, userId: string) => {
 
     const token = uuidv4();
     const expires = new Date(new Date().getTime() + 3600 * 1000);
@@ -48,7 +48,8 @@ export const generatePasswordResetVerificationToken = async (email: string) => {
         data: {
             email,
             expires,
-            token
+            token,
+            userId
         }
     });
 

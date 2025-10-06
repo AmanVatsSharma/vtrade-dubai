@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     
     if (!session?.user?.id) {
       return NextResponse.json(
-        { error: 'Unauthorized - Please login first' },
+        { error: 'Unauthorized - Your session has expired. Please login again.' },
         { status: 401 }
       );
     }
@@ -24,7 +24,23 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!aadhaarNumber || !panNumber || !bankProofUrl) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { error: 'All fields (Aadhaar, PAN, and Bank Proof) are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate Aadhaar format
+    if (!/^\d{12}$/.test(aadhaarNumber)) {
+      return NextResponse.json(
+        { error: 'Invalid Aadhaar number format. Must be 12 digits.' },
+        { status: 400 }
+      );
+    }
+
+    // Validate PAN format
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panNumber)) {
+      return NextResponse.json(
+        { error: 'Invalid PAN format. Must be in format: ABCDE1234F' },
         { status: 400 }
       );
     }
@@ -49,7 +65,7 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({
-        success: 'KYC updated successfully',
+        success: 'KYC updated successfully. Your documents are being reviewed.',
         kyc: updatedKYC
       });
     } else {
@@ -65,15 +81,21 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({
-        success: 'KYC submitted successfully',
+        success: 'KYC submitted successfully. Your documents are being reviewed.',
         kyc: newKYC
       });
     }
 
   } catch (error) {
     console.error('KYC submission error:', error);
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: `Failed to process KYC: ${error.message}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to process KYC submission. Please try again later.' },
       { status: 500 }
     );
   }

@@ -10,8 +10,9 @@ export async function POST(request: NextRequest) {
     const validationResult = mpinSetupSchema.safeParse(body);
     
     if (!validationResult.success) {
+      const errors = validationResult.error.issues.map((e: any) => e.message).join(", ");
       return NextResponse.json(
-        { error: "Invalid mPin format" },
+        { error: `Invalid mPin: ${errors}` },
         { status: 400 }
       );
     }
@@ -26,9 +27,24 @@ export async function POST(request: NextRequest) {
       include: { user: true }
     });
 
-    if (!sessionAuth || sessionAuth.expiresAt < new Date()) {
+    if (!sessionAuth) {
       return NextResponse.json(
-        { error: "Invalid or expired session" },
+        { error: "Invalid session. Please try logging in again." },
+        { status: 400 }
+      );
+    }
+
+    if (sessionAuth.expiresAt < new Date()) {
+      return NextResponse.json(
+        { error: "Session expired. Please login again to set up mPin." },
+        { status: 400 }
+      );
+    }
+
+    // Check if user already has an mPin
+    if (sessionAuth.user.mPin) {
+      return NextResponse.json(
+        { error: "mPin already set up. Use reset option to change it." },
         { status: 400 }
       );
     }
@@ -39,23 +55,32 @@ export async function POST(request: NextRequest) {
       // Update session to mark mPin as verified
       await prisma.sessionAuth.update({
         where: { id: sessionAuth.id },
-        data: { isMpinVerified: true }
+        data: { 
+          isMpinVerified: true,
+          lastActivity: new Date()
+        }
       });
 
       return NextResponse.json({
         success: true,
-        message: result.message,
+        message: result.message || "mPin set up successfully!",
       });
     } else {
       return NextResponse.json(
-        { error: result.message },
+        { error: result.message || "Failed to set up mPin" },
         { status: 400 }
       );
     }
   } catch (error) {
     console.error("Setup mPin API error:", error);
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: `Failed to set up mPin: ${error.message}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to set up mPin. Please try again later." },
       { status: 500 }
     );
   }

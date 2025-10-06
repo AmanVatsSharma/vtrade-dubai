@@ -10,7 +10,6 @@ import { generatePasswordResetVerificationToken, generateVerificationToken } fro
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/ResendMail"
 import { getUserByEmail, getUserByIdentifier } from "@/data/user";
 import { signIn } from "@/auth";
-import { nanoid } from "nanoid";
 import { getVerificationTokenByToken } from "@/data/verification-token";
 import { PasswordResetResponse } from "@/types/types";
 import { getPasswordResetTokenByToken } from "@/data/password-reset-toke";
@@ -19,94 +18,127 @@ export const login = async (values: z.infer<typeof signInSchema>) => {
     const validatedFields = signInSchema.safeParse(values)
 
     if (!validatedFields.success) {
-        return { error: "Invalid fields!" }
+        const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ")
+        return { error: `Validation error: ${errors}` }
     }
 
     const { email, password } = validatedFields.data
 
-    // Try to find user by email or clientId
-    let existingUser = await getUserByEmail(email)
-    if (!existingUser) {
-        existingUser = await prisma.user.findUnique({ where: { clientId: email } })
-    }
-
-    if (!existingUser || !existingUser.password) {
-        return { error: "Invalid email or Client ID!" }
-    }
-
-    if (!existingUser.emailVerified) {
-        const verificationToken = await generateVerificationToken(existingUser.email!)
-        await sendVerificationEmail(verificationToken.email ?? 'xyz', verificationToken.token)
-        return { success: "Confirmation email sent!" }
-    }
-
-    // Fetch user with KYC data
-    const userWithKYC = await prisma.user.findUnique({
-        where: { id: existingUser.id },
-        include: { kyc: true }
-    })
-
-    // Check phone verification first
-    if (!existingUser.phoneVerified && existingUser.phone) {
-        return {
-            success: "Please verify your phone number to continue.",
-            redirectTo: "/auth/phone-verification"
+    try {
+        // Try to find user by email or clientId
+        let existingUser = await getUserByEmail(email)
+        if (!existingUser) {
+            existingUser = await prisma.user.findUnique({ where: { clientId: email } })
         }
-    }
 
-    // Check mPin setup
-    if (!existingUser.mPin) {
-        return {
-            success: "Please set up your mPin to continue.",
-            redirectTo: "/auth/mpin-setup"
+        if (!existingUser || !existingUser.password) {
+            return { error: "Invalid credentials. Please check your email/Client ID and password." }
         }
-    }
 
-    // Check KYC status - redirect to KYC page if not approved
-    if (!userWithKYC?.kyc || userWithKYC.kyc.status !== "APPROVED") {
+        // Verify password first
+        const passwordsMatch = await bcrypt.compare(password, existingUser.password)
+        if (!passwordsMatch) {
+            return { error: "Invalid credentials. Please check your email/Client ID and password." }
+        }
+
+        // Check email verification
+        if (!existingUser.emailVerified) {
+            try {
+                const verificationToken = await generateVerificationToken(existingUser.email!)
+                await sendVerificationEmail(verificationToken.email ?? existingUser.email!, verificationToken.token)
+                return { 
+                    success: "Please verify your email first. A new verification link has been sent to your email.",
+                    requiresEmailVerification: true 
+                }
+            } catch (emailError) {
+                console.error("Failed to send verification email:", emailError)
+                return { error: "Your email is not verified. Please contact support." }
+            }
+        }
+
+        // Fetch user with KYC data
+        const userWithKYC = await prisma.user.findUnique({
+            where: { id: existingUser.id },
+            include: { kyc: true }
+        })
+
+        // Check phone verification first
+        if (!existingUser.phoneVerified && existingUser.phone) {
+            return {
+                success: "Please verify your phone number to continue.",
+                redirectTo: "/auth/phone-verification",
+                requiresPhoneVerification: true
+            }
+        }
+
+        // Check mPin setup
+        if (!existingUser.mPin) {
+            return {
+                success: "Please set up your mPin to secure your account.",
+                redirectTo: "/auth/mpin-setup",
+                requiresMpinSetup: true
+            }
+        }
+
+        // Check KYC status - redirect to KYC page if not approved
+        if (!userWithKYC?.kyc || userWithKYC.kyc.status !== "APPROVED") {
+            try {
+                await signIn("credentials", {
+                    email: existingUser.email,
+                    password,
+                    redirectTo: "/auth/kyc"
+                })
+                const kycMessage = !userWithKYC?.kyc 
+                    ? "Please complete your KYC verification to start trading."
+                    : userWithKYC.kyc.status === "PENDING"
+                    ? "Your KYC verification is pending approval."
+                    : "Your KYC was rejected. Please resubmit with correct information."
+                
+                return {
+                    success: kycMessage,
+                    redirectTo: "/auth/kyc",
+                    requiresKyc: true
+                }
+            } catch (error) {
+                if (error instanceof AuthError) {
+                    switch (error.type) {
+                        case "CredentialsSignin":
+                            return { error: "Authentication failed. Please try again." }
+                        default:
+                            return { error: "An error occurred during login. Please try again." }
+                    }
+                }
+                throw error
+            }
+        }
+
         try {
             await signIn("credentials", {
                 email: existingUser.email,
                 password,
-                redirectTo: "/auth/kyc"
+                redirectTo: "/dashboard"
             })
             return {
-                success: "Please complete your KYC verification.",
-                redirectTo: "/auth/kyc"
+                success: "Welcome back! Logged in successfully.",
+                redirectTo: "/dashboard"
             }
         } catch (error) {
             if (error instanceof AuthError) {
                 switch (error.type) {
                     case "CredentialsSignin":
-                        return { error: "Invalid credentials!" }
+                        return { error: "Authentication failed. Please verify your credentials." }
                     default:
-                        return { error: "Something went wrong!" }
+                        return { error: "Login failed. Please try again later." }
                 }
             }
             throw error
         }
-    }
-
-    try {
-        await signIn("credentials", {
-            email: existingUser.email,
-            password,
-            redirectTo: "/dashboard"
-        })
-        return {
-            success: "Logged in successfully!",
-            redirectTo: "/dashboard"
-        }
     } catch (error) {
-        if (error instanceof AuthError) {
-            switch (error.type) {
-                case "CredentialsSignin":
-                    return { error: "Invalid credentials!" }
-                default:
-                    return { error: "Something went wrong!" }
-            }
+        console.error("Login error:", error)
+        if (error instanceof Error) {
+            return { error: `Login failed: ${error.message}` }
         }
-        throw error
+        return { error: "An unexpected error occurred. Please try again later." }
     }
 }
 
@@ -125,34 +157,37 @@ export const register = async (values: z.infer<typeof signUpSchema>) => {
     const validatedFields = signUpSchema.safeParse(values)
 
     if (!validatedFields.success) {
-        return { error: "Invalid fields!" }
+        const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ")
+        return { error: `Invalid fields: ${errors}` }
     }
 
     const { email, password, name, phone } = validatedFields.data
 
-    const existingUser = await prisma.user.findUnique({
-        where: { email }
-    })
-
-    if (existingUser) {
-        return { error: "Email already in use!" }
-    }
-
-    // Check if phone number is already in use
-    if (phone) {
-        const existingPhone = await prisma.user.findUnique({
-            where: { phone }
+    try {
+        // Check if email already exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
         })
 
-        if (existingPhone) {
-            return { error: "Mobile number already in use!" }
+        if (existingUser) {
+            return { error: "Email already registered. Please login or use forgot password." }
         }
-    }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
-    const clientId = generateClientId();
+        // Check if phone number is already in use
+        if (phone) {
+            const existingPhone = await prisma.user.findUnique({
+                where: { phone }
+            })
 
-    try {
+            if (existingPhone) {
+                return { error: "Mobile number already registered. Please login or use a different number." }
+            }
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10)
+        const clientId = generateClientId();
+
+        // Create user and trading account in a transaction
         const newUser = await prisma.user.create({
             data: {
                 name,
@@ -163,12 +198,12 @@ export const register = async (values: z.infer<typeof signUpSchema>) => {
             }
         })
 
-        // Also create a trading account for the new user
+        // Create a trading account for the new user
         await prisma.tradingAccount.create({
             data: {
                 userId: newUser.id,
                 balance: 0,
-                availableMargin: 0, // Demo margin for trading
+                availableMargin: 0,
                 usedMargin: 0,
                 clientId,
                 orders:{
@@ -193,58 +228,91 @@ export const register = async (values: z.infer<typeof signUpSchema>) => {
             }
         })
 
-        const verificationToken = await generateVerificationToken(email)
-        await sendVerificationEmail(verificationToken.email, verificationToken.token)
+        // Send verification email
+        try {
+            const verificationToken = await generateVerificationToken(email)
+            await sendVerificationEmail(verificationToken.email, verificationToken.token)
+        } catch (emailError) {
+            console.error("Failed to send verification email:", emailError)
+            // Continue registration even if email fails
+        }
 
         return {
-            success: "Confirmation email sent! Please verify your email to continue.",
+            success: "Registration successful! Please check your email to verify your account.",
             clientId
         }
     } catch (error) {
         console.error("Registration error:", error)
-        return { error: "Something went wrong during registration!" }
+        if (error instanceof Error) {
+            if (error.message.includes("Unique constraint")) {
+                return { error: "An account with this information already exists." }
+            }
+            return { error: `Registration failed: ${error.message}` }
+        }
+        return { error: "Registration failed. Please try again later." }
     }
 }
 
 export const newVerification = async (token: string) => {
-
-    const existingToken = await getVerificationTokenByToken(token)
-
-    if (!existingToken) {
-        return { error: "Token does not exist!" }
-    }
-
-    const hasExpired = new Date(existingToken.expires) < new Date();
-
-    if (hasExpired) {
-        return { error: "Token has expired!" }
-    }
-
-    const existingUser = await getUserByEmail(existingToken.email)
-
-    if (!existingUser) {
-        return { error: "Email does not exist!" }
-    }
-
-    await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-            emailVerified: new Date(),
-            email: existingToken.email
+    try {
+        if (!token || !token.trim()) {
+            return { error: "Invalid verification link. Please request a new one." }
         }
-    });
 
-    await prisma.verificationToken.delete({
-        where: { token },
-    })
+        const existingToken = await getVerificationTokenByToken(token)
 
-    return { success: "Email verified! You can now login and complete KYC verification." }
+        if (!existingToken) {
+            return { error: "Invalid or expired verification link. Please request a new one." }
+        }
+
+        const hasExpired = new Date(existingToken.expires) < new Date();
+
+        if (hasExpired) {
+            // Clean up expired token
+            await prisma.verificationToken.delete({ where: { token } })
+            return { error: "Verification link has expired. Please request a new one from the login page." }
+        }
+
+        const existingUser = await getUserByEmail(existingToken.email)
+
+        if (!existingUser) {
+            return { error: "User account not found. Please register again." }
+        }
+
+        if (existingUser.emailVerified) {
+            // Already verified, clean up token
+            await prisma.verificationToken.delete({ where: { token } })
+            return { success: "Email already verified! You can now login." }
+        }
+
+        // Update user email verification
+        await prisma.user.update({
+            where: { id: existingUser.id },
+            data: {
+                emailVerified: new Date(),
+                email: existingToken.email
+            }
+        });
+
+        // Delete the used token
+        await prisma.verificationToken.delete({
+            where: { token },
+        })
+
+        return { success: "Email verified successfully! You can now login and complete your profile." }
+    } catch (error) {
+        console.error("Email verification error:", error)
+        if (error instanceof Error) {
+            return { error: `Verification failed: ${error.message}` }
+        }
+        return { error: "Failed to verify email. Please try again or contact support." }
+    }
 }
 
 export const resetPassword = async (values: { identifier: string }): Promise<PasswordResetResponse> => {
     // Robust validation
     if (!values.identifier || !values.identifier.trim()) {
-        return { error: "Identifier is required" };
+        return { error: "Email, mobile number, or Client ID is required" };
     }
 
     try {
@@ -252,17 +320,19 @@ export const resetPassword = async (values: { identifier: string }): Promise<Pas
         const existingUser = await getUserByIdentifier(values.identifier.trim());
 
         // For security, never reveal whether the user exists
-        if (!existingUser || !existingUser.email) {
+        if (!existingUser) {
             return {
                 success: "If an account exists, you will receive password reset instructions shortly"
             };
         }
 
         // Generate a password reset token tied to the user's email
-        const passwordResetToken = await generatePasswordResetVerificationToken(existingUser.email);
+        if (existingUser.email) {
+            const passwordResetToken = await generatePasswordResetVerificationToken(existingUser.email, existingUser.id);
 
-        // Send password reset email with link
-        await sendPasswordResetEmail(passwordResetToken.email, passwordResetToken.token);
+            // Send password reset email with link
+            await sendPasswordResetEmail(passwordResetToken.email, passwordResetToken.token);
+        }
 
         return {
             success: "If an account exists, you will receive password reset instructions shortly"
@@ -270,7 +340,7 @@ export const resetPassword = async (values: { identifier: string }): Promise<Pas
     } catch (error) {
         console.error("Password reset error:", error);
         return {
-            error: "Something went wrong. Please try again later."
+            error: "Failed to process password reset request. Please try again later."
         };
     }
 };
@@ -279,47 +349,62 @@ export const newPassword = async (
     values: z.infer<typeof NewPasswordSchema>,
     token?: string | null
 ) => {
-    if (!token) {
-        return { error: "Missing token!" }
+    try {
+        if (!token || !token.trim()) {
+            return { error: "Invalid password reset link. Please request a new one." }
+        }
+
+        const validatedFields = NewPasswordSchema.safeParse(values);
+
+        if (!validatedFields.success) {
+            const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ")
+            return { error: `Invalid password: ${errors}` };
+        }
+        
+        const { password } = validatedFields.data
+
+        const existingToken = await getPasswordResetTokenByToken(token)
+
+        if (!existingToken) {
+            return { error: "Invalid or expired reset link. Please request a new one." }
+        }
+
+        const hasExpired = new Date(existingToken.expires) < new Date();
+
+        if (hasExpired) {
+            // Clean up expired token
+            await prisma.passwordResetToken.delete({ where: { id: existingToken.id } })
+            return { error: "Reset link has expired (valid for 1 hour). Please request a new one." }
+        }
+
+        const existingUser = await getUserByEmail(existingToken.email)
+
+        if (!existingUser) {
+            return { error: "User account not found. Please contact support." }
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(password, 10)
+
+        // Update user password
+        await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { password: hashedPassword }
+        });
+
+        // Delete the used token
+        await prisma.passwordResetToken.delete({
+            where: { id: existingToken.id }
+        });
+
+        return { success: "Password updated successfully! You can now login with your new password." }
+    } catch (error) {
+        console.error("Password reset error:", error)
+        if (error instanceof Error) {
+            return { error: `Failed to reset password: ${error.message}` }
+        }
+        return { error: "Failed to reset password. Please try again or contact support." }
     }
-
-    const validatedFields = NewPasswordSchema.safeParse(values);
-
-    if (!validatedFields.success) {
-        return { error: "Invalid fields!" };
-    }
-    const { password } = validatedFields.data
-
-    const existingToken = await getPasswordResetTokenByToken(token)
-
-    if (!existingToken) {
-        return { error: "Invalid token!" }
-    }
-
-    const hasExpired = new Date(existingToken.expires) < new Date();
-
-    if (hasExpired) {
-        return { error: "Token has expired!" }
-    }
-
-    const existingUser = await getUserByEmail(existingToken.email)
-
-    if (!existingUser) {
-        return { error: "Email does not exist!" }
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    await prisma.user.update({
-        where: { id: existingUser.id },
-        data: { password: hashedPassword }
-    });
-
-    await prisma.passwordResetToken.delete({
-        where: { id: existingToken.id }
-    });
-
-    return { success: "Password updated!" }
 }
 
 export const sendVerificationEmailAgain = async (email :string, token: string) => {

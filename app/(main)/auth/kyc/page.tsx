@@ -123,25 +123,26 @@ export default function KYC() {
     e.preventDefault();
 
     if (!session?.user?.id) {
-      setError("Please login first");
+      setError("Session expired. Please login again.");
+      setTimeout(() => router.push('/auth/login'), 2000);
       return;
     }
 
     // Validate required fields
     if (!aadhaar || !pan) {
-      setError("Please fill in all required fields");
+      setError("All fields are required. Please fill in Aadhaar and PAN.");
       return;
     }
 
     // Validate Aadhaar number format
     if (!/^\d{12}$/.test(aadhaar)) {
-      setError("Please enter a valid 12-digit Aadhaar number");
+      setError("Invalid Aadhaar number. Please enter exactly 12 digits.");
       return;
     }
 
     // Validate PAN number format
     if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-      setError("Please enter a valid PAN number (e.g., ABCDE1234F)");
+      setError("Invalid PAN format. Use format: ABCDE1234F (5 letters, 4 numbers, 1 letter)");
       return;
     }
 
@@ -153,11 +154,17 @@ export default function KYC() {
       let bankProofUrl = "";
 
       if (bankProof) {
-        bankProofUrl = await uploadToBankProofUrl(bankProof);
+        try {
+          bankProofUrl = await uploadToBankProofUrl(bankProof);
+        } catch (uploadError) {
+          setError("Failed to upload bank proof. Please try again or use a smaller file.");
+          setLoading(false);
+          return;
+        }
       } else if (existingKYC?.bankProofUrl) {
         bankProofUrl = existingKYC.bankProofUrl;
       } else {
-        setError("Bank proof document is required");
+        setError("Bank proof document is required. Please upload a cancelled cheque or bank statement.");
         setLoading(false);
         return;
       }
@@ -175,15 +182,26 @@ export default function KYC() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setError("Session expired. Please login again.");
+          setTimeout(() => router.push('/auth/login'), 2000);
+          return;
+        }
         throw new Error(data.error || 'Failed to submit KYC');
       }
 
-      setSuccess("✅ KYC submitted successfully! Await admin approval.");
-      setTimeout(() => router.push("/dashboard"), 2000);
+      setSuccess("✅ KYC submitted successfully! Your documents are being reviewed by our team. You will be notified once approved.");
+      
+      // Redirect to dashboard after 3 seconds
+      setTimeout(() => router.push("/dashboard"), 3000);
 
     } catch (err: any) {
       console.error("KYC submission error:", err);
-      setError(err.message || "❌ Failed to submit KYC. Try again.");
+      if (err.message.includes("network") || err.message.includes("fetch")) {
+        setError("Network error. Please check your internet connection and try again.");
+      } else {
+        setError(err.message || "Failed to submit KYC. Please try again or contact support.");
+      }
     } finally {
       setLoading(false);
     }
