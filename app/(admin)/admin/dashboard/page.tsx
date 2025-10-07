@@ -16,8 +16,17 @@ import {
   Clock, 
   TrendingUp,
   Shield,
-  Settings
+  Settings,
+  Activity
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { WebSocketErrorBoundary } from '@/components/vortex/WebSocketErrorBoundary';
+
+// Dynamically import LiveMarketQuotes to avoid SSR issues with WebSocket
+const LiveMarketQuotes = dynamic(
+  () => import('@/components/vortex/LiveMarketQuotes'),
+  { ssr: false }
+);
 
 interface DashboardStats {
   totalUsers: number;
@@ -245,6 +254,18 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Live Market Quotes - WebSocket Integration */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-5 h-5 text-blue-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Live Market Data</h2>
+            <Badge variant="outline" className="ml-2">WebSocket</Badge>
+          </div>
+          <WebSocketErrorBoundary>
+            <LiveMarketQuotes />
+          </WebSocketErrorBoundary>
         </div>
 
         {/* Recent Activity */}
