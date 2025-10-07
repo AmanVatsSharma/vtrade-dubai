@@ -55,7 +55,10 @@ export async function closePositionWithFundManagement(
   try {
     if (posRes.stock?.[0]?.instrumentId) {
       console.log("📊 [POSITION-ACTIONS] Fetching LTP for instrument:", posRes.stock[0].instrumentId)
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/quotes?q=${posRes.stock[0].instrumentId}&mode=ltp`, { cache: 'no-store' })
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL 
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+        || 'https://www.marketpulse360.live'
+      const res = await fetch(`${baseUrl}/api/quotes?q=${posRes.stock[0].instrumentId}&mode=ltp`, { cache: 'no-store' })
       const quoteData = await res.json()
       console.log("📈 [POSITION-ACTIONS] LTP response:", quoteData)
       

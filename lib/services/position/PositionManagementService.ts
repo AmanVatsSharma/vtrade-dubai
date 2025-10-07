@@ -336,7 +336,9 @@ export class PositionManagementService {
     console.log("📊 [POSITION-MGMT-SERVICE] Fetching current price:", instrumentId)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL 
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+        || 'https://www.marketpulse360.live'
       const response = await fetch(
         `${baseUrl}/api/quotes?q=${instrumentId}&mode=ltp`,
         { cache: 'no-store' }

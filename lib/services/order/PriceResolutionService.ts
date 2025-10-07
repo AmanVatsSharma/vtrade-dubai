@@ -194,7 +194,9 @@ export class PriceResolutionService {
     console.log("📡 [PRICE-RESOLUTION-SERVICE] Fetching live price for:", instrumentId)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL 
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+        || 'https://www.marketpulse360.live'
       const url = `${baseUrl}/api/quotes?q=${instrumentId}&mode=ltp`
       
       console.log("🌐 [PRICE-RESOLUTION-SERVICE] Calling Vortex API:", url)

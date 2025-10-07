@@ -45,7 +45,10 @@ export async function placeOrderAndScheduleExecution(input: any, ctx: { logger?:
     
     console.log("📊 [POSITION-MGMT] Fetching LTP for instrument:", instrumentId)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/quotes?q=${instrumentId}&mode=ltp`, { cache: 'no-store' })
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL 
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+        || 'https://www.marketpulse360.live'
+      const res = await fetch(`${baseUrl}/api/quotes?q=${instrumentId}&mode=ltp`, { cache: 'no-store' })
       const raw = await res.json()
       console.log("📈 [POSITION-MGMT] Raw LTP response:", raw)
       
