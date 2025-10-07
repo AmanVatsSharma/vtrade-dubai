@@ -53,7 +53,7 @@ export class VortexAPIError extends Error {
 }
 
 export class VortexAPI {
-  private config: VortexConfig;
+  public config: VortexConfig;
   private currentSession: VortexSession | null = null;
 
   constructor(skipValidation: boolean = false) {
@@ -93,21 +93,33 @@ export class VortexAPI {
   // Get current active session
   public async getCurrentSession(): Promise<VortexSession | null> {
     try {
+      console.log('🔍 [VortexAPI] Fetching session from database...');
+      
       const session = await prisma.vortexSession.findFirst({
         orderBy: { createdAt: 'desc' }
       });
 
       if (session) {
         this.currentSession = session;
+        console.log('✅ [VortexAPI] Session found and cached:', {
+          sessionId: session.id,
+          userId: session.userId,
+          createdAt: session.createdAt,
+          hasAccessToken: !!session.accessToken
+        });
+        
         logger.info(LogCategory.VORTEX_AUTH, 'Retrieved current session', {
           sessionId: session.id,
           userId: session.userId,
           createdAt: session.createdAt
         });
+      } else {
+        console.log('⚠️ [VortexAPI] No session found in database');
       }
 
       return session;
     } catch (error) {
+      console.error('❌ [VortexAPI] Failed to retrieve session from database:', error);
       logger.error(LogCategory.DATABASE, 'Failed to retrieve current session', error as Error);
       throw new VortexAPIError('Failed to retrieve session', 'SESSION_ERROR', error);
     }
@@ -213,12 +225,24 @@ export class VortexAPI {
 
   // Ensure we have a valid session
   private async ensureValidSession(): Promise<VortexSession> {
+    console.log('🔐 [VortexAPI] Ensuring valid session...', {
+      hasCachedSession: !!this.currentSession,
+      cachedSessionId: this.currentSession?.id
+    });
+    
     if (!this.currentSession) {
+      console.log('⚡ [VortexAPI] No cached session, fetching from database...');
       this.currentSession = await this.getCurrentSession();
+    } else {
+      console.log('✅ [VortexAPI] Using cached session:', {
+        sessionId: this.currentSession.id,
+        userId: this.currentSession.userId
+      });
     }
 
     if (!this.currentSession) {
-      throw new VortexAPIError('No active session found', 'NO_SESSION');
+      console.error('❌ [VortexAPI] No active session found. User needs to login.');
+      throw new VortexAPIError('No active session found. Please login again.', 'NO_SESSION');
     }
 
     return this.currentSession;
@@ -458,9 +482,12 @@ export class VortexAPI {
   // Check if session is valid
   public async isSessionValid(): Promise<boolean> {
     try {
+      console.log('🔎 [VortexAPI] Checking if session is valid...');
       await this.ensureValidSession();
+      console.log('✅ [VortexAPI] Session is valid');
       return true;
     } catch (error) {
+      console.error('❌ [VortexAPI] Session validation failed:', error instanceof Error ? error.message : error);
       return false;
     }
   }
@@ -540,15 +567,29 @@ export function getVortexAPI(): VortexAPI {
     // Skip validation during build time
     const isBuildTime = typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build';
     vortexAPIInstance = new VortexAPI(isBuildTime);
+    
+    console.log('🔧 [VortexAPI] Instance created:', {
+      isBuildTime,
+      hasAppId: !!vortexAPIInstance.config?.applicationId,
+      hasApiKey: !!vortexAPIInstance.config?.apiKey
+    });
   }
   return vortexAPIInstance;
 }
 
 // For backward compatibility - will be initialized lazily during runtime
+// The Proxy ensures proper method binding and 'this' context
 export const vortexAPI = new Proxy({} as VortexAPI, {
   get(target, prop) {
     const instance = getVortexAPI();
-    return instance[prop as keyof VortexAPI];
+    const value = instance[prop as keyof VortexAPI];
+    
+    // If it's a function, bind it to the instance to preserve 'this' context
+    if (typeof value === 'function') {
+      return value.bind(instance);
+    }
+    
+    return value;
   }
 });
 

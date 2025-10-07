@@ -45,15 +45,22 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Validate session
+    console.log('🔐 [API/Quotes] Validating Vortex session...');
     const isSessionValid = await vortexAPI.isSessionValid();
+    
     if (!isSessionValid) {
+      console.error('❌ [API/Quotes] No valid session found');
       logger.error(LogCategory.VORTEX_QUOTES, 'No valid session found', undefined, { clientId });
+      
       return NextResponse.json({ 
-        error: "No active session found. Please login again.",
+        error: "No active session found. Please login to Vortex first.",
         code: "NO_SESSION",
+        hint: "Visit /admin/vortex-dashboard and click 'Login to Vortex' to create a session.",
         timestamp: new Date().toISOString()
       }, { status: 401 });
     }
+    
+    console.log('✅ [API/Quotes] Session is valid, proceeding to fetch quotes');
 
     // 4. Fetch quotes using enhanced Vortex API
     logger.info(LogCategory.VORTEX_QUOTES, 'Fetching quotes from Vortex API', {
