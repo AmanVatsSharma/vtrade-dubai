@@ -9,10 +9,10 @@ import { createContext, useContext, useState, useEffect, useMemo, useRef, useCal
 import { usePortfolio, useUserWatchlist, useOrders, usePositions } from "@/lib/hooks/use-trading-data"
 import { isMarketOpen } from "./market-timing"
 
-const LIVE_PRICE_POLL_INTERVAL = 5000 // 5 seconds for actual price updates
-const JITTER_INTERVAL = 250 // 250ms for jitter updates
+const LIVE_PRICE_POLL_INTERVAL = 3000 // 3 seconds for actual price updates (optimized for responsiveness)
+const JITTER_INTERVAL = 250 // 250ms for jitter updates (perfect for realistic market movement)
 const INTERPOLATION_STEPS = 50 // Number of interpolation steps
-const INTERPOLATION_DURATION = 4500 // Duration of interpolation in ms (slightly less than poll interval)
+const INTERPOLATION_DURATION = 2800 // Duration of interpolation in ms
 
 // Configuration for market data enhancements
 interface MarketDataConfig {
@@ -34,13 +34,13 @@ interface MarketDataConfig {
   };
 }
 
-// Default configuration
+// Default configuration - perfect balance for realistic market movement with jittering
 const DEFAULT_CONFIG: MarketDataConfig = {
   jitter: {
     enabled: true,
     interval: 250,
-    intensity: 0.15, // ±0.15 or 0.15%
-    convergence: 0.1 // 10% convergence per jitter update
+    intensity: 0.15, // ±0.15 or 0.15% (perfect for realistic market movement)
+    convergence: 0.1 // 10% convergence per jitter update (natural movement)
   },
   deviation: {
     enabled: false,
@@ -313,37 +313,60 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
     })
   }, [])
 
-  // Main fetch function
-  const fetchQuotes = useCallback(async () => {
+  // Main fetch function - optimized with error handling and retry logic
+  const fetchQuotes = useCallback(async (retryCount = 0) => {
       try {
         const params = new URLSearchParams()
         const ids = instrumentKey ? instrumentKey.split('|').filter(Boolean) : []
+        
+        if (ids.length === 0) {
+          setIsLoading(false)
+          return
+        }
+        
         ids.forEach((id: string) => params.append("q", id))
-        const res = await fetch(`/api/quotes?${params.toString()}`)
+        
+        // Add timeout for better error handling
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+        
+        const res = await fetch(`/api/quotes?${params.toString()}`, {
+          signal: controller.signal,
+          cache: 'no-store'
+        })
+        
+        clearTimeout(timeoutId)
 
         if (!res.ok) throw new Error(`Failed to fetch quotes: ${res.statusText}`)
         const raw = await res.json()
 
-      // Accept multiple response shapes from quotes API
+        // Accept multiple response shapes from quotes API
         let quotesPayload: any = raw
         if (raw?.success) quotesPayload = raw.data ?? raw
         if (raw?.status === 'success') quotesPayload = raw.data ?? raw
         if (quotesPayload?.data && typeof quotesPayload.data === 'object') {
           quotesPayload = quotesPayload.data
         }
-      const processedQuotes = processQuotes(quotesPayload, quotesRef.current)
-      setQuotes(processedQuotes)
-      
-      // Start interpolation animation if enabled
-      if (configRef.current.interpolation.enabled) {
-        animationFrameRef.current = requestAnimationFrame(animateInterpolation)
-      }
+        
+        const processedQuotes = processQuotes(quotesPayload, quotesRef.current)
+        setQuotes(processedQuotes)
+        
+        // Start interpolation animation if enabled
+        if (configRef.current.interpolation.enabled) {
+          animationFrameRef.current = requestAnimationFrame(animateInterpolation)
+        }
       
       } catch (error) {
         console.error("MarketDataProvider Error:", error)
+        
+        // Retry logic for failed fetches (up to 2 retries)
+        if (retryCount < 2) {
+          console.log(`Retrying fetch (attempt ${retryCount + 1})...`)
+          setTimeout(() => fetchQuotes(retryCount + 1), 1000)
+        }
       } finally {
-      setIsLoading(false)
-    }
+        setIsLoading(false)
+      }
   }, [instrumentKey, processQuotes, animateInterpolation])
 
   // Main effect for setting up polling only (jitter handled separately)
@@ -361,12 +384,9 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
       // Initial fetch on key change
       fetchQuotes()
 
-            // // Set up polling interval
-            // if (isMarketOpen()) {
-            //   pollIntervalRef.current = setInterval(fetchQuotes, LIVE_PRICE_POLL_INTERVAL)
-            // }
-      // Set up polling interval (always run every 5s to keep UI alive)
-      pollIntervalRef.current = setInterval(fetchQuotes, LIVE_PRICE_POLL_INTERVAL)
+            // Set up polling interval - optimized for smooth enterprise-grade experience
+      // Always poll to keep UI alive and responsive, regardless of market status
+      pollIntervalRef.current = setInterval(() => fetchQuotes(), LIVE_PRICE_POLL_INTERVAL)
     }
 
     return () => {

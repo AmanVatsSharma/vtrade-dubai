@@ -1,3 +1,14 @@
+/**
+ * @deprecated This file is deprecated. Use OrderExecutionService and PositionManagementService instead.
+ * This file will be removed in a future version.
+ * 
+ * Migration path:
+ * Old: import { placeOrderAndScheduleExecution } from '@/lib/server/position-management'
+ * New: import { createOrderExecutionService } from '@/lib/services/order/OrderExecutionService'
+ * 
+ * See MIGRATION_GUIDE_RPC_TO_SERVICES.md for complete migration guide.
+ */
+
 import { supabaseServer } from "@/lib/supabase/supabase-server"
 import { toNumber } from "@/lib/utils/decimal"
 

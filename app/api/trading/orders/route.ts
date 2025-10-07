@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createOrderExecutionService } from '@/lib/services/order/OrderExecutionService'
 import { createTradingLogger } from '@/lib/services/logging/TradingLogger'
 import { placeOrderSchema, modifyOrderSchema, cancelOrderSchema } from '@/lib/server/validation'
+import { checkRateLimit, getRateLimitKey, RateLimitPresets } from '@/lib/services/security/RateLimiter'
+import { trackOperation } from '@/lib/services/monitoring/PerformanceMonitor'
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ORDERS] POST request received")
@@ -10,23 +12,54 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log("📝 [API-ORDERS] Request body:", body)
     
+    // Rate limiting - 20 orders per minute per user
+    const rateLimitKey = getRateLimitKey('orders', body.userId || 'anonymous')
+    const rateLimit = checkRateLimit(rateLimitKey, RateLimitPresets.TRADING)
+    
+    if (!rateLimit.allowed) {
+      console.warn("⚠️ [API-ORDERS] Rate limit exceeded:", rateLimitKey)
+      return NextResponse.json({
+        error: 'Too many orders. Please wait before placing more orders.',
+        retryAfter: rateLimit.retryAfter
+      }, { 
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(RateLimitPresets.TRADING.maxRequests),
+          'X-RateLimit-Remaining': String(rateLimit.remaining),
+          'X-RateLimit-Reset': rateLimit.resetAt.toISOString(),
+          'Retry-After': String(rateLimit.retryAfter || 60)
+        }
+      })
+    }
+    
     const input = placeOrderSchema.parse(body)
     console.log("✅ [API-ORDERS] Schema validation passed")
     
-    // Create logger with context
-    const logger = createTradingLogger({
-      tradingAccountId: input.tradingAccountId,
-      userId: input.userId,
-      clientId: input.userId,
-      symbol: input.symbol
-    })
+    // Track performance
+    const result = await trackOperation('order_placement', async () => {
+      // Create logger with context
+      const logger = createTradingLogger({
+        tradingAccountId: input.tradingAccountId,
+        userId: input.userId,
+        clientId: input.userId,
+        symbol: input.symbol
+      })
+      
+      // Create service and place order
+      const orderService = createOrderExecutionService(logger)
+      return await orderService.placeOrder(input)
+    }, { userId: input.userId, symbol: input.symbol })
     
-    // Create service and place order
-    const orderService = createOrderExecutionService(logger)
-    const result = await orderService.placeOrder(input)
     console.log("🎉 [API-ORDERS] Order placement result:", result)
     
-    return NextResponse.json(result, { status: 200 })
+    return NextResponse.json(result, { 
+      status: 200,
+      headers: {
+        'X-RateLimit-Limit': String(RateLimitPresets.TRADING.maxRequests),
+        'X-RateLimit-Remaining': String(rateLimit.remaining),
+        'X-RateLimit-Reset': rateLimit.resetAt.toISOString()
+      }
+    })
   } catch (error: any) {
     console.error("❌ [API-ORDERS] POST error:", {
       name: error?.name,

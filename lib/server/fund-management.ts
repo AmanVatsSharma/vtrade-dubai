@@ -1,6 +1,18 @@
+/**
+ * @deprecated This file is deprecated. Use FundManagementService instead.
+ * This file will be removed in a future version.
+ * 
+ * Migration path:
+ * Old: import { blockMargin } from '@/lib/server/fund-management'
+ * New: import { createFundManagementService } from '@/lib/services/funds/FundManagementService'
+ * 
+ * See MIGRATION_GUIDE_RPC_TO_SERVICES.md for complete migration guide.
+ */
+
 import { supabaseServer } from "@/lib/supabase/supabase-server"
 
 // RPC-backed funds management – using Supabase edge functions
+// @deprecated - This approach is deprecated. Use FundManagementService with Prisma transactions instead.
 
 export async function blockMargin(tradingAccountId: string, amount: number, idempotencyKey?: string) {
   console.log("🔒 [FUND-MGMT] Blocking margin:", {

@@ -1,267 +1,162 @@
 /**
- * @file use-realtime-trading.ts
- * @description Supabase Realtime subscriptions for trading data
- * Provides live updates for orders, positions, accounts, and transactions
+ * Real-time Trading Coordinator
+ * 
+ * Master hook that coordinates all real-time updates:
+ * - Orders, Positions, Account balance
+ * - Optimistic UI updates
+ * - Automatic refresh coordination
+ * - Smooth UX without manual refresh
  */
 
 "use client"
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { RealtimeChannel } from '@supabase/supabase-js'
+import { useCallback } from 'react'
+import { useRealtimeOrders } from './use-realtime-orders'
+import { useRealtimePositions } from './use-realtime-positions'
+import { useRealtimeAccount } from './use-realtime-account'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+export function useRealtimeTrading(userId: string | undefined) {
+  const orders = useRealtimeOrders(userId)
+  const positions = useRealtimePositions(userId)
+  const account = useRealtimeAccount(userId)
 
-interface RealtimeTradingData {
-  orders: any[]
-  positions: any[]
-  tradingAccount: any
-  transactions: any[]
-}
+  // Coordinated refresh - refresh everything
+  const refreshAll = useCallback(async () => {
+    console.log("🔄 [REALTIME-TRADING] Refreshing all data")
+    await Promise.all([
+      orders.refresh(),
+      positions.refresh(),
+      account.refresh()
+    ])
+  }, [orders, positions, account])
 
-interface UseRealtimeTradingOptions {
-  tradingAccountId?: string
-  userId?: string
-  onOrdersUpdate?: (orders: any[]) => void
-  onPositionsUpdate?: (positions: any[]) => void
-  onAccountUpdate?: (account: any) => void
-  onTransactionsUpdate?: (transactions: any[]) => void
-}
+  // Handle order placement with optimistic updates
+  const handleOrderPlaced = useCallback(async (orderData: any, result: any) => {
+    console.log("🎉 [REALTIME-TRADING] Order placed, updating UI optimistically")
+    
+    // 1. Add order to orders list (optimistic)
+    orders.optimisticUpdate({
+      id: result.orderId,
+      symbol: orderData.symbol,
+      quantity: orderData.quantity,
+      orderType: orderData.orderType,
+      orderSide: orderData.orderSide,
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      ...orderData
+    })
 
-export function useRealtimeTrading(options: UseRealtimeTradingOptions = {}) {
-  const [data, setData] = useState<RealtimeTradingData>({
-    orders: [],
-    positions: [],
-    tradingAccount: null,
-    transactions: []
-  })
-  const [channels, setChannels] = useState<RealtimeChannel[]>([])
-
-  useEffect(() => {
-    if (!options.tradingAccountId) return
-
-    const newChannels: RealtimeChannel[] = []
-
-    // Orders subscription
-    const ordersChannel = supabase
-      .channel('orders')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `tradingAccountId=eq.${options.tradingAccountId}`
-        },
-        (payload) => {
-          console.log('Orders update:', payload)
-          options.onOrdersUpdate?.(payload.new as any)
-        }
-      )
-      .subscribe()
-
-    newChannels.push(ordersChannel)
-
-    // Positions subscription
-    const positionsChannel = supabase
-      .channel('positions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'positions',
-          filter: `tradingAccountId=eq.${options.tradingAccountId}`
-        },
-        (payload) => {
-          console.log('Positions update:', payload)
-          options.onPositionsUpdate?.(payload.new as any)
-        }
-      )
-      .subscribe()
-
-    newChannels.push(positionsChannel)
-
-    // Trading account subscription
-    const accountChannel = supabase
-      .channel('trading_account')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'trading_accounts',
-          filter: `id=eq.${options.tradingAccountId}`
-        },
-        (payload) => {
-          console.log('Account update:', payload)
-          options.onAccountUpdate?.(payload.new as any)
-        }
-      )
-      .subscribe()
-
-    newChannels.push(accountChannel)
-
-    // Transactions subscription
-    const transactionsChannel = supabase
-      .channel('transactions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'transactions',
-          filter: `tradingAccountId=eq.${options.tradingAccountId}`
-        },
-        (payload) => {
-          console.log('Transactions update:', payload)
-          options.onTransactionsUpdate?.(payload.new as any)
-        }
-      )
-      .subscribe()
-
-    newChannels.push(transactionsChannel)
-
-    setChannels(newChannels)
-
-    return () => {
-      newChannels.forEach(channel => {
-        supabase.removeChannel(channel)
-      })
+    // 2. Block margin (optimistic)
+    if (result.marginBlocked) {
+      account.optimisticBlockMargin(result.marginBlocked)
     }
-  }, [options.tradingAccountId])
+
+    // 3. Deduct charges (optimistic)
+    if (result.chargesDeducted) {
+      account.optimisticUpdateBalance(-result.chargesDeducted, -result.chargesDeducted)
+    }
+
+    // 4. Schedule check for order execution (after 3 seconds)
+    setTimeout(() => {
+      console.log("⏰ [REALTIME-TRADING] Checking for order execution")
+      orders.refresh()
+      positions.refresh() // Position might be created
+    }, 3500) // Slightly after 3-second execution delay
+
+    // 5. Additional refresh after 1 second to catch any immediate updates
+    setTimeout(() => {
+      refreshAll()
+    }, 1000)
+
+    return result
+  }, [orders, account, positions, refreshAll])
+
+  // Handle position close with optimistic updates
+  const handlePositionClosed = useCallback(async (positionId: string, result: any) => {
+    console.log("🎉 [REALTIME-TRADING] Position closed, updating UI optimistically")
+    
+    // 1. Update position (optimistic)
+    positions.optimisticClosePosition(positionId)
+
+    // 2. Release margin (optimistic)
+    if (result.marginReleased) {
+      account.optimisticReleaseMargin(result.marginReleased)
+    }
+
+    // 3. Update balance with P&L (optimistic)
+    if (result.realizedPnL) {
+      account.optimisticUpdateBalance(result.realizedPnL, result.realizedPnL)
+    }
+
+    // 4. Refresh to confirm
+    setTimeout(() => {
+      refreshAll()
+    }, 500)
+
+    return result
+  }, [positions, account, refreshAll])
+
+  // Handle fund operations with optimistic updates
+  const handleFundOperation = useCallback(async (
+    type: 'CREDIT' | 'DEBIT' | 'BLOCK' | 'RELEASE',
+    amount: number,
+    result: any
+  ) => {
+    console.log("🎉 [REALTIME-TRADING] Fund operation completed, updating UI optimistically")
+    
+    switch (type) {
+      case 'CREDIT':
+        account.optimisticUpdateBalance(amount, amount)
+        break
+      case 'DEBIT':
+        account.optimisticUpdateBalance(-amount, -amount)
+        break
+      case 'BLOCK':
+        account.optimisticBlockMargin(amount)
+        break
+      case 'RELEASE':
+        account.optimisticReleaseMargin(amount)
+        break
+    }
+
+    // Refresh to confirm
+    setTimeout(() => {
+      account.refresh()
+    }, 500)
+
+    return result
+  }, [account])
 
   return {
-    data,
-    channels,
-    isConnected: channels.length > 0
+    // Data
+    orders: orders.orders,
+    positions: positions.positions,
+    account: account.account,
+    
+    // Loading states
+    isLoadingOrders: orders.isLoading,
+    isLoadingPositions: positions.isLoading,
+    isLoadingAccount: account.isLoading,
+    
+    // Errors
+    ordersError: orders.error,
+    positionsError: positions.error,
+    accountError: account.error,
+    
+    // Refresh functions
+    refreshOrders: orders.refresh,
+    refreshPositions: positions.refresh,
+    refreshAccount: account.refresh,
+    refreshAll,
+    
+    // Optimistic update handlers
+    handleOrderPlaced,
+    handlePositionClosed,
+    handleFundOperation,
+    
+    // Raw mutate functions (advanced use)
+    mutateOrders: orders.mutate,
+    mutatePositions: positions.mutate,
+    mutateAccount: account.mutate,
   }
-}
-
-// Hook for specific entity subscriptions
-export function useRealtimeOrders(tradingAccountId?: string) {
-  const [orders, setOrders] = useState<any[]>([])
-
-  useEffect(() => {
-    if (!tradingAccountId) return
-
-    const channel = supabase
-      .channel('orders-single')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `tradingAccountId=eq.${tradingAccountId}`
-        },
-        (payload) => {
-          setOrders(prev => {
-            const newOrders = [...prev]
-            const index = newOrders.findIndex(o => o.id === payload.new.id)
-            
-            if (payload.eventType === 'INSERT') {
-              newOrders.unshift(payload.new as any)
-            } else if (payload.eventType === 'UPDATE') {
-              if (index >= 0) {
-                newOrders[index] = payload.new as any
-              }
-            } else if (payload.eventType === 'DELETE') {
-              if (index >= 0) {
-                newOrders.splice(index, 1)
-              }
-            }
-            
-            return newOrders
-          })
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [tradingAccountId])
-
-  return orders
-}
-
-export function useRealtimePositions(tradingAccountId?: string) {
-  const [positions, setPositions] = useState<any[]>([])
-
-  useEffect(() => {
-    if (!tradingAccountId) return
-
-    const channel = supabase
-      .channel('positions-single')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'positions',
-          filter: `tradingAccountId=eq.${tradingAccountId}`
-        },
-        (payload) => {
-          setPositions(prev => {
-            const newPositions = [...prev]
-            const index = newPositions.findIndex(p => p.id === payload.new.id)
-            
-            if (payload.eventType === 'INSERT') {
-              newPositions.unshift(payload.new as any)
-            } else if (payload.eventType === 'UPDATE') {
-              if (index >= 0) {
-                newPositions[index] = payload.new as any
-              }
-            } else if (payload.eventType === 'DELETE') {
-              if (index >= 0) {
-                newPositions.splice(index, 1)
-              }
-            }
-            
-            return newPositions
-          })
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [tradingAccountId])
-
-  return positions
-}
-
-export function useRealtimeAccount(tradingAccountId?: string) {
-  const [account, setAccount] = useState<any>(null)
-
-  useEffect(() => {
-    if (!tradingAccountId) return
-
-    const channel = supabase
-      .channel('account-single')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'trading_accounts',
-          filter: `id=eq.${tradingAccountId}`
-        },
-        (payload) => {
-          setAccount(payload.new as any)
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [tradingAccountId])
-
-  return account
 }
