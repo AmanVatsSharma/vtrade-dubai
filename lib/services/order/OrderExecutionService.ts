@@ -20,6 +20,8 @@ import { MarginCalculator } from "@/lib/services/risk/MarginCalculator"
 import { TradingLogger } from "@/lib/services/logging/TradingLogger"
 import { OrderType, OrderSide } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
+import { PriceResolutionService } from "@/lib/services/order/PriceResolutionService"
+import { MarketRealismService } from "@/lib/services/order/MarketRealismService"
 
 console.log("🚀 [ORDER-EXECUTION-SERVICE] Module loaded")
 
@@ -52,6 +54,8 @@ export class OrderExecutionService {
   private fundService: FundManagementService
   private marginCalculator: MarginCalculator
   private logger: TradingLogger
+  private priceResolution: PriceResolutionService
+  private marketRealism: MarketRealismService
 
   constructor(logger?: TradingLogger) {
     this.orderRepo = new OrderRepository()
@@ -59,8 +63,10 @@ export class OrderExecutionService {
     this.marginCalculator = new MarginCalculator()
     this.logger = logger || new TradingLogger()
     this.fundService = new FundManagementService(this.logger)
+    this.priceResolution = new PriceResolutionService()
+    this.marketRealism = new MarketRealismService()
     
-    console.log("🏗️ [ORDER-EXECUTION-SERVICE] Service instance created")
+    console.log("🏗️ [ORDER-EXECUTION-SERVICE] Service instance created with enhanced price resolution")
   }
 
   /**
@@ -92,9 +98,41 @@ export class OrderExecutionService {
       await this.validateOrder(input)
       console.log("✅ [ORDER-EXECUTION-SERVICE] Order validation passed")
 
-      // Step 2: Get current price for MARKET orders
-      const executionPrice = await this.resolveExecutionPrice(input)
-      console.log("💰 [ORDER-EXECUTION-SERVICE] Execution price resolved:", executionPrice)
+      // Step 2: Resolve execution price using multi-tier strategy
+      const priceResolution = await this.priceResolution.resolveExecutionPrice({
+        instrumentId: input.instrumentId,
+        stockId: input.stockId,
+        symbol: input.symbol,
+        orderType: input.orderType,
+        limitPrice: input.price
+      })
+
+      console.log("💰 [ORDER-EXECUTION-SERVICE] Price resolution:", {
+        price: priceResolution.price,
+        source: priceResolution.source,
+        confidence: priceResolution.confidence,
+        warnings: priceResolution.warnings
+      })
+
+      // Step 2b: Apply market realism (bid-ask spread + slippage)
+      const marketRealism = await this.marketRealism.applyMarketRealism(
+        priceResolution.price,
+        input.orderSide,
+        input.segment,
+        input.quantity,
+        input.lotSize || 1
+      )
+
+      console.log("💸 [ORDER-EXECUTION-SERVICE] Market realism applied:", {
+        basePrice: marketRealism.basePrice,
+        executionPrice: marketRealism.executionPrice,
+        spreadPercent: marketRealism.spreadPercent,
+        slippagePercent: marketRealism.slippagePercent,
+        totalImpact: marketRealism.totalImpactPercent + '%'
+      })
+
+      const executionPrice = marketRealism.executionPrice
+      const allWarnings = [...priceResolution.warnings, ...marketRealism.warnings]
 
       // Step 3: Calculate margin and charges
       const marginCalc = await this.marginCalculator.calculateMargin(
@@ -111,7 +149,12 @@ export class OrderExecutionService {
         requiredMargin: marginCalc.requiredMargin,
         brokerage: marginCalc.brokerage,
         totalCharges: marginCalc.totalCharges,
-        totalRequired: marginCalc.totalRequired
+        totalRequired: marginCalc.totalRequired,
+        priceSource: priceResolution.source,
+        priceConfidence: priceResolution.confidence,
+        basePrice: marketRealism.basePrice,
+        executionPrice: marketRealism.executionPrice,
+        priceImpact: marketRealism.totalImpactPercent + '%'
       })
 
       // Step 4: Validate sufficient funds
@@ -185,10 +228,16 @@ export class OrderExecutionService {
       console.log("⏰ [ORDER-EXECUTION-SERVICE] Scheduling order execution in 3 seconds")
       this.scheduleExecution(result.orderId, input, result.executionPrice)
 
+      // Prepare response with warnings
+      let responseMessage = "Order placed successfully. Execution scheduled."
+      if (allWarnings.length > 0) {
+        responseMessage += " Note: " + allWarnings.join('; ')
+      }
+
       const response: OrderExecutionResult = {
         success: true,
         orderId: result.orderId,
-        message: "Order placed successfully. Execution scheduled.",
+        message: responseMessage,
         executionScheduled: true,
         marginBlocked: result.marginBlocked,
         chargesDeducted: result.chargesDeducted
@@ -329,58 +378,17 @@ export class OrderExecutionService {
   }
 
   /**
-   * Resolve execution price (fetch LTP for MARKET orders)
+   * DEPRECATED: Old price resolution method
+   * Now using PriceResolutionService for robust multi-tier price fetching
+   * 
+   * Kept for reference but should not be called
    */
-  private async resolveExecutionPrice(input: PlaceOrderInput): Promise<number> {
-    console.log("💰 [ORDER-EXECUTION-SERVICE] Resolving execution price")
-
-    // For LIMIT orders, use specified price
-    if (input.orderType === OrderType.LIMIT && input.price) {
-      console.log("📌 [ORDER-EXECUTION-SERVICE] Using LIMIT price:", input.price)
-      return input.price
-    }
-
-    // For MARKET orders, fetch current LTP
-    console.log("📊 [ORDER-EXECUTION-SERVICE] Fetching LTP for MARKET order")
+  private async resolveExecutionPrice_DEPRECATED(input: PlaceOrderInput): Promise<number> {
+    console.warn("⚠️ [ORDER-EXECUTION-SERVICE] DEPRECATED method called - use PriceResolutionService instead")
     
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-      const response = await fetch(
-        `${baseUrl}/api/quotes?q=${input.instrumentId}&mode=ltp`,
-        { cache: 'no-store' }
-      )
-
-      const data = await response.json()
-      console.log("📈 [ORDER-EXECUTION-SERVICE] LTP response:", data)
-
-      // Handle different response formats
-      const payload = data?.success ? data.data : data
-      const ltp = payload?.[input.instrumentId]?.last_trade_price || 
-                  payload?.data?.[input.instrumentId]?.last_trade_price
-
-      if (ltp) {
-        console.log("✅ [ORDER-EXECUTION-SERVICE] LTP fetched:", ltp)
-        return Number(ltp)
-      }
-
-      // Fallback to stock's last known price
-      console.log("⚠️ [ORDER-EXECUTION-SERVICE] LTP not found, using fallback")
-      const stock = await prisma.stock.findUnique({
-        where: { id: input.stockId },
-        select: { ltp: true }
-      })
-
-      if (stock && stock.ltp > 0) {
-        console.log("📌 [ORDER-EXECUTION-SERVICE] Using stock LTP:", stock.ltp)
-        return stock.ltp
-      }
-
-      throw new Error("Unable to determine execution price")
-
-    } catch (error: any) {
-      console.error("❌ [ORDER-EXECUTION-SERVICE] Failed to fetch LTP:", error)
-      throw new Error("Failed to fetch market price. Please try again.")
-    }
+    // This method is now deprecated and replaced by PriceResolutionService
+    // which provides multi-tier fallback (Live -> Cached -> Estimated)
+    throw new Error("This method is deprecated. Use PriceResolutionService instead.")
   }
 
   /**
