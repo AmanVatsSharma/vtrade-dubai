@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { placeOrder, modifyOrder, cancelOrder } from '@/lib/server/order-execution'
+import { createOrderExecutionService } from '@/lib/services/order/OrderExecutionService'
+import { createTradingLogger } from '@/lib/services/logging/TradingLogger'
 import { placeOrderSchema, modifyOrderSchema, cancelOrderSchema } from '@/lib/server/validation'
 
 export async function POST(req: Request) {
@@ -12,7 +13,17 @@ export async function POST(req: Request) {
     const input = placeOrderSchema.parse(body)
     console.log("✅ [API-ORDERS] Schema validation passed")
     
-    const result = await placeOrder(input)
+    // Create logger with context
+    const logger = createTradingLogger({
+      tradingAccountId: input.tradingAccountId,
+      userId: input.userId,
+      clientId: input.userId,
+      symbol: input.symbol
+    })
+    
+    // Create service and place order
+    const orderService = createOrderExecutionService(logger)
+    const result = await orderService.placeOrder(input)
     console.log("🎉 [API-ORDERS] Order placement result:", result)
     
     return NextResponse.json(result, { status: 200 })
@@ -41,7 +52,12 @@ export async function PATCH(req: Request) {
     const input = modifyOrderSchema.parse(body)
     console.log("✅ [API-ORDERS] Modify schema validation passed")
     
-    const result = await modifyOrder(input)
+    // Create service and modify order
+    const orderService = createOrderExecutionService()
+    const result = await orderService.modifyOrder(input.orderId, {
+      price: input.price,
+      quantity: input.quantity
+    })
     console.log("🎉 [API-ORDERS] Order modification result:", result)
     
     return NextResponse.json(result, { status: 200 })
@@ -70,7 +86,9 @@ export async function DELETE(req: Request) {
     const input = cancelOrderSchema.parse(body)
     console.log("✅ [API-ORDERS] Cancel schema validation passed")
     
-    const result = await cancelOrder(input)
+    // Create service and cancel order
+    const orderService = createOrderExecutionService()
+    const result = await orderService.cancelOrder(input.orderId)
     console.log("🎉 [API-ORDERS] Order cancellation result:", result)
     
     return NextResponse.json(result, { status: 200 })

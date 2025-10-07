@@ -2,17 +2,21 @@
 
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight, ArrowDownRight, Eye, AlertTriangle } from "lucide-react"
+import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight, ArrowDownRight, Eye, AlertTriangle, RefreshCw } from "lucide-react"
 import { TradingChart } from "./trading-chart"
 import { UserActivityChart } from "./user-activity-chart"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useEffect, useState } from "react"
+import { toast } from "@/hooks/use-toast"
 
-const stats = [
+// Mock data as fallback
+const mockStats = [
   {
     title: "Total Users",
     value: "12,847",
     change: "+12.5%",
-    trend: "up",
+    trend: "up" as const,
     icon: Users,
     color: "text-blue-400",
     description: "Active traders",
@@ -21,7 +25,7 @@ const stats = [
     title: "Total Funds",
     value: "$2.4M",
     change: "+8.2%",
-    trend: "up",
+    trend: "up" as const,
     icon: DollarSign,
     color: "text-green-400",
     description: "Under management",
@@ -30,7 +34,7 @@ const stats = [
     title: "Active Trades",
     value: "1,234",
     change: "-2.1%",
-    trend: "down",
+    trend: "down" as const,
     icon: TrendingUp,
     color: "text-yellow-400",
     description: "Live positions",
@@ -39,17 +43,18 @@ const stats = [
     title: "System Load",
     value: "67%",
     change: "+5.3%",
-    trend: "up",
+    trend: "up" as const,
     icon: Activity,
     color: "text-purple-400",
     description: "Server capacity",
   },
 ]
 
-const recentActivity = [
+const mockRecentActivity = [
   {
-    id: 1,
+    id: "1",
     user: "USR_001234",
+    clientId: "USR_001234",
     action: "Fund Deposit",
     amount: "$5,000",
     time: "2 min ago",
@@ -57,106 +62,209 @@ const recentActivity = [
     type: "deposit",
   },
   {
-    id: 2,
+    id: "2",
     user: "USR_005678",
+    clientId: "USR_005678",
     action: "Withdrawal Request",
     amount: "$2,500",
     time: "5 min ago",
     status: "pending",
     type: "withdrawal",
   },
-  {
-    id: 3,
-    user: "USR_009876",
-    action: "Trade Executed",
-    amount: "$1,200",
-    time: "8 min ago",
-    status: "completed",
-    type: "trade",
-  },
-  {
-    id: 4,
-    user: "USR_004321",
-    action: "Account Created",
-    amount: "-",
-    time: "12 min ago",
-    status: "completed",
-    type: "account",
-  },
-  {
-    id: 5,
-    user: "USR_007890",
-    action: "Fund Deposit",
-    amount: "$10,000",
-    time: "15 min ago",
-    status: "completed",
-    type: "deposit",
-  },
-  {
-    id: 6,
-    user: "USR_003456",
-    action: "KYC Verification",
-    amount: "-",
-    time: "18 min ago",
-    status: "pending",
-    type: "verification",
-  },
-  {
-    id: 7,
-    user: "USR_008765",
-    action: "Position Closed",
-    amount: "$3,400",
-    time: "22 min ago",
-    status: "completed",
-    type: "trade",
-  },
-  {
-    id: 8,
-    user: "USR_002109",
-    action: "Margin Call",
-    amount: "$800",
-    time: "25 min ago",
-    status: "alert",
-    type: "alert",
-  },
 ]
 
 const alerts = [
   { id: 1, type: "warning", message: "High server load detected", time: "5 min ago" },
   { id: 2, type: "info", message: "Daily backup completed", time: "1 hour ago" },
-  { id: 3, type: "error", message: "Failed login attempts from IP 192.168.1.100", time: "2 hours ago" },
 ]
 
 const topTraders = [
   { id: 1, name: "Alex Chen", clientId: "USR_001234", profit: "$45,230", trades: 156, winRate: "78%" },
   { id: 2, name: "Sarah Johnson", clientId: "USR_005678", profit: "$38,940", trades: 142, winRate: "72%" },
-  { id: 3, name: "Mike Rodriguez", clientId: "USR_009876", profit: "$32,150", trades: 128, winRate: "69%" },
-  { id: 4, name: "Emma Wilson", clientId: "USR_004321", profit: "$28,760", trades: 134, winRate: "71%" },
-  { id: 5, name: "David Kim", clientId: "USR_007890", profit: "$25,480", trades: 119, winRate: "65%" },
 ]
 
 export function Dashboard() {
+  const [stats, setStats] = useState(mockStats)
+  const [recentActivity, setRecentActivity] = useState(mockRecentActivity)
+  const [isUsingMockData, setIsUsingMockData] = useState(true)
+  const [loading, setLoading] = useState(true)
+
+  const fetchRealData = async () => {
+    console.log("🔄 [ADMIN-DASHBOARD] Fetching real data...")
+    setLoading(true)
+
+    try {
+      // Fetch stats and activity in parallel
+      const [statsResponse, activityResponse] = await Promise.all([
+        fetch('/api/admin/stats').catch(e => {
+          console.error("❌ [ADMIN-DASHBOARD] Stats API failed:", e)
+          return null
+        }),
+        fetch('/api/admin/activity?limit=20').catch(e => {
+          console.error("❌ [ADMIN-DASHBOARD] Activity API failed:", e)
+          return null
+        })
+      ])
+
+      let hasRealData = false
+
+      // Process stats
+      if (statsResponse && statsResponse.ok) {
+        const data = await statsResponse.json()
+        console.log("✅ [ADMIN-DASHBOARD] Stats received:", data)
+
+        if (data.success && data.stats) {
+          const realStats = [
+            {
+              title: "Total Users",
+              value: data.stats.users.total.toLocaleString(),
+              change: "+12.5%", // Can calculate from historical data
+              trend: "up" as const,
+              icon: Users,
+              color: "text-blue-400",
+              description: `${data.stats.users.active} active`,
+            },
+            {
+              title: "Total Funds",
+              value: `₹${(data.stats.tradingAccounts.totalBalance / 10000000).toFixed(2)}Cr`,
+              change: "+8.2%",
+              trend: "up" as const,
+              icon: DollarSign,
+              color: "text-green-400",
+              description: "Under management",
+            },
+            {
+              title: "Active Positions",
+              value: data.stats.trading.activePositions.toLocaleString(),
+              change: "-2.1%",
+              trend: "down" as const,
+              icon: TrendingUp,
+              color: "text-yellow-400",
+              description: "Live positions",
+            },
+            {
+              title: "Pending Requests",
+              value: (data.stats.pending.deposits + data.stats.pending.withdrawals).toString(),
+              change: "+5.3%",
+              trend: "up" as const,
+              icon: Activity,
+              color: "text-purple-400",
+              description: `${data.stats.pending.deposits} deposits, ${data.stats.pending.withdrawals} withdrawals`,
+            },
+          ]
+          setStats(realStats)
+          hasRealData = true
+          console.log("✅ [ADMIN-DASHBOARD] Real stats loaded!")
+        }
+      }
+
+      // Process activity
+      if (activityResponse && activityResponse.ok) {
+        const data = await activityResponse.json()
+        console.log("✅ [ADMIN-DASHBOARD] Activity received:", data)
+
+        if (data.success && data.activities) {
+          const realActivity = data.activities.slice(0, 8).map((activity: any) => ({
+            id: activity.id,
+            user: activity.user,
+            clientId: activity.clientId,
+            action: activity.action,
+            amount: `₹${activity.amount.toLocaleString()}`,
+            time: getTimeAgo(new Date(activity.timestamp)),
+            status: activity.status.toLowerCase(),
+            type: activity.type.toLowerCase(),
+          }))
+          setRecentActivity(realActivity)
+          hasRealData = true
+          console.log("✅ [ADMIN-DASHBOARD] Real activity loaded!")
+        }
+      }
+
+      setIsUsingMockData(!hasRealData)
+      
+      if (hasRealData) {
+        toast({
+          title: "✅ Real Data Loaded",
+          description: "Dashboard is showing live platform data",
+        })
+      }
+
+    } catch (error) {
+      console.error("❌ [ADMIN-DASHBOARD] Error fetching data:", error)
+      setIsUsingMockData(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRealData()
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchRealData, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  function getTimeAgo(date: Date): string {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
+    if (seconds < 60) return `${seconds} sec ago`
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+    const days = Math.floor(hours / 24)
+    return `${days} day${days > 1 ? 's' : ''} ago`
+  }
+
   return (
     <div className="space-y-6">
+      {/* Mock Data Warning */}
+      {isUsingMockData && (
+        <Alert variant="destructive" className="bg-yellow-500/10 border-yellow-500/50">
+          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          <AlertTitle className="text-yellow-500">Using Mock Data</AlertTitle>
+          <AlertDescription className="text-yellow-500/80">
+            Unable to load real data from backend. Displaying sample data. Check API endpoints or try refreshing.
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-4"
+              onClick={fetchRealData}
+              disabled={loading}
+            >
+              <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-primary mb-2">Trading Console Dashboard</h1>
-            <p className="text-muted-foreground">Real-time monitoring and analytics for your trading platform</p>
+            <p className="text-muted-foreground">
+              Real-time monitoring and analytics for your trading platform
+              {!isUsingMockData && " • Live Data"}
+            </p>
           </div>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               size="sm"
               className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
+              onClick={fetchRealData}
+              disabled={loading}
             >
-              <Eye className="w-4 h-4 mr-2" />
-              Live View
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
             <div className="flex items-center space-x-2 text-sm">
-              <div className="w-2 h-2 bg-green-400 rounded-full pulse-glow"></div>
-              <span className="text-green-400">System Online</span>
+              <div className={`w-2 h-2 rounded-full ${isUsingMockData ? 'bg-yellow-400' : 'bg-green-400 pulse-glow'}`}></div>
+              <span className={isUsingMockData ? 'text-yellow-400' : 'text-green-400'}>
+                {isUsingMockData ? 'Mock Data' : 'Live Data'}
+              </span>
             </div>
           </div>
         </div>
@@ -247,9 +355,9 @@ export function Dashboard() {
                     <div className="flex items-center space-x-3">
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          activity.status === "completed"
+                          activity.status === "completed" || activity.status === "COMPLETED"
                             ? "bg-green-400 pulse-glow"
-                            : activity.status === "pending"
+                            : activity.status === "pending" || activity.status === "PENDING"
                               ? "bg-yellow-400"
                               : activity.status === "alert"
                                 ? "bg-red-400 pulse-glow"
@@ -258,7 +366,7 @@ export function Dashboard() {
                       ></div>
                       <div>
                         <p className="font-medium text-foreground">{activity.action}</p>
-                        <p className="text-sm text-muted-foreground">User: {activity.user}</p>
+                        <p className="text-sm text-muted-foreground">User: {activity.clientId || activity.user}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -266,9 +374,9 @@ export function Dashboard() {
                       <div className="flex items-center space-x-2">
                         <span
                           className={`text-xs px-2 py-1 rounded-full ${
-                            activity.status === "completed"
+                            activity.status === "completed" || activity.status === "COMPLETED"
                               ? "bg-green-400/20 text-green-400"
-                              : activity.status === "pending"
+                              : activity.status === "pending" || activity.status === "PENDING"
                                 ? "bg-yellow-400/20 text-yellow-400"
                                 : activity.status === "alert"
                                   ? "bg-red-400/20 text-red-400"

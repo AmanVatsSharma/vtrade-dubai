@@ -29,12 +29,45 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
   })
   const [isSubmitted, setIsSubmitted] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitted(true)
-    setTimeout(() => {
-      handleClose()
-    }, 2000)
+    console.log("💰 [ADD-FUNDS-DIALOG] Submitting add funds request:", formData)
+    
+    setLoading(true)
+    
+    try {
+      const response = await fetch('/api/admin/funds/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: formData.userId,
+          amount: parseFloat(formData.amount),
+          description: formData.description || `Manual credit via ${formData.method} - UTR: ${formData.utrCode}`
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add funds')
+      }
+
+      console.log("✅ [ADD-FUNDS-DIALOG] Funds added successfully:", data)
+      setIsSubmitted(true)
+      
+      setTimeout(() => {
+        handleClose()
+        window.location.reload() // Refresh to show updated data
+      }, 2000)
+
+    } catch (error: any) {
+      console.error("❌ [ADD-FUNDS-DIALOG] Error adding funds:", error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleClose = () => {
@@ -180,8 +213,8 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
               </div>
             </div>
 
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-              Add Funds
+            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={loading}>
+              {loading ? "Adding Funds..." : "Add Funds"}
             </Button>
           </motion.form>
         ) : (
