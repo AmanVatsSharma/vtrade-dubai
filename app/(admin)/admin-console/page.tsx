@@ -12,6 +12,7 @@ import { LogsTerminal } from "@/components/admin-console/logs-terminal"
 import { QRScanner } from "@/components/admin-console/qr-scanner"
 import { Sidebar } from "@/components/admin-console/sidebar"
 import { Header } from "@/components/admin-console/header"
+import { Settings } from "@/components/admin-console/settings"
 
 export default function AdminConsole() {
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -36,6 +37,8 @@ export default function AdminConsole() {
         return <UserManagement />
       case "funds":
         return <FundManagement />
+      case "settings":
+        return <Settings />
       case "logs":
         return <LogsTerminal />
       default:

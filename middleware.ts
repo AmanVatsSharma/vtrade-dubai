@@ -64,7 +64,8 @@ const passwordResetRoutes = [
  * Admin routes that require admin or moderator role
  */
 const adminRoutes = [
-  "/admin"
+  "/admin",
+  "/admin-console"  // ✅ Added admin-console route protection
 ];
 
 export default auth((req) => {
@@ -105,8 +106,12 @@ export default auth((req) => {
   const isPhoneVerificationRoute = phoneVerificationRoutes.includes(nextUrl.pathname);
   const isMpinRoute = mpinRoutes.includes(nextUrl.pathname);
   const isPasswordResetRoute = passwordResetRoutes.includes(nextUrl.pathname);
-  // Only treat "/admin" root and children as admin routes; do NOT match routes like "/admin-console"
-  const isAdminRoute = nextUrl.pathname === "/admin" || nextUrl.pathname.startsWith("/admin/");
+  // Check if route is an admin route - includes /admin, /admin/*, and /admin-console
+  const isAdminRoute = 
+    nextUrl.pathname === "/admin" || 
+    nextUrl.pathname.startsWith("/admin/") ||
+    nextUrl.pathname === "/admin-console" ||
+    nextUrl.pathname.startsWith("/admin-console/");
 
   // Debug logging for route classification
   console.log(`[MIDDLEWARE] 📊 Route flags:`, {

@@ -201,12 +201,12 @@ model User {
   OtpToken           OtpToken[]
   SessionAuth        SessionAuth[]
   AuthEvents         AuthEvent[]
-  
+
   // Console-specific relations
-  bankAccounts       BankAccount[]
-  deposits           Deposit[]
-  withdrawals        Withdrawal[]
-  userProfile        UserProfile?
+  bankAccounts BankAccount[]
+  deposits     Deposit[]
+  withdrawals  Withdrawal[]
+  userProfile  UserProfile?
 
   @@map("users")
 }
@@ -222,7 +222,7 @@ model KYC {
   submittedAt   DateTime  @default(now())
   approvedAt    DateTime?
   updatedAt     DateTime  @updatedAt
-  
+
   @@map("kyc")
 }
 
@@ -274,9 +274,9 @@ model Watchlist {
   name        String   @default("My Watchlist")
   description String?
   color       String?  @default("#3B82F6") // Hex color for watchlist theme
-  isDefault   Boolean  @default(false)     // Mark default watchlist
-  isPrivate   Boolean  @default(false)     // Private vs public watchlist
-  sortOrder   Int      @default(0)         // Custom sort order
+  isDefault   Boolean  @default(false) // Mark default watchlist
+  isPrivate   Boolean  @default(false) // Private vs public watchlist
+  sortOrder   Int      @default(0) // Custom sort order
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 
@@ -291,7 +291,7 @@ model WatchlistItem {
   id          String   @id @default(cuid())
   watchlistId String
   stockId     String
-  notes       String?  // User notes for this stock
+  notes       String? // User notes for this stock
   alertPrice  Decimal? @db.Decimal(10, 2) // Price alert threshold
   alertType   String?  @default("ABOVE") // ABOVE, BELOW, BOTH
   sortOrder   Int      @default(0) // Custom sort order within watchlist
@@ -392,15 +392,15 @@ model VortexSession {
 }
 
 model OtpToken {
-  id          String     @id @default(uuid())
-  userId      String
-  phone       String
-  otp         String
-  purpose     OtpPurpose
-  attempts    Int        @default(0)
-  isUsed      Boolean    @default(false)
-  expiresAt   DateTime
-  createdAt   DateTime   @default(now())
+  id        String     @id @default(uuid())
+  userId    String
+  phone     String
+  otp       String
+  purpose   OtpPurpose
+  attempts  Int        @default(0)
+  isUsed    Boolean    @default(false)
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -451,19 +451,19 @@ model AuthEvent {
 }
 
 model RiskConfig {
-  id             String   @id @default(uuid())
-  segment        String   // NSE, NFO, MCX, etc.
-  productType    String   @map("product_type") // MIS, DELIVERY, etc.
-  leverage       Decimal  @default(1) @db.Decimal(10, 2)
-  brokerageFlat  Decimal? @map("brokerage_flat") @db.Decimal(10, 2)
-  brokerageRate  Decimal? @map("brokerage_rate") @db.Decimal(10, 6)
-  brokerageCap   Decimal? @map("brokerage_cap") @db.Decimal(10, 2)
-  marginRate     Decimal? @map("margin_rate") @db.Decimal(10, 6) // Margin percentage required
-  maxOrderValue  Decimal? @map("max_order_value") @db.Decimal(18, 2)
-  maxPositions   Int?     @map("max_positions")
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  id            String   @id @default(uuid())
+  segment       String // NSE, NFO, MCX, etc.
+  productType   String   @map("product_type") // MIS, DELIVERY, etc.
+  leverage      Decimal  @default(1) @db.Decimal(10, 2)
+  brokerageFlat Decimal? @map("brokerage_flat") @db.Decimal(10, 2)
+  brokerageRate Decimal? @map("brokerage_rate") @db.Decimal(10, 6)
+  brokerageCap  Decimal? @map("brokerage_cap") @db.Decimal(10, 2)
+  marginRate    Decimal? @map("margin_rate") @db.Decimal(10, 6) // Margin percentage required
+  maxOrderValue Decimal? @map("max_order_value") @db.Decimal(18, 2)
+  maxPositions  Int?     @map("max_positions")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
 
   @@unique([segment, productType])
   @@index([segment])
@@ -473,19 +473,19 @@ model RiskConfig {
 }
 
 model TradingLog {
-  id               String     @id @default(uuid())
-  clientId         String     @map("client_id")
+  id               String      @id @default(uuid())
+  clientId         String      @map("client_id")
   userId           String?
-  tradingAccountId String?    @map("trading_account_id")
-  level            LogLevel   @default(INFO)
+  tradingAccountId String?     @map("trading_account_id")
+  level            LogLevel    @default(INFO)
   category         LogCategory
-  action           String     // e.g., "ORDER_PLACED", "POSITION_CREATED", "FUNDS_DEDUCTED"
+  action           String // e.g., "ORDER_PLACED", "POSITION_CREATED", "FUNDS_DEDUCTED"
   message          String
-  details          Json?      // Additional structured data
-  metadata         Json?      // Request headers, IP, user agent, etc.
-  error            String?    // Error message if applicable
-  stackTrace       String?    // Stack trace for errors
-  createdAt        DateTime   @default(now())
+  details          Json? // Additional structured data
+  metadata         Json? // Request headers, IP, user agent, etc.
+  error            String? // Error message if applicable
+  stackTrace       String? // Stack trace for errors
+  createdAt        DateTime    @default(now())
 
   @@index([clientId])
   @@index([category])
@@ -518,22 +518,22 @@ model BankAccount {
 }
 
 model Deposit {
-  id            String           @id @default(uuid())
-  userId        String
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String         @id @default(uuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tradingAccountId String
-  tradingAccount TradingAccount  @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
-  bankAccountId String?
-  bankAccount   BankAccount?     @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
-  amount        Decimal          @db.Decimal(18, 2)
-  method        String           // upi, bank_transfer, neft, rtgs, cash
-  status        DepositStatus    @default(PENDING)
-  utr           String?          // UTR number for tracking
-  reference     String?          // Reference number
-  remarks       String?
-  processedAt   DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  tradingAccount   TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+  bankAccountId    String?
+  bankAccount      BankAccount?   @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  amount           Decimal        @db.Decimal(18, 2)
+  method           String // upi, bank_transfer, neft, rtgs, cash
+  status           DepositStatus  @default(PENDING)
+  utr              String? // UTR number for tracking
+  reference        String? // Reference number
+  remarks          String?
+  processedAt      DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@index([userId])
   @@index([tradingAccountId])
@@ -543,21 +543,21 @@ model Deposit {
 }
 
 model Withdrawal {
-  id            String             @id @default(uuid())
-  userId        String
-  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String           @id @default(uuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   tradingAccountId String
-  tradingAccount TradingAccount    @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
-  bankAccountId String
-  bankAccount   BankAccount        @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  amount        Decimal            @db.Decimal(18, 2)
-  status        WithdrawalStatus   @default(PENDING)
-  reference     String?            // Reference number
-  remarks       String?
-  charges       Decimal            @default(0) @db.Decimal(18, 2)
-  processedAt   DateTime?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  tradingAccount   TradingAccount   @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+  bankAccountId    String
+  bankAccount      BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  amount           Decimal          @db.Decimal(18, 2)
+  status           WithdrawalStatus @default(PENDING)
+  reference        String? // Reference number
+  remarks          String?
+  charges          Decimal          @default(0) @db.Decimal(18, 2)
+  processedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@index([userId])
   @@index([tradingAccountId])
@@ -567,27 +567,43 @@ model Withdrawal {
 }
 
 model UserProfile {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firstName         String?
-  lastName          String?
-  dateOfBirth       DateTime?
-  gender            String?
-  address           String?
-  city              String?
-  state             String?
-  pincode           String?
-  panNumber         String?
-  aadhaarNumber     String?
-  occupation        String?
-  annualIncome      Decimal? @db.Decimal(18, 2)
-  riskProfile       String?  @default("MODERATE") // CONSERVATIVE, MODERATE, AGGRESSIVE
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName            String?
+  lastName             String?
+  dateOfBirth          DateTime?
+  gender               String?
+  address              String?
+  city                 String?
+  state                String?
+  pincode              String?
+  panNumber            String?
+  aadhaarNumber        String?
+  occupation           String?
+  annualIncome         Decimal?  @db.Decimal(18, 2)
+  riskProfile          String?   @default("MODERATE") // CONSERVATIVE, MODERATE, AGGRESSIVE
   investmentExperience String? // BEGINNER, INTERMEDIATE, ADVANCED
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@map("user_profiles")
+}
+
+// System Settings - Platform-wide configuration
+model SystemSettings {
+  id          String   @id @default(uuid())
+  key         String   @unique // e.g., "payment_qr_code", "payment_upi_id", "platform_logo"
+  value       String // URL or text value
+  description String? // Description of the setting
+  category    String   @default("GENERAL") // PAYMENT, BRANDING, NOTIFICATION, etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+  @@index([category])
+  @@map("system_settings")
 }
 
 // Additional enums for console functionality

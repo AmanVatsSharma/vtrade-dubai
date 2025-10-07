@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { getServerSession } from "next-auth"
+import { auth } from "@/auth"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-STATS] GET request received")
   
   try {
-    const session = await getServerSession()
+    const session = await auth()
     if (!session?.user || (session.user as any).role !== 'ADMIN') {
+      console.error("❌ [API-ADMIN-STATS] Unauthorized access attempt")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    
+    console.log("✅ [API-ADMIN-STATS] Admin authenticated:", session.user.email)
 
     console.log("📊 [API-ADMIN-STATS] Fetching platform statistics")
 

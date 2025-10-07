@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
 import { createTradingLogger } from "@/lib/services/logging/TradingLogger"
-import { getServerSession } from "next-auth"
+import { auth } from "@/auth"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] GET request received")
   
   try {
     // Get session and verify admin role
-    const session = await getServerSession()
+    const session = await auth()
     if (!session?.user || (session.user as any).role !== 'ADMIN') {
       console.error("❌ [API-ADMIN-USERS] Unauthorized access attempt")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -50,7 +50,7 @@ export async function PATCH(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] PATCH request received")
   
   try {
-    const session = await getServerSession()
+    const session = await auth()
     if (!session?.user || (session.user as any).role !== 'ADMIN') {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

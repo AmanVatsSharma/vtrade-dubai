@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
 import { createAdminFundService } from "@/lib/services/admin/AdminFundService"
 import { createTradingLogger } from "@/lib/services/logging/TradingLogger"
-import { getServerSession } from "next-auth"
+import { auth } from "@/auth"
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-ADD-FUNDS] POST request received")
   
   try {
-    const session = await getServerSession()
+    const session = await auth()
     if (!session?.user || (session.user as any).role !== 'ADMIN') {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

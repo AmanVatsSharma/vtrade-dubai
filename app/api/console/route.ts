@@ -4,14 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/auth'
+import { auth } from '@/auth'
 import { ConsoleDataService } from '@/lib/console-data-service'
 
 export async function GET(request: NextRequest) {
   console.log('📥 [CONSOLE-API] GET request received')
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     console.log('🔐 [CONSOLE-API] Session check:', { 
       hasSession: !!session, 
@@ -46,7 +45,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   console.log('📥 [CONSOLE-API] POST request received')
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     console.log('🔐 [CONSOLE-API] Session check:', { 
       hasSession: !!session, 

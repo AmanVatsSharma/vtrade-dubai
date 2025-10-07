@@ -24,7 +24,9 @@
   },
   "dependencies": {
     "@apollo/client": "^4.0.2",
+    "@aws-sdk/client-s3": "^3.901.0",
     "@aws-sdk/client-sns": "^3.888.0",
+    "@aws-sdk/s3-request-presigner": "^3.901.0",
     "@hookform/resolvers": "^5.2.1",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@pothos/core": "^4.2.0",

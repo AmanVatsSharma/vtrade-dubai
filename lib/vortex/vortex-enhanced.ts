@@ -56,14 +56,15 @@ export class VortexAPI {
   private config: VortexConfig;
   private currentSession: VortexSession | null = null;
 
-  constructor() {
+  constructor(skipValidation: boolean = false) {
     this.config = {
       applicationId: process.env.VORTEX_APPLICATION_ID || process.env.NEXT_PUBLIC_VORTEX_APPLICATION_ID || '',
       apiKey: process.env.VORTEX_X_API_KEY || '',
       baseUrl: 'https://vortex-api.rupeezy.in/v2'
     };
 
-    if (!this.config.applicationId || !this.config.apiKey) {
+    // Skip validation during build time
+    if (!skipValidation && (!this.config.applicationId || !this.config.apiKey)) {
       logger.critical(LogCategory.VORTEX_API, 'Vortex configuration missing', undefined, {
         hasAppId: !!this.config.applicationId,
         hasApiKey: !!this.config.apiKey
@@ -75,10 +76,12 @@ export class VortexAPI {
       );
     }
 
-    logger.info(LogCategory.VORTEX_API, 'Vortex API client initialized', {
-      applicationId: this.config.applicationId,
-      baseUrl: this.config.baseUrl
-    });
+    if (this.config.applicationId && this.config.apiKey) {
+      logger.info(LogCategory.VORTEX_API, 'Vortex API client initialized', {
+        applicationId: this.config.applicationId,
+        baseUrl: this.config.baseUrl
+      });
+    }
   }
 
   // Generate checksum for authentication
@@ -529,6 +532,24 @@ export class VortexAPI {
   }
 }
 
-// Export singleton instance
-export const vortexAPI = new VortexAPI();
+// Lazy initialization to avoid build-time errors
+let vortexAPIInstance: VortexAPI | null = null;
+
+export function getVortexAPI(): VortexAPI {
+  if (!vortexAPIInstance) {
+    // Skip validation during build time
+    const isBuildTime = typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build';
+    vortexAPIInstance = new VortexAPI(isBuildTime);
+  }
+  return vortexAPIInstance;
+}
+
+// For backward compatibility - will be initialized lazily during runtime
+export const vortexAPI = new Proxy({} as VortexAPI, {
+  get(target, prop) {
+    const instance = getVortexAPI();
+    return instance[prop as keyof VortexAPI];
+  }
+});
+
 export default vortexAPI;

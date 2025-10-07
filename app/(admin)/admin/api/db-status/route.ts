@@ -1,64 +1,57 @@
 // app/(admin)/admin/api/db-status/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { vortexAPI } from "@/lib/vortex/vortex-enhanced";
-import { logger, LogCategory } from "@/lib/vortex/vortexLogger";
+
+console.log('📊 [DB-STATUS] Route loaded')
 
 export async function GET() {
   const startTime = Date.now();
   
   try {
-    logger.info(LogCategory.DATABASE, 'Database status check initiated');
+    console.log('🔍 [DB-STATUS] Database status check initiated');
 
     // Test database connection
     await prisma.$queryRaw`SELECT 1`;
     
-    logger.info(LogCategory.DATABASE, 'Database connection successful');
+    console.log('✅ [DB-STATUS] Database connection successful');
 
-    // Get latest access token and session info
+    // Get latest Vortex session info (without calling Vortex API during build)
     const latestSession = await prisma.vortexSession.findFirst({
       orderBy: { createdAt: "desc" },
     });
 
-    let vortexStatus = "disconnected";
+    let vortexStatus = "not_configured";
     let sessionId = null;
 
     if (latestSession) {
       sessionId = latestSession.id;
+      // Check if session is recent (last 24 hours)
+      const sessionAge = Date.now() - latestSession.createdAt.getTime();
+      const isRecent = sessionAge < 24 * 60 * 60 * 1000;
+      vortexStatus = isRecent ? "session_available" : "session_expired";
       
-      // Test Vortex API connection
-      try {
-        const isSessionValid = await vortexAPI.isSessionValid();
-        vortexStatus = isSessionValid ? "connected" : "expired";
-        
-        logger.info(LogCategory.VORTEX_API, 'Vortex API status check completed', {
-          status: vortexStatus,
-          sessionId: latestSession.id
-        });
-      } catch (error) {
-        vortexStatus = "error";
-        logger.error(LogCategory.VORTEX_API, 'Vortex API status check failed', error as Error, {
-          sessionId: latestSession.id
-        });
-      }
+      console.log('📡 [DB-STATUS] Vortex session check completed:', {
+        status: vortexStatus,
+        sessionId,
+        sessionAge: Math.floor(sessionAge / 1000 / 60) + ' minutes'
+      });
     } else {
-      logger.info(LogCategory.VORTEX_AUTH, 'No Vortex session found');
+      console.log('⚠️ [DB-STATUS] No Vortex session found');
     }
 
     const processingTime = Date.now() - startTime;
     
-    logger.info(LogCategory.DATABASE, 'Status check completed', {
+    console.log('✅ [DB-STATUS] Status check completed:', {
       database: 'connected',
       vortex: vortexStatus,
-      sessionId,
-      processingTime
+      processingTime: processingTime + 'ms'
     });
 
     return NextResponse.json({
       database: "connected",
       vortex: vortexStatus,
-      token: latestSession?.accessToken || null,
       sessionId: latestSession?.id || null,
+      sessionCreated: latestSession?.createdAt || null,
       lastChecked: new Date().toISOString(),
       processingTime
     });
@@ -66,15 +59,13 @@ export async function GET() {
   } catch (error) {
     const processingTime = Date.now() - startTime;
     
-    logger.error(LogCategory.DATABASE, 'Database status check failed', error as Error, {
-      processingTime
-    });
+    console.error('❌ [DB-STATUS] Database status check failed:', error);
 
     return NextResponse.json(
       { 
         database: "error", 
         vortex: "unknown",
-        error: "Database connection failed",
+        error: error instanceof Error ? error.message : "Database connection failed",
         lastChecked: new Date().toISOString(),
         processingTime
       },

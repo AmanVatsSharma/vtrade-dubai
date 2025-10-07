@@ -1,6 +1,22 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY ?? process.env.NEXT_PUBLIC_RESEND_API_KEY)  ;
+// Lazy initialization to avoid build-time errors
+let resendClient: Resend | null = null;
+
+function getResendClient(): Resend {
+  if (!resendClient) {
+    const apiKey = process.env.RESEND_API_KEY ?? process.env.NEXT_PUBLIC_RESEND_API_KEY ?? 'dummy-key-for-build';
+    resendClient = new Resend(apiKey);
+  }
+  return resendClient;
+}
+
+const resend = new Proxy({} as Resend, {
+  get(target, prop) {
+    const client = getResendClient();
+    return client[prop as keyof Resend];
+  }
+});
 
 export const sendVerificationEmail = async (email: string, token: string) => {
     const confirmLink = `https://marketpulse360.live/auth/email-verification?token=${token}`

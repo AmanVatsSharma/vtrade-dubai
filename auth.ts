@@ -8,8 +8,11 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import { getUserById, getUserByIdentifier } from "./data/user"
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-
+/**
+ * NextAuth Configuration
+ * Handles authentication for both web and mobile platforms
+ */
+export const authOptions = {
     adapter: PrismaAdapter(prisma),
     providers: [
         CredentialsProvider({
@@ -175,6 +178,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
     },
     secret: process.env.NEXTAUTH_SECRET,
-})
+}
 
+// Export NextAuth instance with configuration
+export const { handlers, signIn, signOut, auth } = NextAuth(authOptions)
 

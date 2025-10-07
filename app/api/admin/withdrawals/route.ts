@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 import { createAdminFundService } from "@/lib/services/admin/AdminFundService"
-import { getServerSession } from "next-auth"
+import { auth } from "@/auth"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-WITHDRAWALS] GET request received")
   
   try {
-    const session = await getServerSession()
+    const session = await auth()
     if (!session?.user || (session.user as any).role !== 'ADMIN') {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-WITHDRAWALS] POST request received (approve/reject)")
   
   try {
-    const session = await getServerSession()
+    const session = await auth()
     if (!session?.user || (session.user as any).role !== 'ADMIN') {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
