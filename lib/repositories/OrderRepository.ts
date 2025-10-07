@@ -105,8 +105,7 @@ export class OrderRepository {
     const order = await client.order.update({
       where: { id: orderId },
       data: {
-        ...data,
-        updatedAt: new Date()
+        ...data
       },
       include: {
         Stock: {

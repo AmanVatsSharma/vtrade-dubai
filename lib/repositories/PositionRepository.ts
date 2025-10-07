@@ -94,8 +94,7 @@ export class PositionRepository {
     const position = await client.position.update({
       where: { id: positionId },
       data: {
-        ...data,
-        updatedAt: new Date()
+        ...data
       },
       include: {
         Stock: {

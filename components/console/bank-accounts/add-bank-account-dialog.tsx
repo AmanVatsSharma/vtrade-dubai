@@ -97,16 +97,16 @@ export function AddBankAccountDialog({ open, onOpenChange, onAdd, existingAccoun
 
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
-      onAdd({
+    try {
+      // Call the actual API via the hook
+      await onAdd({
         bankName: formData.bankName,
         accountNumber: formData.accountNumber,
         ifscCode: formData.ifscCode.toUpperCase(),
         accountHolderName: formData.accountHolderName,
         accountType: formData.accountType,
         isDefault: formData.isDefault,
+        isActive: true,
       })
 
       // Reset form
@@ -121,11 +121,16 @@ export function AddBankAccountDialog({ open, onOpenChange, onAdd, existingAccoun
       })
 
       onOpenChange(false)
+    } catch (error) {
+      console.error('Error adding bank account:', error)
       toast({
-        title: "Bank Account Added",
-        description: "Your bank account has been successfully linked",
+        title: "Error",
+        description: "Failed to add bank account. Please try again.",
+        variant: "destructive",
       })
-    }, 2000)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const popularBanks = [
