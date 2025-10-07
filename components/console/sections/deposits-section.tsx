@@ -1,5 +1,15 @@
 "use client"
 
+/**
+ * Deposits Section Component
+ * 
+ * Optimized for mobile with:
+ * - Responsive grid layouts
+ * - Touch-friendly forms
+ * - Mobile-optimized modals
+ * - Compact card design
+ */
+
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { ArrowDownToLine, CreditCard, Building2, Smartphone } from "lucide-react"
@@ -151,16 +161,14 @@ export function DepositsSection() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Deposits</h1>
-          <p className="text-muted-foreground">Add funds to your trading account</p>
-        </div>
+      {/* Header - Mobile Optimized */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Deposits</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">Add funds to your trading account</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Summary Cards - Mobile Optimized */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -210,8 +218,8 @@ export function DepositsSection() {
         </Card>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Content - Mobile Optimized */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Deposit Form */}
         <div className="lg:col-span-1">
           <Card>

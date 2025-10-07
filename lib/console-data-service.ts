@@ -1,9 +1,10 @@
 /**
  * Console Data Service
- * Handles all console-related data operations using Supabase RPC functions
+ * Handles all console-related data operations using Prisma atomic transactions
+ * This is a wrapper around the new ConsoleService for backward compatibility
  */
 
-import { supabaseServer } from './supabase/supabase-server'
+import { ConsoleService } from './services/console/ConsoleService'
 
 export interface BankAccount {
   id: string
@@ -107,116 +108,87 @@ export interface ConsoleData {
 export class ConsoleDataService {
   /**
    * Get all console data for a user
+   * Now uses Prisma-based ConsoleService instead of RPC
    */
   static async getConsoleData(userId: string): Promise<ConsoleData | null> {
+    console.log('🔄 [CONSOLE-DATA-SERVICE] Fetching console data via new Prisma service')
     try {
-      const { data, error } = await supabaseServer.rpc('get_user_console_data', {
-        user_id_param: userId
-      })
-
-      if (error) {
-        console.error('Error fetching console data:', error)
-        return null
-      }
-
+      const data = await ConsoleService.getConsoleData(userId)
+      console.log('✅ [CONSOLE-DATA-SERVICE] Console data fetched successfully')
       return data
     } catch (error) {
-      console.error('Error in getConsoleData:', error)
+      console.error('❌ [CONSOLE-DATA-SERVICE] Error in getConsoleData:', error)
       return null
     }
   }
 
   /**
    * Update user profile
+   * Now uses Prisma-based ConsoleService instead of RPC
    */
   static async updateUserProfile(userId: string, profileData: Partial<UserProfile>): Promise<{ success: boolean; message: string }> {
+    console.log('🔄 [CONSOLE-DATA-SERVICE] Updating user profile via new Prisma service')
     try {
-      const { data, error } = await supabaseServer.rpc('update_user_profile', {
-        user_id_param: userId,
-        profile_data: profileData
-      })
-
-      if (error) {
-        console.error('Error updating user profile:', error)
-        return { success: false, message: 'Failed to update profile' }
-      }
-
-      return data
+      const result = await ConsoleService.updateUserProfile(userId, profileData)
+      console.log('✅ [CONSOLE-DATA-SERVICE] User profile updated successfully')
+      return result
     } catch (error) {
-      console.error('Error in updateUserProfile:', error)
+      console.error('❌ [CONSOLE-DATA-SERVICE] Error in updateUserProfile:', error)
       return { success: false, message: 'Failed to update profile' }
     }
   }
 
   /**
    * Add bank account
+   * Now uses Prisma-based ConsoleService instead of RPC
    */
   static async addBankAccount(userId: string, bankData: Omit<BankAccount, 'id' | 'createdAt'>): Promise<{ success: boolean; message: string; accountId?: string }> {
+    console.log('🔄 [CONSOLE-DATA-SERVICE] Adding bank account via new Prisma service')
     try {
-      const { data, error } = await supabaseServer.rpc('add_bank_account', {
-        user_id_param: userId,
-        bank_data: bankData
-      })
-
-      if (error) {
-        console.error('Error adding bank account:', error)
-        return { success: false, message: 'Failed to add bank account' }
-      }
-
-      return data
+      const result = await ConsoleService.addBankAccount(userId, bankData)
+      console.log('✅ [CONSOLE-DATA-SERVICE] Bank account added successfully')
+      return result
     } catch (error) {
-      console.error('Error in addBankAccount:', error)
+      console.error('❌ [CONSOLE-DATA-SERVICE] Error in addBankAccount:', error)
       return { success: false, message: 'Failed to add bank account' }
     }
   }
 
   /**
    * Update bank account
+   * Now uses Prisma-based ConsoleService instead of RPC
    */
   static async updateBankAccount(userId: string, accountId: string, bankData: Partial<BankAccount>): Promise<{ success: boolean; message: string }> {
+    console.log('🔄 [CONSOLE-DATA-SERVICE] Updating bank account via new Prisma service')
     try {
-      const { data, error } = await supabaseServer.rpc('update_bank_account', {
-        user_id_param: userId,
-        account_id_param: accountId,
-        bank_data: bankData
-      })
-
-      if (error) {
-        console.error('Error updating bank account:', error)
-        return { success: false, message: 'Failed to update bank account' }
-      }
-
-      return data
+      const result = await ConsoleService.updateBankAccount(userId, accountId, bankData)
+      console.log('✅ [CONSOLE-DATA-SERVICE] Bank account updated successfully')
+      return result
     } catch (error) {
-      console.error('Error in updateBankAccount:', error)
+      console.error('❌ [CONSOLE-DATA-SERVICE] Error in updateBankAccount:', error)
       return { success: false, message: 'Failed to update bank account' }
     }
   }
 
   /**
    * Delete bank account
+   * Now uses Prisma-based ConsoleService instead of RPC
    */
   static async deleteBankAccount(userId: string, accountId: string): Promise<{ success: boolean; message: string }> {
+    console.log('🔄 [CONSOLE-DATA-SERVICE] Deleting bank account via new Prisma service')
     try {
-      const { data, error } = await supabaseServer.rpc('delete_bank_account', {
-        user_id_param: userId,
-        account_id_param: accountId
-      })
-
-      if (error) {
-        console.error('Error deleting bank account:', error)
-        return { success: false, message: 'Failed to delete bank account' }
-      }
-
-      return data
+      const result = await ConsoleService.deleteBankAccount(userId, accountId)
+      console.log('✅ [CONSOLE-DATA-SERVICE] Bank account deleted successfully')
+      return result
     } catch (error) {
-      console.error('Error in deleteBankAccount:', error)
+      console.error('❌ [CONSOLE-DATA-SERVICE] Error in deleteBankAccount:', error)
       return { success: false, message: 'Failed to delete bank account' }
     }
   }
 
   /**
    * Create deposit request
+   * Now uses Prisma-based ConsoleService instead of RPC
    */
   static async createDepositRequest(userId: string, depositData: {
     amount: number
@@ -226,26 +198,20 @@ export class ConsoleDataService {
     reference?: string
     remarks?: string
   }): Promise<{ success: boolean; message: string; depositId?: string }> {
+    console.log('🔄 [CONSOLE-DATA-SERVICE] Creating deposit request via new Prisma service')
     try {
-      const { data, error } = await supabaseServer.rpc('create_deposit_request', {
-        user_id_param: userId,
-        deposit_data: depositData
-      })
-
-      if (error) {
-        console.error('Error creating deposit request:', error)
-        return { success: false, message: 'Failed to create deposit request' }
-      }
-
-      return data
+      const result = await ConsoleService.createDepositRequest(userId, depositData)
+      console.log('✅ [CONSOLE-DATA-SERVICE] Deposit request created successfully')
+      return result
     } catch (error) {
-      console.error('Error in createDepositRequest:', error)
+      console.error('❌ [CONSOLE-DATA-SERVICE] Error in createDepositRequest:', error)
       return { success: false, message: 'Failed to create deposit request' }
     }
   }
 
   /**
    * Create withdrawal request
+   * Now uses Prisma-based ConsoleService instead of RPC
    */
   static async createWithdrawalRequest(userId: string, withdrawalData: {
     amount: number
@@ -254,20 +220,13 @@ export class ConsoleDataService {
     remarks?: string
     charges?: number
   }): Promise<{ success: boolean; message: string; withdrawalId?: string }> {
+    console.log('🔄 [CONSOLE-DATA-SERVICE] Creating withdrawal request via new Prisma service')
     try {
-      const { data, error } = await supabaseServer.rpc('create_withdrawal_request', {
-        user_id_param: userId,
-        withdrawal_data: withdrawalData
-      })
-
-      if (error) {
-        console.error('Error creating withdrawal request:', error)
-        return { success: false, message: 'Failed to create withdrawal request' }
-      }
-
-      return data
+      const result = await ConsoleService.createWithdrawalRequest(userId, withdrawalData)
+      console.log('✅ [CONSOLE-DATA-SERVICE] Withdrawal request created successfully')
+      return result
     } catch (error) {
-      console.error('Error in createWithdrawalRequest:', error)
+      console.error('❌ [CONSOLE-DATA-SERVICE] Error in createWithdrawalRequest:', error)
       return { success: false, message: 'Failed to create withdrawal request' }
     }
   }

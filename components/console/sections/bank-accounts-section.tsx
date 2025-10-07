@@ -1,5 +1,15 @@
 "use client"
 
+/**
+ * Bank Accounts Section Component
+ * 
+ * Optimized for mobile with:
+ * - Responsive grid layouts
+ * - Touch-friendly buttons
+ * - Mobile-optimized dialogs
+ * - Compact card design
+ */
+
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Building2, Plus, CreditCard, Shield } from "lucide-react"
@@ -160,20 +170,26 @@ export function BankAccountsSection() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header - Mobile Optimized */}
+      <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Bank Accounts</h1>
-          <p className="text-muted-foreground">Manage your linked bank accounts for deposits and withdrawals</p>
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Bank Accounts</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage your linked bank accounts for deposits and withdrawals</p>
         </div>
-        <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+        <Button 
+          onClick={() => {
+            console.log('🏞µ [BANK-ACCOUNTS] Opening add dialog')
+            setShowAddDialog(true)
+          }} 
+          className="gap-2 w-full sm:w-auto touch-manipulation"
+        >
           <Plus className="w-4 h-4" />
-          Add Bank Account
+          <span>Add Bank Account</span>
         </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Summary Cards - Mobile Optimized */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">

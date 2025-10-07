@@ -1,5 +1,15 @@
 "use client"
 
+/**
+ * Profile Section Component
+ * 
+ * Optimized for mobile with:
+ * - Responsive grid layouts
+ * - Touch-friendly buttons
+ * - Compact card design
+ * - Mobile-optimized spacing
+ */
+
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Copy, Check, Edit, Shield, User, Mail, Phone, Calendar } from "lucide-react"
@@ -83,19 +93,22 @@ export function ProfileSection() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header - Mobile Optimized */}
+      <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Profile</h1>
-          <p className="text-muted-foreground">Manage your account information and security settings</p>
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Profile</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage your account information and security settings</p>
         </div>
-        <Button variant="outline" className="gap-2 bg-transparent">
+        <Button 
+          variant="outline" 
+          className="gap-2 bg-transparent w-full sm:w-auto touch-manipulation"
+        >
           <Edit className="w-4 h-4" />
-          Edit Profile
+          <span>Edit Profile</span>
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Profile Card */}
         <Card className="lg:col-span-2">
           <CardHeader>
