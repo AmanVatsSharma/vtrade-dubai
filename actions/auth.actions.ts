@@ -310,51 +310,70 @@ export const newVerification = async (token: string) => {
 }
 
 export const resetPassword = async (values: { identifier: string }): Promise<PasswordResetResponse> => {
+    console.log(`[AUTH] 🔄 resetPassword called with identifier: ${values.identifier?.substring(0, 3)}***`);
+    
     // Robust validation
     if (!values.identifier || !values.identifier.trim()) {
+        console.error(`[AUTH] ❌ resetPassword - Validation failed: identifier is empty`);
         return { error: "Email, mobile number, or Client ID is required" };
     }
 
     try {
+        console.log(`[AUTH] 🔍 Searching for user with identifier: ${values.identifier.trim().substring(0, 3)}***`);
         // Find user by email OR phone OR clientId
         const existingUser = await getUserByIdentifier(values.identifier.trim());
 
         // For security, never reveal whether the user exists
         if (!existingUser) {
+            console.log(`[AUTH] ⚠️ User not found (returning generic success for security)`);
             return {
                 success: "If an account exists, you will receive password reset instructions via email and SMS"
             };
         }
+
+        console.log(`[AUTH] ✅ User found: ID=${existingUser.id}, Email=${existingUser.email ? 'Yes' : 'No'}, Phone=${existingUser.phone ? 'Yes' : 'No'}`);
 
         let emailSent = false;
         let smsSent = false;
 
         // Generate a password reset token tied to the user's email
         if (existingUser.email) {
+            console.log(`[AUTH] 📧 Attempting to send password reset email...`);
             try {
                 const passwordResetToken = await generatePasswordResetVerificationToken(existingUser.email, existingUser.id);
+                console.log(`[AUTH] 🎫 Password reset token generated: ${passwordResetToken.token.substring(0, 10)}...`);
                 
                 // Send password reset email with link
                 await sendPasswordResetEmail(passwordResetToken.email, passwordResetToken.token);
                 emailSent = true;
-                console.log(`✅ Password reset email sent to ${existingUser.email}`);
+                console.log(`[AUTH] ✅ Password reset email sent successfully to ${existingUser.email}`);
             } catch (emailError) {
-                console.error("Failed to send password reset email:", emailError);
+                console.error(`[AUTH] ❌ Failed to send password reset email:`, emailError);
+                console.error(`[AUTH] 📋 Email error details:`, {
+                    message: emailError instanceof Error ? emailError.message : 'Unknown error',
+                    stack: emailError instanceof Error ? emailError.stack : undefined
+                });
             }
+        } else {
+            console.log(`[AUTH] ⚠️ No email address on file for user - skipping email send`);
         }
 
         // Also send OTP via SMS if user has phone number
         if (existingUser.phone) {
+            console.log(`[AUTH] 📱 Attempting to send password reset OTP via SMS...`);
             try {
                 const { sendOtpSMS, generateOTP } = await import("@/lib/aws-sns");
                 const { sendOtpEmail } = await import("@/lib/ResendMail");
                 
                 const otp = generateOTP(6);
+                console.log(`[AUTH] 🔢 OTP generated for password reset`);
+                
                 const hashedOtp = await bcrypt.hash(otp, 10);
                 const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+                console.log(`[AUTH] ⏰ OTP will expire at: ${expiresAt.toISOString()}`);
 
                 // Save OTP to database
-                await prisma.otpToken.create({
+                const otpToken = await prisma.otpToken.create({
                     data: {
                         userId: existingUser.id,
                         phone: existingUser.phone,
@@ -365,36 +384,53 @@ export const resetPassword = async (values: { identifier: string }): Promise<Pas
                         isUsed: false,
                     }
                 });
+                console.log(`[AUTH] 💾 OTP saved to database with ID: ${otpToken.id}`);
 
                 // Send OTP via SMS
                 const smsResult = await sendOtpSMS(existingUser.phone, otp, "password reset");
                 if (smsResult.success) {
                     smsSent = true;
-                    console.log(`✅ Password reset OTP sent to mobile ${existingUser.phone}`);
+                    console.log(`[AUTH] ✅ Password reset OTP sent successfully to mobile ${existingUser.phone}`);
                 } else {
-                    console.error("Failed to send SMS OTP:", smsResult.error);
+                    console.error(`[AUTH] ❌ Failed to send SMS OTP:`, smsResult.error);
                 }
 
                 // Also send OTP via email as backup
                 if (existingUser.email) {
+                    console.log(`[AUTH] 📧 Sending OTP via email as backup...`);
                     await sendOtpEmail(existingUser.email, otp, "password reset", expiresAt, existingUser.phone);
+                    console.log(`[AUTH] ✅ Backup OTP email sent`);
                 }
             } catch (smsError) {
-                console.error("Failed to send password reset OTP:", smsError);
+                console.error(`[AUTH] ❌ Failed to send password reset OTP:`, smsError);
+                console.error(`[AUTH] 📋 SMS error details:`, {
+                    message: smsError instanceof Error ? smsError.message : 'Unknown error',
+                    stack: smsError instanceof Error ? smsError.stack : undefined
+                });
             }
+        } else {
+            console.log(`[AUTH] ⚠️ No phone number on file for user - skipping SMS send`);
         }
 
-        return {
-            success: emailSent && smsSent 
-                ? "Password reset link sent to your email and OTP sent to your mobile" 
-                : emailSent 
-                    ? "Password reset link sent to your email"
-                    : smsSent
-                        ? "Password reset OTP sent to your mobile"
-                        : "If an account exists, you will receive password reset instructions"
-        };
+        const successMessage = emailSent && smsSent 
+            ? "Password reset link sent to your email and OTP sent to your mobile" 
+            : emailSent 
+                ? "Password reset link sent to your email"
+                : smsSent
+                    ? "Password reset OTP sent to your mobile"
+                    : "If an account exists, you will receive password reset instructions";
+        
+        console.log(`[AUTH] ✅ resetPassword completed. Email sent: ${emailSent}, SMS sent: ${smsSent}`);
+        console.log(`[AUTH] 📤 Returning success message: "${successMessage}"`);
+        
+        return { success: successMessage };
     } catch (error) {
-        console.error("Password reset error:", error);
+        console.error(`[AUTH] ❌ CRITICAL ERROR in resetPassword:`, error);
+        console.error(`[AUTH] 📋 Error details:`, {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            identifier: values.identifier?.substring(0, 3) + '***'
+        });
         return {
             error: "Failed to process password reset request. Please try again later."
         };
@@ -405,57 +441,88 @@ export const newPassword = async (
     values: z.infer<typeof NewPasswordSchema>,
     token?: string | null
 ) => {
+    console.log(`[AUTH] 🔄 newPassword called with token: ${token?.substring(0, 10)}...`);
+    
     try {
+        // Validate token presence
         if (!token || !token.trim()) {
+            console.error(`[AUTH] ❌ newPassword - No token provided`);
             return { error: "Invalid password reset link. Please request a new one." }
         }
 
+        console.log(`[AUTH] ✅ Token present, validating password fields...`);
         const validatedFields = NewPasswordSchema.safeParse(values);
 
         if (!validatedFields.success) {
             const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ")
+            console.error(`[AUTH] ❌ newPassword - Validation failed: ${errors}`);
             return { error: `Invalid password: ${errors}` };
         }
         
         const { password } = validatedFields.data
+        console.log(`[AUTH] ✅ Password validation passed`);
 
+        console.log(`[AUTH] 🔍 Looking up password reset token in database...`);
         const existingToken = await getPasswordResetTokenByToken(token)
 
         if (!existingToken) {
+            console.error(`[AUTH] ❌ Token not found in database`);
             return { error: "Invalid or expired reset link. Please request a new one." }
         }
+
+        console.log(`[AUTH] ✅ Token found: ID=${existingToken.id}, Email=${existingToken.email}, Expires=${existingToken.expires}`);
 
         const hasExpired = new Date(existingToken.expires) < new Date();
 
         if (hasExpired) {
+            console.warn(`[AUTH] ⚠️ Token has expired. Cleaning up...`);
             // Clean up expired token
             await prisma.passwordResetToken.delete({ where: { id: existingToken.id } })
+            console.log(`[AUTH] 🗑️ Expired token deleted`);
             return { error: "Reset link has expired (valid for 1 hour). Please request a new one." }
         }
 
+        console.log(`[AUTH] ✅ Token is valid and not expired`);
+        console.log(`[AUTH] 🔍 Looking up user: ${existingToken.email}`);
+        
         const existingUser = await getUserByEmail(existingToken.email)
 
         if (!existingUser) {
+            console.error(`[AUTH] ❌ User not found for email: ${existingToken.email}`);
             return { error: "User account not found. Please contact support." }
         }
 
+        console.log(`[AUTH] ✅ User found: ID=${existingUser.id}, Name=${existingUser.name}`);
+        console.log(`[AUTH] 🔐 Hashing new password...`);
+
         // Hash the new password
         const hashedPassword = await bcrypt.hash(password, 10)
+        console.log(`[AUTH] ✅ Password hashed successfully`);
 
+        console.log(`[AUTH] 💾 Updating user password in database...`);
         // Update user password
         await prisma.user.update({
             where: { id: existingUser.id },
             data: { password: hashedPassword }
         });
+        console.log(`[AUTH] ✅ Password updated successfully in database`);
 
+        console.log(`[AUTH] 🗑️ Deleting used password reset token...`);
         // Delete the used token
         await prisma.passwordResetToken.delete({
             where: { id: existingToken.id }
         });
+        console.log(`[AUTH] ✅ Used token deleted from database`);
 
+        console.log(`[AUTH] ✅ newPassword completed successfully for user: ${existingUser.email}`);
         return { success: "Password updated successfully! You can now login with your new password." }
     } catch (error) {
-        console.error("Password reset error:", error)
+        console.error(`[AUTH] ❌ CRITICAL ERROR in newPassword:`, error);
+        console.error(`[AUTH] 📋 Error details:`, {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            token: token?.substring(0, 10) + '...'
+        });
         if (error instanceof Error) {
             return { error: `Failed to reset password: ${error.message}` }
         }
