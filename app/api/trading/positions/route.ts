@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log("📝 [API-POSITIONS] Close position request body:", body)
     
-    let { positionId, tradingAccountId } = body
+    let { positionId, tradingAccountId, exitPrice } = body
 
     if (!positionId) {
       console.error("❌ [API-POSITIONS] Missing positionId")
@@ -34,7 +34,11 @@ export async function POST(req: Request) {
       console.log("✅ [API-POSITIONS] Fetched tradingAccountId from position:", tradingAccountId)
     }
 
-    console.log("🏁 [API-POSITIONS] Starting position closure:", { positionId, tradingAccountId })
+    console.log("🏁 [API-POSITIONS] Starting position closure:", { 
+      positionId, 
+      tradingAccountId, 
+      exitPrice: exitPrice || 'auto-fetch' 
+    })
     
     // Create logger with context
     const logger = createTradingLogger({
@@ -42,9 +46,9 @@ export async function POST(req: Request) {
       positionId
     })
     
-    // Create service and close position
+    // Create service and close position (with optional exit price)
     const positionService = createPositionManagementService(logger)
-    const result = await positionService.closePosition(positionId, tradingAccountId)
+    const result = await positionService.closePosition(positionId, tradingAccountId, exitPrice)
     console.log("🎉 [API-POSITIONS] Position closure result:", result)
     
     return NextResponse.json(result, { status: 200 })

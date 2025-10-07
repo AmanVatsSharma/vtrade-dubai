@@ -38,6 +38,7 @@ export interface PriceResolutionInput {
   symbol: string
   orderType: OrderType
   limitPrice?: number | null
+  dialogPrice?: number | null  // Price from order dialog (fallback)
 }
 
 export class PriceResolutionService {
@@ -155,6 +156,25 @@ export class PriceResolutionService {
     } catch (error: any) {
       console.error("❌ [PRICE-RESOLUTION-SERVICE] Tier 3 FAILED - Estimation error:", error.message)
       warnings.push("Price estimation failed")
+    }
+
+    // Tier 4: Use dialog price (user-provided fallback)
+    if (input.dialogPrice && input.dialogPrice > 0) {
+      console.log("🎯 [PRICE-RESOLUTION-SERVICE] Tier 4: Using dialog price as fallback:", input.dialogPrice)
+      
+      return {
+        price: input.dialogPrice,
+        source: 'LIMIT_ORDER', // Treat as user-specified price
+        confidence: 'MEDIUM',
+        warnings: [
+          ...warnings,
+          '⚠️ Using price from order dialog - live market data unavailable'
+        ],
+        timestamp: new Date(),
+        metadata: {
+          estimatedFrom: `User dialog price: ₹${input.dialogPrice}`
+        }
+      }
     }
 
     // All tiers failed

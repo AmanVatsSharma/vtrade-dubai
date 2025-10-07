@@ -57,7 +57,7 @@ export class PositionManagementService {
 
   /**
    * Close a position
-   * - Fetches current LTP
+   * - Fetches current LTP (or uses provided price)
    * - Calculates P&L
    * - Creates exit order
    * - Releases margin
@@ -65,7 +65,8 @@ export class PositionManagementService {
    */
   async closePosition(
     positionId: string,
-    tradingAccountId: string
+    tradingAccountId: string,
+    exitPriceOverride?: number  // Optional: Use this price instead of fetching live data
   ): Promise<ClosePositionResult> {
     console.log("🏁 [POSITION-MGMT-SERVICE] Closing position:", {
       positionId,
@@ -98,8 +99,28 @@ export class PositionManagementService {
       })
 
       // Step 2: Get current LTP (exit price)
-      const exitPrice = await this.getCurrentPrice(position.Stock?.instrumentId || '')
-      console.log("💰 [POSITION-MGMT-SERVICE] Exit price:", exitPrice)
+      let exitPrice: number
+      
+      if (exitPriceOverride && exitPriceOverride > 0) {
+        console.log("🎯 [POSITION-MGMT-SERVICE] Using provided exit price:", exitPriceOverride)
+        exitPrice = exitPriceOverride
+      } else {
+        try {
+          exitPrice = await this.getCurrentPrice(position.Stock?.instrumentId || '')
+          console.log("💰 [POSITION-MGMT-SERVICE] Exit price from market data:", exitPrice)
+        } catch (error: any) {
+          console.warn("⚠️ [POSITION-MGMT-SERVICE] Failed to fetch live price, using fallback")
+          
+          // Fallback to position's Stock LTP or average price
+          exitPrice = position.Stock?.ltp || Number(position.averagePrice)
+          
+          if (!exitPrice || exitPrice <= 0) {
+            throw new Error("Unable to determine exit price. Please try again or specify a price.")
+          }
+          
+          console.log("📌 [POSITION-MGMT-SERVICE] Using fallback exit price:", exitPrice)
+        }
+      }
 
       // Step 3: Calculate P&L
       const quantity = position.quantity

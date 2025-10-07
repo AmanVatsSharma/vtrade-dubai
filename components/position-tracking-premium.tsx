@@ -453,13 +453,22 @@ export function PositionTracking({
     try {
       if (action === 'close') {
         if (!tradingAccountId) throw new Error('Missing trading account')
-        await closePosition(positionId, { 
-          user: { 
-            id: "current-user", 
-            clientId: "client-123", 
-            tradingAccountId 
-          } 
-        })
+        
+        // Get current price for the position being closed
+        const position = positions.find(p => p.id === positionId)
+        const currentLtp = position?.instrumentId ? quotes[position.instrumentId]?.last_trade_price : undefined
+        
+        await closePosition(
+          positionId, 
+          { 
+            user: { 
+              id: "current-user", 
+              clientId: "client-123", 
+              tradingAccountId 
+            } 
+          },
+          currentLtp  // Pass current price as fallback
+        )
         toast({
           title: "Position Closed",
           description: "Your position has been closed successfully.",

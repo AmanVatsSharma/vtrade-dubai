@@ -104,7 +104,8 @@ export class OrderExecutionService {
         stockId: input.stockId,
         symbol: input.symbol,
         orderType: input.orderType,
-        limitPrice: input.price
+        limitPrice: input.price,
+        dialogPrice: input.price  // Pass dialog price as fallback
       })
 
       console.log("💰 [ORDER-EXECUTION-SERVICE] Price resolution:", {

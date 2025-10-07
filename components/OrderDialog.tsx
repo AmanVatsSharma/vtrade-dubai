@@ -98,6 +98,9 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
     setLoading(true)
     try {
+      // Always pass the current price - it will be used as fallback if live data is unavailable
+      const orderPrice = price || selectedStock.ltp || 0
+      
       await placeOrder({
         tradingAccountId: portfolio.account.id,
         userId: session?.user?.id,
@@ -106,7 +109,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         stockId: selectedStock.id,
         symbol: selectedStock.symbol,
         quantity,
-        price: isMarket ? null : price,
+        price: orderPrice,  // Always pass price (even for market orders as fallback)
         orderType: isMarket ? OrderType.MARKET : OrderType.LIMIT,
         orderSide,
         segment: selectedStock.segment,

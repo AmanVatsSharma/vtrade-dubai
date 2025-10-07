@@ -856,7 +856,7 @@ export async function deleteOrder(orderId: string) {
     console.error("Error deleting order:", error); throw new Error("Failed to delete order.")
   }
 }
-export async function closePosition(positionId: string, session?: any) {
+export async function closePosition(positionId: string, session?: any, exitPrice?: number) {
   const logger = session ? createLoggerFromSession(session) : null
   
   try {
@@ -865,7 +865,11 @@ export async function closePosition(positionId: string, session?: any) {
     const response = await fetch('/api/trading/positions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ positionId, tradingAccountId: session?.user?.tradingAccountId })
+      body: JSON.stringify({ 
+        positionId, 
+        tradingAccountId: session?.user?.tradingAccountId,
+        exitPrice  // Pass exit price if provided
+      })
     })
 
     if (!response.ok) {
