@@ -164,10 +164,26 @@ export class PositionManagementService {
         
         console.log("📝 [POSITION-MGMT-SERVICE] Creating exit order:", exitSide)
         
+        // Verify stockId exists to prevent foreign key constraint errors
+        if (!position.stockId) {
+          console.error("❌ [POSITION-MGMT-SERVICE] Position has no stockId:", positionId)
+          throw new Error("Position data incomplete - missing stock reference")
+        }
+        
+        const stockExists = await tx.stock.findUnique({
+          where: { id: position.stockId },
+          select: { id: true }
+        })
+        
+        if (!stockExists) {
+          console.error("❌ [POSITION-MGMT-SERVICE] Stock not found in database:", position.stockId)
+          throw new Error(`Stock not found: ${position.symbol}. Cannot close position.`)
+        }
+        
         const exitOrder = await this.orderRepo.create(
           {
             tradingAccountId,
-            stockId: position.stockId || '',
+            stockId: position.stockId, // Now verified to exist
             symbol: position.symbol,
             quantity: Math.abs(quantity),
             price: exitPrice,

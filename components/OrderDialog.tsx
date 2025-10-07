@@ -50,36 +50,83 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   const availableMargin = portfolio?.account?.availableMargin || 0
 
-  // Margin calculation logic
+  // Margin calculation logic - matches backend MarginCalculator
   const marginRequired = useMemo(() => {
     if (!selectedStock || !price || quantity <= 0) return 0
-    const baseValue = quantity * price
+    const turnover = quantity * price
 
-    if (selectedStock.segment === "NSE") {
-      return currentOrderType === "MIS" ? baseValue / 200 : baseValue / 50
+    // Calculate leverage based on segment and product type
+    let leverage = 1
+    const segment = selectedStock.segment.toUpperCase()
+    const productType = currentOrderType.toUpperCase()
+
+    if (segment === "NSE" || segment === "NSE_EQ") {
+      if (productType === "MIS" || productType === "INTRADAY") {
+        leverage = 200 // 0.5% margin
+      } else if (productType === "CNC" || productType === "DELIVERY") {
+        leverage = 50 // 2% margin
+      }
+    } else if (segment === "NFO" || segment === "FNO") {
+      leverage = 100 // 1% margin
+    } else if (segment === "MCX") {
+      leverage = 50
     }
-    if (selectedStock.segment === "NFO") {
-      return baseValue / 100
-    }
-    return baseValue
+
+    const requiredMargin = Math.floor(turnover / leverage)
+    return requiredMargin
   }, [selectedStock, quantity, price, currentOrderType])
 
-  // Brokerage calculation (realistic, like Kite)
+  // Brokerage calculation - matches backend logic exactly
   const brokerage = useMemo(() => {
     if (!selectedStock || !price || quantity <= 0) return 0
-    const baseValue = quantity * price
-    // Equity: 0.03% or ₹20 max per order
-    // F&O: ₹20 per lot
-    if (selectedStock.segment === "NSE") {
-      return Math.min(20, baseValue * 0.0003)
+    const turnover = quantity * price
+    const segment = selectedStock.segment.toUpperCase()
+
+    // NSE Equity: 0.03% or ₹20 per order, whichever is lower
+    if (segment === "NSE" || segment === "NSE_EQ") {
+      return Math.min(20, turnover * 0.0003)
     }
-    if (selectedStock.segment === "NFO") {
-      return (selectedStock.lot_size || 1) * 20
+    
+    // NFO F&O: Flat ₹20 per order
+    if (segment === "NFO" || segment === "FNO") {
+      return 20
     }
-    return 0
+    
+    // Default: ₹20 per order
+    return 20
   }, [selectedStock, quantity, price])
 
-  const totalCost = marginRequired + brokerage
+  // Calculate additional charges (STT, transaction charges, GST, stamp duty)
+  const additionalCharges = useMemo(() => {
+    if (!selectedStock || !price || quantity <= 0) return 0
+    const turnover = quantity * price
+    const segment = selectedStock.segment.toUpperCase()
+    const productType = currentOrderType.toUpperCase()
+
+    // STT calculation
+    let stt = 0
+    if (segment === "NSE" && productType === "CNC") {
+      stt = turnover * 0.001 // 0.1% on delivery
+    } else if (segment === "NSE" && productType === "MIS") {
+      stt = turnover * 0.00025 // 0.025% on intraday
+    } else if (segment === "NFO") {
+      stt = turnover * 0.0001 // 0.01% on F&O
+    }
+
+    // Transaction charges
+    const transactionCharges = turnover * 0.0000325 // 0.00325%
+    
+    // GST on brokerage and transaction charges
+    const gst = (brokerage + transactionCharges) * 0.18 // 18% GST
+    
+    // Stamp duty
+    const stampDuty = turnover * 0.00003 // 0.003%
+
+    return Math.floor(stt + transactionCharges + gst + stampDuty)
+  }, [selectedStock, quantity, price, currentOrderType, brokerage])
+
+  const totalCharges = brokerage + additionalCharges
+  const totalCost = marginRequired + totalCharges
 
   const handleSubmit = async () => {
     if (!selectedStock || quantity <= 0) {
@@ -90,7 +137,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
     if (totalCost > availableMargin) {
       toast({
         title: "Insufficient Margin",
-        description: `Need ₹${totalCost.toFixed(2)} (margin + brokerage) but only have ₹${availableMargin.toFixed(2)}`,
+        description: `Need ₹${totalCost.toFixed(2)} (margin + charges) but only have ₹${availableMargin.toFixed(2)}`,
         variant: "destructive",
       })
       return
@@ -274,27 +321,32 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             </div>
           )}
 
-          {/* Compact Margin & Brokerage (like Kite) */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Order Value</span>
-                <span className="font-mono">₹{((price || 0) * quantity).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Margin</span>
-                <span className="font-mono">₹{marginRequired.toFixed(2)}</span>
-              </div>
+          {/* Compact Margin & Charges breakdown (like Kite) */}
+          <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Order Value</span>
+              <span className="font-mono">₹{((price || 0) * quantity).toFixed(2)}</span>
             </div>
-            <div className="space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Required Margin</span>
+              <span className="font-mono font-semibold">₹{marginRequired.toFixed(2)}</span>
+            </div>
+            <div className="border-t pt-2 space-y-1">
               <div className="flex justify-between">
                 <span className="text-gray-600">Brokerage</span>
                 <span className="font-mono">₹{brokerage.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between font-semibold">
-                <span>Total</span>
-                <span className="font-mono">₹{totalCost.toFixed(2)}</span>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Other Charges</span>
+                <span className="font-mono">₹{additionalCharges.toFixed(2)}</span>
               </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>(STT, Txn, GST, Stamp)</span>
+              </div>
+            </div>
+            <div className="flex justify-between font-semibold border-t pt-2">
+              <span>Total Required</span>
+              <span className="font-mono">₹{totalCost.toFixed(2)}</span>
             </div>
           </div>
 

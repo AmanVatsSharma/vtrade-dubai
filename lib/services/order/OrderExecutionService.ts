@@ -194,13 +194,25 @@ export class OrderExecutionService {
 
         // Create order
         console.log("📝 [ORDER-EXECUTION-SERVICE] Creating order record")
+        
+        // Verify stockId exists in database to prevent foreign key constraint errors
+        const stockExists = await tx.stock.findUnique({
+          where: { id: input.stockId },
+          select: { id: true }
+        })
+        
+        if (!stockExists) {
+          console.error("❌ [ORDER-EXECUTION-SERVICE] Stock not found in database:", input.stockId)
+          throw new Error(`Stock not found: ${input.symbol}. Please refresh stock data.`)
+        }
+        
         const order = await this.orderRepo.create(
           {
             tradingAccountId: input.tradingAccountId,
-            stockId: input.stockId,
+            stockId: input.stockId, // Now verified to exist
             symbol: input.symbol,
             quantity: input.quantity,
-            price: input.orderType === OrderType.LIMIT ? input.price : executionPrice,
+            price: input.orderType === OrderType.LIMIT && input.price !== null ? input.price : executionPrice,
             orderType: input.orderType,
             orderSide: input.orderSide,
             productType: input.productType,
@@ -418,15 +430,35 @@ export class OrderExecutionService {
         // Mark order as cancelled
         await this.orderRepo.markCancelled(orderId, tx)
 
-        // Release margin (we need to calculate what was blocked)
-        // This is simplified - in production, you'd track the exact amount
+        // Release margin - use the average price if order was filled, otherwise use the order price
+        // For MARKET orders without price, fetch current stock price as fallback
+        let priceForMarginCalc = Number(order.averagePrice || order.price || 0)
+        
+        if (priceForMarginCalc === 0 && order.Stock) {
+          // Fallback to stock's LTP for margin calculation
+          priceForMarginCalc = order.Stock.ltp
+          console.log("⚠️ [ORDER-EXECUTION-SERVICE] Using stock LTP for margin calculation:", priceForMarginCalc)
+        }
+        
+        if (priceForMarginCalc === 0) {
+          console.error("❌ [ORDER-EXECUTION-SERVICE] Cannot calculate margin - no price available")
+          throw new Error("Unable to calculate margin for order cancellation")
+        }
+
         const marginCalc = await this.marginCalculator.calculateMargin(
           order.Stock?.segment || 'NSE',
           order.productType,
           order.quantity,
-          Number(order.price || 0),
-          1
+          priceForMarginCalc,
+          order.Stock?.lot_size || 1
         )
+
+        console.log("💰 [ORDER-EXECUTION-SERVICE] Releasing margin:", {
+          requiredMargin: marginCalc.requiredMargin,
+          priceUsed: priceForMarginCalc,
+          segment: order.Stock?.segment,
+          productType: order.productType
+        })
 
         await this.fundService.releaseMargin(
           order.tradingAccountId,
