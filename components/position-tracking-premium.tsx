@@ -17,6 +17,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { closePosition, updateStopLoss, updateTarget } from "@/lib/hooks/use-trading-data"
 import { cn } from "@/lib/utils"
+import { formatExpiryDateIST, formatDateIST } from "@/lib/date-utils"
 
 // Types
 interface Position {
@@ -25,6 +26,9 @@ interface Position {
   quantity: number;
   averagePrice: number;
   instrumentId?: string;
+  stock?: {
+    instrumentId?: string;
+  };
   stopLoss?: number;
   target?: number;
   segment?: string;
@@ -57,6 +61,11 @@ const POSITION_FILTERS = [
 ] as const
 
 type FilterType = typeof POSITION_FILTERS[number]['id']
+
+// Helper function to get instrumentId from position (handles both direct and nested structures)
+const getInstrumentId = (position: Position): string | null => {
+  return position.stock?.instrumentId ?? position.instrumentId ?? null
+}
 
 // Swipeable Position Card Component
 const SwipeablePositionCard = ({ 
@@ -230,7 +239,7 @@ const SwipeablePositionCard = ({
                 {position.expiry && (
                   <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg px-2 py-1">
                     <Clock className="w-3 h-3 text-gray-500" />
-                    <span className="text-xs font-medium">{new Date(position.expiry).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                    <span className="text-xs font-medium">{formatExpiryDateIST(position.expiry)}</span>
                   </div>
                 )}
                 {isOption && position.strikePrice !== undefined && (
@@ -363,7 +372,7 @@ const SwipeablePositionCard = ({
                   CLOSED
                 </Badge>
                 <span className="text-xs text-gray-500">
-                  Booked P&L • {new Date().toLocaleDateString('en-IN')}
+                  Booked P&L • {formatDateIST(new Date())}
                 </span>
               </div>
             )}
@@ -389,7 +398,7 @@ export function PositionTracking({
   const [targetValue, setTargetValue] = useState(0)
   const [loading, setLoading] = useState<string | null>(null)
 
-  // Calculate P&L Summary
+  // Calculate P&L Summary - Use display_price for live animated updates
   const { totalPnL, dayPnL, winRate, totalPositions } = useMemo(() => {
     let total = 0
     let day = 0
@@ -402,8 +411,10 @@ export function PositionTracking({
         day += pos.unrealizedPnL ?? 0
         if (pos.unrealizedPnL > 0) winners++
       } else {
-        const quote = pos.instrumentId ? quotes[pos.instrumentId] : null
-        const ltp = quote?.last_trade_price ?? pos.averagePrice
+        const instrumentId = getInstrumentId(pos)
+        const quote = instrumentId ? quotes[instrumentId] : null
+        // Use display_price for live animated position updates
+        const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
         const pnl = (ltp - pos.averagePrice) * pos.quantity
         total += pnl
         day += pnl
@@ -422,7 +433,7 @@ export function PositionTracking({
     }
   }, [positions, quotes])
 
-  // Filter positions
+  // Filter positions - Use display_price for live filtering
   const filteredPositions = useMemo(() => {
     return positions.filter(pos => {
       switch (activeFilter) {
@@ -432,13 +443,15 @@ export function PositionTracking({
           return pos.quantity < 0
         case 'profit':
           if (pos.quantity === 0) return pos.unrealizedPnL > 0
-          const quote = pos.instrumentId ? quotes[pos.instrumentId] : null
-          const ltp = quote?.last_trade_price ?? pos.averagePrice
+          const instrumentId = getInstrumentId(pos)
+          const quote = instrumentId ? quotes[instrumentId] : null
+          const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
           return (ltp - pos.averagePrice) * pos.quantity > 0
         case 'loss':
           if (pos.quantity === 0) return pos.unrealizedPnL < 0
-          const quoteLoss = pos.instrumentId ? quotes[pos.instrumentId] : null
-          const ltpLoss = quoteLoss?.last_trade_price ?? pos.averagePrice
+          const instrumentIdLoss = getInstrumentId(pos)
+          const quoteLoss = instrumentIdLoss ? quotes[instrumentIdLoss] : null
+          const ltpLoss = (((quoteLoss as any)?.display_price ?? quoteLoss?.last_trade_price) ?? pos.averagePrice)
           return (ltpLoss - pos.averagePrice) * pos.quantity < 0
         case 'today':
           // Filter for today's positions (this would need actual date logic)
@@ -457,7 +470,8 @@ export function PositionTracking({
         
         // Get current price for the position being closed
         const position = positions.find(p => p.id === positionId)
-        const currentLtp = position?.instrumentId ? quotes[position.instrumentId]?.last_trade_price : undefined
+        const instrumentId = position ? getInstrumentId(position) : null
+        const currentLtp = instrumentId ? quotes[instrumentId]?.last_trade_price : undefined
         
         await closePosition(
           positionId, 
@@ -630,12 +644,14 @@ export function PositionTracking({
                     case 'short': return p.quantity < 0
                     case 'profit': 
                       if (p.quantity === 0) return p.unrealizedPnL > 0
-                      const q = p.instrumentId ? quotes[p.instrumentId] : null
+                      const instrumentId = getInstrumentId(p)
+                      const q = instrumentId ? quotes[instrumentId] : null
                       const ltp = q?.last_trade_price ?? p.averagePrice
                       return (ltp - p.averagePrice) * p.quantity > 0
                     case 'loss':
                       if (p.quantity === 0) return p.unrealizedPnL < 0
-                      const ql = p.instrumentId ? quotes[p.instrumentId] : null
+                      const instrumentIdLoss = getInstrumentId(p)
+                      const ql = instrumentIdLoss ? quotes[instrumentIdLoss] : null
                       const ltpl = ql?.last_trade_price ?? p.averagePrice
                       return (ltpl - p.averagePrice) * p.quantity < 0
                     default: return true
@@ -694,7 +710,8 @@ export function PositionTracking({
       >
         <AnimatePresence mode="popLayout">
           {filteredPositions.map((position) => {
-            const quote = position.instrumentId ? quotes[position.instrumentId] : null
+            const instrumentId = getInstrumentId(position)
+            const quote = instrumentId ? quotes[instrumentId] : null
             
             return (
               <SwipeablePositionCard

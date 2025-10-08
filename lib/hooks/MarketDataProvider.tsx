@@ -146,7 +146,11 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
     ids.add(INDEX_INSTRUMENTS.NIFTY)
     ids.add(INDEX_INSTRUMENTS.BANKNIFTY)
     watchlist?.items.forEach((item: { instrumentId?: string }) => item.instrumentId && ids.add(item.instrumentId))
-    positions?.forEach((pos: { instrumentId?: string }) => pos?.instrumentId && ids.add(pos.instrumentId))
+    // Handle both direct instrumentId and nested stock.instrumentId structures
+    positions?.forEach((pos: { instrumentId?: string; stock?: { instrumentId?: string } }) => {
+      const instrumentId = pos.stock?.instrumentId ?? pos.instrumentId
+      if (instrumentId) ids.add(instrumentId)
+    })
     return Array.from(ids)
   }, [watchlist, positions])
 

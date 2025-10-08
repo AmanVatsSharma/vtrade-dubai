@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast"
 
 import { StockSearch } from "./stock-search"
 import { addStockToWatchlist, removeStockFromWatchlist } from "@/lib/hooks/use-trading-data"
+import { formatExpiryDateIST } from "@/lib/date-utils"
 
 interface WatchlistItemData {
   id: string
@@ -124,7 +125,7 @@ export function Watchlist({ watchlist, quotes, onSelectStock, onUpdate }: Watchl
                     <p className="text-xs text-gray-600 truncate">{item.name}</p>
                     {(isFutures || isOption) && (
                       <div className="flex flex-wrap gap-2 mt-1 text-xs">
-                        {item.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {new Date(item.expiry).toLocaleDateString()}</span>}
+                        {item.expiry && <span className="bg-gray-100 rounded px-2 py-0.5">Exp: {formatExpiryDateIST(item.expiry)}</span>}
                         {isOption && item.strikePrice !== undefined && <span className="bg-gray-100 rounded px-2 py-0.5">Strike: ₹{item.strikePrice}</span>}
                         {isOption && item.optionType && <span className="bg-gray-100 rounded px-2 py-0.5">{item.optionType}</span>}
                         {item.lotSize && <span className="bg-gray-100 rounded px-2 py-0.5">Lot: {item.lotSize}</span>}

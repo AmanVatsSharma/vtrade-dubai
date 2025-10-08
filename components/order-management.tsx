@@ -19,6 +19,7 @@ import { cancelOrder, modifyOrder, deleteOrder } from "@/lib/hooks/use-trading-d
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrderStatus } from "@prisma/client"
 import { motion, AnimatePresence } from "framer-motion"
+import { formatOrderDateIST } from "@/lib/date-utils"
 
 interface Order {
   id: string; symbol: string; quantity: number; price: number | null; orderType: string; orderSide: string; status: string; createdAt: string; filledQuantity?: number; averagePrice?: number;
@@ -119,7 +120,10 @@ export function OrderManagement({ orders, onOrderUpdate }: OrderManagementProps)
                 <Card className="rounded-2xl shadow-md border border-border hover:shadow-lg transition-all bg-card">
                   <CardContent className="p-5 flex items-center justify-between">
                     <div className="flex-1 space-y-1">
-                      <h3 className="font-bold text-lg text-foreground">{order.symbol}</h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-lg text-foreground">{order.symbol}</h3>
+                        <span className="text-xs text-muted-foreground">{formatOrderDateIST(order.createdAt)}</span>
+                      </div>
                       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         <Badge variant={order.orderSide === 'BUY' ? 'success' : 'destructive'}>{order.orderSide}</Badge>
                         <Badge variant="outline">{order.orderType}</Badge>

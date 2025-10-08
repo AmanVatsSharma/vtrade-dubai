@@ -6,6 +6,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { formatTimestampIST } from "@/lib/date-utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -215,7 +216,7 @@ export default function LogsPage() {
                       <span className="text-sm font-medium">{log.action}</span>
                     </div>
                     <span className="text-sm text-gray-500">
-                      {new Date(log.createdAt).toLocaleString()}
+                      {formatTimestampIST(log.createdAt)}
                     </span>
                   </div>
                   
