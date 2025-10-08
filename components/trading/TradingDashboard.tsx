@@ -80,7 +80,7 @@ const ErrorScreen: React.FC<ErrorScreenProps> = ({ error, onRetry }) => (
   </div>
 )
 
-// Index Component
+// Index Component - Use display_price for live animated updates
 const IndexDisplay: React.FC<IndexDisplayProps> = React.memo(({ name, instrumentId, quotes, isLoading }) => {
   const quote = quotes?.[instrumentId]
   
@@ -88,6 +88,7 @@ const IndexDisplay: React.FC<IndexDisplayProps> = React.memo(({ name, instrument
     return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
   }
   
+  // Use display_price for live animated experience
   const price = (quote as any)?.display_price ?? quote.last_trade_price
   const change = ((price - quote.prev_close_price) / quote.prev_close_price) * 100
   
@@ -333,16 +334,13 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     <div className="min-h-screen bg-background font-sans">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-40 w-screen">
-        <div className="flex h-16 items-center justify-between px-4 max-w-4xl mx-auto">
+        <div className="flex h-14 items-center justify-between px-4 max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm">
               <TrendingUp className="h-4 w-4" />
             </div>
-            <h1 className="text-base md:text-lg font-semibold text-foreground">
-              MarketPulse360
-            </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
             {INDEX_CONFIGS.map(({ name, instrumentId }) => (
               <IndexDisplay
                 key={instrumentId}
@@ -359,39 +357,58 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
               ) : (
                 <WifiOff className="h-3 w-3 text-gray-400" />
               )}
-              <span className="text-muted-foreground">Live</span>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="px-4 pt-4 max-w-4xl mx-auto">
+      <main className="px-4 pt-4 pb-20 max-w-4xl mx-auto">
         {renderContent()}
       </main>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
-        <div className="grid grid-cols-5 gap-1 p-2 max-w-4xl mx-auto">
+      {/* Bottom Navigation - Premium Style */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-card via-card to-card/95 backdrop-blur-lg border-t border-border/50 shadow-2xl z-50 safe-area-inset-bottom">
+        <div className="grid grid-cols-5 gap-0 px-2 py-1.5 max-w-4xl mx-auto">
           {TAB_CONFIGS.map(({ id, icon: Icon, label }) => (
             <Button
               key={id}
               onClick={() => setCurrentTab(id)}
               variant="ghost"
-              className={`flex flex-col items-center justify-center gap-2 rounded-xl py-3 px-1 transition-all duration-150 shadow-sm ${
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-1 transition-all duration-200 relative group ${
                 currentTab === id 
-                  ? "text-primary bg-primary/10 font-semibold shadow-lg" 
+                  ? "text-primary" 
                   : "text-muted-foreground hover:text-primary"
               }`}
-              style={{ minWidth: 0, minHeight: 0, borderRadius: 16 }}
+              style={{ minWidth: 0, minHeight: 0 }}
             >
-              <Icon className="h-5 w-5 mt-1" />
-              <span className="text-sm font-medium tracking-wide" style={{ letterSpacing: 0.2 }}>
+              {/* Premium indicator dot */}
+              {currentTab === id && (
+                <span className="absolute -top-0.5 right-1/2 translate-x-1/2 w-1 h-1 bg-primary rounded-full shadow-lg shadow-primary/50" />
+              )}
+              
+              {/* Icon with premium gradient background when active */}
+              <div className={`relative transition-all duration-200 ${
+                currentTab === id ? 'scale-110' : 'group-hover:scale-105'
+              }`}>
+                {currentTab === id && (
+                  <div className="absolute inset-0 bg-primary/10 rounded-lg blur-sm scale-125" />
+                )}
+                <Icon className={`h-5 w-5 relative z-10 ${
+                  currentTab === id ? 'drop-shadow-lg' : ''
+                }`} />
+              </div>
+              
+              <span className={`text-[10px] font-medium transition-all duration-200 ${
+                currentTab === id ? 'font-semibold' : ''
+              }`}>
                 {label}
               </span>
             </Button>
           ))}
         </div>
+        {/* Safe area spacer for iOS devices */}
+        <div className="h-[env(safe-area-inset-bottom,0px)]" />
       </div>
 
       {/* Order Dialog */}

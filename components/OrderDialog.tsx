@@ -11,6 +11,9 @@ import { toast } from "@/hooks/use-toast"
 import { placeOrder } from "@/lib/hooks/use-trading-data"
 import { OrderType } from "@prisma/client"
 import { useMarketData } from "@/lib/hooks/MarketDataProvider"
+import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
+import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
+import { useRealtimeAccount } from "@/lib/hooks/use-realtime-account"
 
 interface OrderDialogProps {
   isOpen: boolean
@@ -33,6 +36,12 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   const { quotes } = useMarketData()
   const q = selectedStock ? quotes?.[selectedStock.instrumentId] : null
+
+  // Get realtime hooks for immediate UI updates
+  const userId = session?.user?.id
+  const { optimisticUpdate: optimisticUpdateOrder, refresh: refreshOrders } = useRealtimeOrders(userId)
+  const { optimisticAddPosition, refresh: refreshPositions } = useRealtimePositions(userId)
+  const { optimisticBlockMargin, optimisticUpdateBalance, refresh: refreshAccount } = useRealtimeAccount(userId)
 
   useEffect(() => {
     setSelectedStock(stock)
@@ -160,6 +169,38 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       
       console.log("📤 [ORDER-DIALOG] Submitting order with price:", orderPrice)
       
+      // Create temporary order ID for optimistic update
+      const tempOrderId = `temp-${Date.now()}`
+      const timestamp = new Date().toISOString()
+      
+      // 1. IMMEDIATELY show pending order in UI (optimistic update)
+      optimisticUpdateOrder({
+        id: tempOrderId,
+        symbol: selectedStock.symbol,
+        quantity: orderSide === "BUY" ? quantity : -quantity,
+        orderType: isMarket ? "MARKET" : "LIMIT",
+        orderSide,
+        price: orderPrice,
+        averagePrice: orderPrice,
+        filledQuantity: 0,
+        productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
+        status: "PENDING",
+        createdAt: timestamp,
+        executedAt: null,
+        stock: selectedStock
+      })
+      
+      // 2. IMMEDIATELY block margin (optimistic update)
+      optimisticBlockMargin(marginRequired)
+      
+      // 3. Show immediate feedback
+      toast({ 
+        title: "Order Submitted", 
+        description: `${orderSide} ${quantity} ${selectedStock.symbol} @ ₹${orderPrice.toFixed(2)} - Processing...`,
+        duration: 2000
+      })
+      
+      // 4. Place actual order on backend
       const result = await placeOrder({
         tradingAccountId: portfolio.account.id,
         userId: session?.user?.id,
@@ -168,7 +209,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         stockId: selectedStock.id,
         symbol: selectedStock.symbol,
         quantity,
-        price: orderPrice,  // Dialog price for instant execution
+        price: orderPrice,
         orderType: isMarket ? OrderType.MARKET : OrderType.LIMIT,
         orderSide,
         segment: selectedStock.segment,
@@ -179,11 +220,25 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       
       console.log("✅ [ORDER-DIALOG] Order submitted successfully:", result)
       
-      toast({ 
-        title: "Order Placed Successfully", 
-        description: `${orderSide} ${quantity} ${selectedStock.symbol} @ ₹${orderPrice.toFixed(2)} - Executing instantly`,
-        duration: 3000
-      })
+      // 5. IMMEDIATELY refresh all data to get real order status
+      setTimeout(async () => {
+        await Promise.all([
+          refreshOrders(),
+          refreshPositions(),
+          refreshAccount()
+        ])
+        console.log("🔄 [ORDER-DIALOG] Refreshed all data after order placement")
+      }, 500)
+      
+      // 6. Schedule another refresh after 3 seconds for execution status
+      setTimeout(async () => {
+        await Promise.all([
+          refreshOrders(),
+          refreshPositions(),
+          refreshAccount()
+        ])
+        console.log("🔄 [ORDER-DIALOG] Checked execution status")
+      }, 3000)
       
       onOrderPlaced()
       onClose()

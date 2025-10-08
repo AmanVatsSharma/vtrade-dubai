@@ -124,12 +124,12 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
   const retryCountRef = useRef(0)
   const maxRetries = 3
   
-  // Smart polling - poll every 2 seconds when active
+  // Smart polling - poll every 10 seconds when active
   const { data, error, isLoading, mutate } = useSWR<OrdersResponse>(
     userId ? `/api/trading/orders/list?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: shouldPoll.current ? 2000 : 0,
+      refreshInterval: shouldPoll.current ? 10000 : 0,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,

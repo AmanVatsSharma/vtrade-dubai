@@ -101,6 +101,7 @@ const SwipeablePositionCard = ({
     displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0
     currentPrice = position.averagePrice
   } else {
+    // Use display_price for live animated position updates
     currentPrice = ((quote as any)?.display_price ?? quote?.last_trade_price) ?? position.averagePrice
     displayPnL = (currentPrice - position.averagePrice) * position.quantity
     displayPnLPercent = position.averagePrice !== 0 
@@ -388,7 +389,7 @@ export function PositionTracking({
   const [targetValue, setTargetValue] = useState(0)
   const [loading, setLoading] = useState<string | null>(null)
 
-  // Calculate P&L Summary
+  // Calculate P&L Summary - Use display_price for live animated updates
   const { totalPnL, dayPnL, winRate, totalPositions } = useMemo(() => {
     let total = 0
     let day = 0
@@ -402,6 +403,7 @@ export function PositionTracking({
         if (pos.unrealizedPnL > 0) winners++
       } else {
         const quote = pos.instrumentId ? quotes[pos.instrumentId] : null
+        // Use display_price for live animated position updates
         const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
         const pnl = (ltp - pos.averagePrice) * pos.quantity
         total += pnl
@@ -421,7 +423,7 @@ export function PositionTracking({
     }
   }, [positions, quotes])
 
-  // Filter positions
+  // Filter positions - Use display_price for live filtering
   const filteredPositions = useMemo(() => {
     return positions.filter(pos => {
       switch (activeFilter) {

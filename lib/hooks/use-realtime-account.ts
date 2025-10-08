@@ -149,12 +149,12 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
   const retryCountRef = useRef(0)
   const maxRetries = 3
   
-  // Smart polling - poll every 2 seconds for account
+  // Smart polling - poll every 10 seconds for account
   const { data, error, isLoading, mutate } = useSWR<AccountResponse>(
     userId ? `/api/trading/account?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: shouldPoll.current ? 2000 : 0,
+      refreshInterval: shouldPoll.current ? 10000 : 0,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,

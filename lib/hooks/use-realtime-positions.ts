@@ -143,12 +143,12 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
   const retryCountRef = useRef(0)
   const maxRetries = 3
   
-  // Smart polling - poll every 3 seconds for positions
+  // Smart polling - poll every 10 seconds for positions
   const { data, error, isLoading, mutate } = useSWR<PositionsResponse>(
     userId ? `/api/trading/positions/list?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: shouldPoll.current ? 3000 : 0,
+      refreshInterval: shouldPoll.current ? 10000 : 0,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,
