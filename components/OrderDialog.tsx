@@ -145,10 +145,22 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
     setLoading(true)
     try {
-      // Always pass the current price - it will be used as fallback if live data is unavailable
+      // Use dialog price directly (4th attempt - INSTANT execution)
       const orderPrice = price || selectedStock.ltp || 0
       
-      await placeOrder({
+      if (!orderPrice || orderPrice <= 0) {
+        toast({ 
+          title: "Invalid Price", 
+          description: "Cannot determine price for order. Please refresh and try again.", 
+          variant: "destructive" 
+        })
+        setLoading(false)
+        return
+      }
+      
+      console.log("📤 [ORDER-DIALOG] Submitting order with price:", orderPrice)
+      
+      const result = await placeOrder({
         tradingAccountId: portfolio.account.id,
         userId: session?.user?.id,
         userName: session?.user?.name,
@@ -156,7 +168,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         stockId: selectedStock.id,
         symbol: selectedStock.symbol,
         quantity,
-        price: orderPrice,  // Always pass price (even for market orders as fallback)
+        price: orderPrice,  // Dialog price for instant execution
         orderType: isMarket ? OrderType.MARKET : OrderType.LIMIT,
         orderSide,
         segment: selectedStock.segment,
@@ -164,12 +176,82 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         instrumentId: selectedStock.instrumentId,
         session
       })
-      toast({ title: "Order Placed", description: `${quantity} ${selectedStock.symbol} submitted.` })
+      
+      console.log("✅ [ORDER-DIALOG] Order submitted successfully:", result)
+      
+      toast({ 
+        title: "Order Placed Successfully", 
+        description: `${orderSide} ${quantity} ${selectedStock.symbol} @ ₹${orderPrice.toFixed(2)} - Executing instantly`,
+        duration: 3000
+      })
+      
       onOrderPlaced()
       onClose()
-    } catch (error) {
-      console.error(error)
-      toast({ title: "Failed to Place Order", description: "Please try again.", variant: "destructive" })
+      
+      // Monitor order execution for 10 seconds
+      if (result.orderId) {
+        setTimeout(async () => {
+          try {
+            // Check if order is still pending after 10 seconds
+            const checkResponse = await fetch(`/api/trading/orders/status?orderId=${result.orderId}`)
+            if (checkResponse.ok) {
+              const statusData = await checkResponse.json()
+              if (statusData.status === 'PENDING') {
+                toast({
+                  title: "Order Processing",
+                  description: `Order ${selectedStock.symbol} is taking longer than expected. Check your orders tab.`,
+                  variant: "default",
+                  duration: 5000
+                })
+              } else if (statusData.status === 'REJECTED') {
+                toast({
+                  title: "Order Failed",
+                  description: `Order ${selectedStock.symbol} failed: ${statusData.message || 'Unknown error'}`,
+                  variant: "destructive",
+                  duration: 7000
+                })
+              }
+            }
+          } catch (checkError) {
+            console.warn("⚠️ [ORDER-DIALOG] Unable to check order status:", checkError)
+          }
+        }, 10000)
+      }
+      
+    } catch (error: any) {
+      console.error("❌ [ORDER-DIALOG] Order submission failed:", error)
+      
+      // Enhanced error messages
+      let errorMessage = "Please try again."
+      let errorTitle = "Failed to Place Order"
+      
+      if (error.message) {
+        if (error.message.includes("Insufficient funds")) {
+          errorTitle = "Insufficient Funds"
+          errorMessage = error.message
+        } else if (error.message.includes("Stock not found")) {
+          errorTitle = "Stock Not Available"
+          errorMessage = "Please refresh the stock data and try again."
+        } else if (error.message.includes("Invalid price")) {
+          errorTitle = "Invalid Price"
+          errorMessage = "Cannot determine valid price. Please refresh and try again."
+        } else if (error.message.includes("timeout") || error.message.includes("timed out")) {
+          errorTitle = "Order Timeout"
+          errorMessage = "Order took too long to process. Please check your orders tab."
+        } else if (error.message.includes("network") || error.message.includes("fetch")) {
+          errorTitle = "Network Error"
+          errorMessage = "Please check your connection and try again."
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      toast({ 
+        title: errorTitle, 
+        description: errorMessage, 
+        variant: "destructive",
+        duration: 7000
+      })
     } finally {
       setLoading(false)
     }

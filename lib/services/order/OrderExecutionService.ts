@@ -70,19 +70,21 @@ export class OrderExecutionService {
   }
 
   /**
-   * Place an order (main entry point)
+   * Place an order (main entry point) - INSTANT EXECUTION
    * - Validates order
+   * - Uses dialog price directly (no price resolution delay)
    * - Calculates margin
    * - Blocks funds
    * - Creates order
-   * - Schedules execution
+   * - Executes immediately (no 3-second delay)
    */
   async placeOrder(input: PlaceOrderInput): Promise<OrderExecutionResult> {
-    console.log("🚀 [ORDER-EXECUTION-SERVICE] Placing order:", {
+    console.log("🚀 [ORDER-EXECUTION-SERVICE] Placing order (INSTANT MODE):", {
       symbol: input.symbol,
       quantity: input.quantity,
       orderType: input.orderType,
-      orderSide: input.orderSide
+      orderSide: input.orderSide,
+      dialogPrice: input.price
     })
 
     await this.logger.logOrder("ORDER_PLACEMENT_START", `Placing ${input.orderSide} order for ${input.symbol}`, {
@@ -98,42 +100,16 @@ export class OrderExecutionService {
       await this.validateOrder(input)
       console.log("✅ [ORDER-EXECUTION-SERVICE] Order validation passed")
 
-      // Step 2: Resolve execution price using multi-tier strategy
-      const priceResolution = await this.priceResolution.resolveExecutionPrice({
-        instrumentId: input.instrumentId,
-        stockId: input.stockId,
-        symbol: input.symbol,
-        orderType: input.orderType,
-        limitPrice: input.price,
-        dialogPrice: input.price  // Pass dialog price as fallback
-      })
+      // Step 2: Use dialog price directly (4th attempt - instant execution)
+      // Skip all price resolution tiers to make order placement super instant
+      let executionPrice = input.price || 0
+      
+      if (!executionPrice || executionPrice <= 0) {
+        console.error("❌ [ORDER-EXECUTION-SERVICE] No valid price provided from dialog")
+        throw new Error(`Invalid price provided for ${input.symbol}. Please try again.`)
+      }
 
-      console.log("💰 [ORDER-EXECUTION-SERVICE] Price resolution:", {
-        price: priceResolution.price,
-        source: priceResolution.source,
-        confidence: priceResolution.confidence,
-        warnings: priceResolution.warnings
-      })
-
-      // Step 2b: Apply market realism (bid-ask spread + slippage)
-      const marketRealism = await this.marketRealism.applyMarketRealism(
-        priceResolution.price,
-        input.orderSide,
-        input.segment,
-        input.quantity,
-        input.lotSize || 1
-      )
-
-      console.log("💸 [ORDER-EXECUTION-SERVICE] Market realism applied:", {
-        basePrice: marketRealism.basePrice,
-        executionPrice: marketRealism.executionPrice,
-        spreadPercent: marketRealism.spreadPercent,
-        slippagePercent: marketRealism.slippagePercent,
-        totalImpact: marketRealism.totalImpactPercent + '%'
-      })
-
-      const executionPrice = marketRealism.executionPrice
-      const allWarnings = [...priceResolution.warnings, ...marketRealism.warnings]
+      console.log("💰 [ORDER-EXECUTION-SERVICE] Using dialog price directly:", executionPrice)
 
       // Step 3: Calculate margin and charges
       const marginCalc = await this.marginCalculator.calculateMargin(
@@ -151,11 +127,8 @@ export class OrderExecutionService {
         brokerage: marginCalc.brokerage,
         totalCharges: marginCalc.totalCharges,
         totalRequired: marginCalc.totalRequired,
-        priceSource: priceResolution.source,
-        priceConfidence: priceResolution.confidence,
-        basePrice: marketRealism.basePrice,
-        executionPrice: marketRealism.executionPrice,
-        priceImpact: marketRealism.totalImpactPercent + '%'
+        priceSource: 'DIALOG',
+        executionPrice: executionPrice
       })
 
       // Step 4: Validate sufficient funds
@@ -209,10 +182,10 @@ export class OrderExecutionService {
         const order = await this.orderRepo.create(
           {
             tradingAccountId: input.tradingAccountId,
-            stockId: input.stockId, // Now verified to exist
+            stockId: input.stockId,
             symbol: input.symbol,
             quantity: input.quantity,
-            price: input.orderType === OrderType.LIMIT && input.price !== null ? input.price : executionPrice,
+            price: executionPrice,
             orderType: input.orderType,
             orderSide: input.orderSide,
             productType: input.productType,
@@ -237,26 +210,34 @@ export class OrderExecutionService {
         chargesDeducted: result.chargesDeducted
       })
 
-      // Step 6: Schedule execution (3 seconds delay for simulation)
-      console.log("⏰ [ORDER-EXECUTION-SERVICE] Scheduling order execution in 3 seconds")
-      this.scheduleExecution(result.orderId, input, result.executionPrice)
-
-      // Prepare response with warnings
-      let responseMessage = "Order placed successfully. Execution scheduled."
-      if (allWarnings.length > 0) {
-        responseMessage += " Note: " + allWarnings.join('; ')
-      }
+      // Step 6: Execute immediately (INSTANT - no 3-second delay)
+      console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order immediately (INSTANT MODE)")
+      
+      // Execute in background with timeout and error handling
+      this.executeOrderWithTimeout(result.orderId, input, result.executionPrice)
+        .catch(async (error) => {
+          console.error("❌ [ORDER-EXECUTION-SERVICE] Background execution failed:", error)
+          // Mark order as failed
+          try {
+            await this.orderRepo.update(result.orderId, { status: 'REJECTED' })
+            await this.logger.error("ORDER_EXECUTION_FAILED", error.message, error, {
+              orderId: result.orderId
+            })
+          } catch (updateError) {
+            console.error("❌ [ORDER-EXECUTION-SERVICE] Failed to update failed order:", updateError)
+          }
+        })
 
       const response: OrderExecutionResult = {
         success: true,
         orderId: result.orderId,
-        message: responseMessage,
+        message: "Order placed and executing instantly",
         executionScheduled: true,
         marginBlocked: result.marginBlocked,
         chargesDeducted: result.chargesDeducted
       }
 
-      console.log("🎉 [ORDER-EXECUTION-SERVICE] Order placement completed:", response)
+      console.log("🎉 [ORDER-EXECUTION-SERVICE] Order placement completed (INSTANT):", response)
       return response
 
     } catch (error: any) {
@@ -270,22 +251,76 @@ export class OrderExecutionService {
   }
 
   /**
-   * Schedule order execution (3-second delay)
+   * Execute order with timeout (INSTANT MODE)
+   * No delay - executes immediately in background with 10-second timeout
+   */
+  private async executeOrderWithTimeout(
+    orderId: string, 
+    input: PlaceOrderInput, 
+    executionPrice: number
+  ): Promise<void> {
+    console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order with timeout:", orderId)
+
+    // Create timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Order execution timeout after 10 seconds`))
+      }, 10000) // 10 seconds timeout
+    })
+
+    try {
+      // Race between execution and timeout
+      await Promise.race([
+        this.executeOrder(orderId, input, executionPrice),
+        timeoutPromise
+      ])
+      
+      console.log("✅ [ORDER-EXECUTION-SERVICE] Order executed successfully:", orderId)
+    } catch (error: any) {
+      console.error("❌ [ORDER-EXECUTION-SERVICE] Order execution failed or timed out:", error)
+      
+      // Mark order as rejected and release margin
+      try {
+        await executeInTransaction(async (tx) => {
+          // Mark as rejected
+          await this.orderRepo.update(orderId, { status: 'REJECTED' }, tx)
+          
+          // Calculate and release margin
+          const marginCalc = await this.marginCalculator.calculateMargin(
+            input.segment,
+            input.productType,
+            input.quantity,
+            executionPrice,
+            input.lotSize || 1
+          )
+          
+          await this.fundService.releaseMargin(
+            input.tradingAccountId,
+            marginCalc.requiredMargin,
+            `Margin released for failed order ${orderId}: ${error.message}`
+          )
+        })
+        
+        console.log("✅ [ORDER-EXECUTION-SERVICE] Order marked as rejected and margin released")
+      } catch (cleanupError) {
+        console.error("❌ [ORDER-EXECUTION-SERVICE] Failed to cleanup rejected order:", cleanupError)
+      }
+      
+      await this.logger.error("ORDER_EXECUTION_FAILED", error.message, error, {
+        orderId,
+        symbol: input.symbol
+      })
+      
+      throw error
+    }
+  }
+
+  /**
+   * @deprecated Old method - replaced by executeOrderWithTimeout
    */
   private scheduleExecution(orderId: string, input: PlaceOrderInput, executionPrice: number): void {
-    console.log("⏰ [ORDER-EXECUTION-SERVICE] Scheduling execution for order:", orderId)
-
-    setTimeout(async () => {
-      try {
-        console.log("🎯 [ORDER-EXECUTION-SERVICE] Executing scheduled order:", orderId)
-        await this.executeOrder(orderId, input, executionPrice)
-      } catch (error: any) {
-        console.error("❌ [ORDER-EXECUTION-SERVICE] Scheduled execution failed:", error)
-        await this.logger.error("ORDER_EXECUTION_FAILED", error.message, error, {
-          orderId
-        })
-      }
-    }, 3000) // 3 seconds
+    console.warn("⚠️ [ORDER-EXECUTION-SERVICE] DEPRECATED: scheduleExecution called - use executeOrderWithTimeout instead")
+    this.executeOrderWithTimeout(orderId, input, executionPrice).catch(console.error)
   }
 
   /**
@@ -511,8 +546,12 @@ export class OrderExecutionService {
           throw new Error(`Cannot modify ${order.status} order`)
         }
 
-        // Update order
-        await this.orderRepo.update(orderId, updates, tx)
+        // Update order - convert to UpdateOrderData format
+        const updateData: any = {}
+        if (updates.price !== undefined) updateData.price = updates.price
+        if (updates.quantity !== undefined) updateData.quantity = updates.quantity
+        
+        await this.orderRepo.update(orderId, updateData, tx)
 
         console.log("✅ [ORDER-EXECUTION-SERVICE] Order modified")
       })

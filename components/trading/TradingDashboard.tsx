@@ -132,22 +132,22 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     return (portfolio as any)?.account?.id || null
   }, [portfolio])
 
-  // Realtime subscriptions (only when we have tradingAccountId)
+  // Realtime subscriptions (use userId for API calls)
   const { 
     orders: realtimeOrdersData, 
     isLoading: isRealtimeOrdersLoading,
     error: realtimeOrdersError 
-  } = useRealtimeOrders(tradingAccountId)
+  } = useRealtimeOrders(userId)
   const { 
     positions: realtimePositionsData, 
     isLoading: isRealtimePositionsLoading,
     error: realtimePositionsError 
-  } = useRealtimePositions(tradingAccountId)
+  } = useRealtimePositions(userId)
   const { 
     account: realtimeAccountData, 
     isLoading: isRealtimeAccountLoading,
     error: realtimeAccountError 
-  } = useRealtimeAccount(tradingAccountId)
+  } = useRealtimeAccount(userId)
 
   // Unified data (realtime takes precedence)
   const orders = useMemo(() => {
