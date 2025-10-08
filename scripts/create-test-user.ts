@@ -80,6 +80,7 @@ async function main() {
     data: {
       userId: user.id,
       status: 'APPROVED',
+      panNumber: 'ABCDE1234F',
       aadhaarNumber: '123456789012',
       submittedAt: new Date(),
       approvedAt: new Date()
