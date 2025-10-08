@@ -8,7 +8,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
 import { usePortfolio, useUserWatchlist, useOrdersAndPositions } from "@/lib/hooks/use-trading-data"
 import { MarketDataProvider, useMarketData } from "@/lib/hooks/MarketDataProvider"
-import { useRealtimeOrders, useRealtimePositions, useRealtimeAccount } from "@/lib/hooks/use-realtime-trading"
+import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
+import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
+import { useRealtimeAccount } from "@/lib/hooks/use-realtime-account"
 import { useRealtimeTest } from "@/lib/hooks/use-realtime-test"
 import { OrderManagement } from "@/components/order-management"
 import { PositionTracking } from "@/components/position-tracking"
@@ -130,22 +132,34 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   }, [portfolio])
 
   // Realtime subscriptions (only when we have tradingAccountId)
-  const realtimeOrders = useRealtimeOrders(tradingAccountId)
-  const realtimePositions = useRealtimePositions(tradingAccountId)
-  const realtimeAccount = useRealtimeAccount(tradingAccountId)
+  const { 
+    orders: realtimeOrdersData, 
+    isLoading: isRealtimeOrdersLoading,
+    error: realtimeOrdersError 
+  } = useRealtimeOrders(tradingAccountId)
+  const { 
+    positions: realtimePositionsData, 
+    isLoading: isRealtimePositionsLoading,
+    error: realtimePositionsError 
+  } = useRealtimePositions(tradingAccountId)
+  const { 
+    account: realtimeAccountData, 
+    isLoading: isRealtimeAccountLoading,
+    error: realtimeAccountError 
+  } = useRealtimeAccount(tradingAccountId)
 
   // Unified data (realtime takes precedence)
   const orders = useMemo(() => {
-    return realtimeOrders.length > 0 ? realtimeOrders : initialOrders
-  }, [realtimeOrders, initialOrders])
+    return realtimeOrdersData && realtimeOrdersData.length > 0 ? realtimeOrdersData : initialOrders
+  }, [realtimeOrdersData, initialOrders])
 
   const positions = useMemo(() => {
-    return realtimePositions.length > 0 ? realtimePositions : initialPositions
-  }, [realtimePositions, initialPositions])
+    return realtimePositionsData && realtimePositionsData.length > 0 ? realtimePositionsData : initialPositions
+  }, [realtimePositionsData, initialPositions])
 
   const accountUnified = useMemo(() => {
-    return realtimeAccount ? { account: realtimeAccount } : portfolio
-  }, [realtimeAccount, portfolio])
+    return realtimeAccountData ? { account: realtimeAccountData } : portfolio
+  }, [realtimeAccountData, portfolio])
 
   // Error handling
   useEffect(() => {
@@ -220,16 +234,16 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
       console.log('TradingDashboard Debug:', {
         tradingAccountId,
         isRealtimeConnected,
-        realtimeOrders: realtimeOrders.length,
-        realtimePositions: realtimePositions.length,
-        hasRealtimeAccount: !!realtimeAccount,
+        realtimeOrders: realtimeOrdersData?.length || 0,
+        realtimePositions: realtimePositionsData?.length || 0,
+        hasRealtimeAccount: !!realtimeAccountData,
         lastMessage,
         currentTab,
         anyLoading,
         error
       })
     }
-  }, [tradingAccountId, isRealtimeConnected, realtimeOrders.length, realtimePositions.length, realtimeAccount, lastMessage, currentTab, anyLoading, error])
+  }, [tradingAccountId, isRealtimeConnected, realtimeOrdersData, realtimePositionsData, realtimeAccountData, lastMessage, currentTab, anyLoading, error])
 
   // Error state
   if (error) {
@@ -408,25 +422,26 @@ const TradingDashboardWrapper: React.FC = () => {
 
   return (
     <MarketDataProvider
-    config={{ 
-      jitter: { 
-        enabled: true, 
-        interval: 450, 
-        intensity: 0.2, 
-        convergence: 0.2 
-      } , 
-    interpolation: { 
-      enabled: true, 
-      steps: 50, 
-      duration: 4500 
-    } ,
-    deviation: {
-       enabled: true, 
-       percentage: 0.7, 
-       absolute: 0.5 
-      }
-  }}      
-  userId={userId}>
+      config={{ 
+        jitter: { 
+          enabled: true, 
+          interval: 450, 
+          intensity: 0.2, 
+          convergence: 0.2 
+        }, 
+        interpolation: { 
+          enabled: true, 
+          steps: 50, 
+          duration: 4500 
+        },
+        deviation: {
+          enabled: true, 
+          percentage: 0.7, 
+          absolute: 0.5 
+        }
+      }}      
+      userId={userId}
+    >
       <TradingDashboard userId={userId} session={session} />
     </MarketDataProvider>
   )

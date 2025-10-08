@@ -6,6 +6,9 @@
  * - Smart polling with SWR
  * - Automatic refresh after mutations
  * - Real-time status changes
+ * - Comprehensive error handling
+ * - Input validation
+ * - Retry logic
  */
 
 "use client"
@@ -13,24 +16,137 @@
 import useSWR from 'swr'
 import { useCallback, useEffect, useRef } from 'react'
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url, { cache: 'no-store' })
-  if (!res.ok) throw new Error('Failed to fetch orders')
-  return res.json()
+// Types
+interface Order {
+  id: string
+  symbol: string
+  quantity: number
+  orderType: string
+  orderSide: string
+  price?: number | null
+  averagePrice?: number | null
+  filledQuantity?: number
+  productType?: string
+  status: string
+  createdAt: string
+  executedAt?: string | null
+  stock?: any
 }
 
-export function useRealtimeOrders(userId: string | undefined) {
+interface OrdersResponse {
+  success: boolean
+  orders: Order[]
+  error?: string
+}
+
+interface UseRealtimeOrdersReturn {
+  orders: Order[]
+  isLoading: boolean
+  error: Error | null
+  refresh: () => Promise<any>
+  optimisticUpdate: (newOrder: Partial<Order>) => void
+  mutate: any
+  retryCount: number
+}
+
+// Enhanced fetcher with better error handling
+const fetcher = async (url: string): Promise<OrdersResponse> => {
+  try {
+    const res = await fetch(url, { 
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    
+    if (!res.ok) {
+      // Handle specific HTTP errors
+      if (res.status === 401) {
+        throw new Error('Unauthorized: Please login again')
+      } else if (res.status === 403) {
+        throw new Error('Forbidden: Access denied')
+      } else if (res.status === 404) {
+        throw new Error('Orders endpoint not found')
+      } else if (res.status >= 500) {
+        throw new Error('Server error: Please try again later')
+      }
+      throw new Error(`Failed to fetch orders: ${res.status} ${res.statusText}`)
+    }
+    
+    const data = await res.json()
+    
+    // Validate response structure
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid response format')
+    }
+    
+    // Handle API error responses
+    if (data.success === false && data.error) {
+      throw new Error(data.error)
+    }
+    
+    return data
+  } catch (error) {
+    // Enhanced error logging
+    if (error instanceof Error) {
+      console.error('❌ [REALTIME-ORDERS] Fetch error:', {
+        message: error.message,
+        url,
+        timestamp: new Date().toISOString()
+      })
+    }
+    throw error
+  }
+}
+
+// Validation helper
+function validateOrder(order: any): order is Partial<Order> {
+  if (!order || typeof order !== 'object') {
+    console.warn('⚠️ [REALTIME-ORDERS] Invalid order object:', order)
+    return false
+  }
+  
+  if (order.id && typeof order.id !== 'string') {
+    console.warn('⚠️ [REALTIME-ORDERS] Invalid order ID:', order.id)
+    return false
+  }
+  
+  if (order.quantity !== undefined && (typeof order.quantity !== 'number' || order.quantity <= 0)) {
+    console.warn('⚠️ [REALTIME-ORDERS] Invalid quantity:', order.quantity)
+    return false
+  }
+  
+  return true
+}
+
+export function useRealtimeOrders(userId: string | undefined | null): UseRealtimeOrdersReturn {
   const shouldPoll = useRef(true)
+  const retryCountRef = useRef(0)
+  const maxRetries = 3
   
   // Smart polling - poll every 2 seconds when active
-  const { data, error, isLoading, mutate } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR<OrdersResponse>(
     userId ? `/api/trading/orders/list?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: shouldPoll.current ? 2000 : 0, // Poll every 2 seconds
+      refreshInterval: shouldPoll.current ? 2000 : 0,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,
+      shouldRetryOnError: true,
+      errorRetryCount: maxRetries,
+      errorRetryInterval: 5000,
+      onError: (err) => {
+        retryCountRef.current += 1
+        console.error(`❌ [REALTIME-ORDERS] Error (attempt ${retryCountRef.current}/${maxRetries}):`, err.message)
+      },
+      onSuccess: () => {
+        // Reset retry count on successful fetch
+        if (retryCountRef.current > 0) {
+          console.log('✅ [REALTIME-ORDERS] Recovered from error')
+          retryCountRef.current = 0
+        }
+      }
     }
   )
 
@@ -39,7 +155,12 @@ export function useRealtimeOrders(userId: string | undefined) {
     const handleVisibilityChange = () => {
       shouldPoll.current = !document.hidden
       if (!document.hidden) {
-        mutate() // Refresh immediately when tab becomes visible
+        console.log('👁️ [REALTIME-ORDERS] Tab visible, refreshing data')
+        mutate().catch(err => {
+          console.error('❌ [REALTIME-ORDERS] Refresh on visibility failed:', err)
+        })
+      } else {
+        console.log('💤 [REALTIME-ORDERS] Tab hidden, pausing polling')
       }
     }
 
@@ -47,36 +168,88 @@ export function useRealtimeOrders(userId: string | undefined) {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [mutate])
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      // Any cleanup needed
+      console.log('🧹 [REALTIME-ORDERS] Cleaning up')
+    }
+  }, [])
+
   // Refresh function to call after placing order
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     console.log("🔄 [REALTIME-ORDERS] Manual refresh triggered")
-    return mutate()
+    try {
+      return await mutate()
+    } catch (error) {
+      console.error("❌ [REALTIME-ORDERS] Manual refresh failed:", error)
+      throw error
+    }
   }, [mutate])
 
-  // Optimistic update function
-  const optimisticUpdate = useCallback((newOrder: any) => {
-    console.log("⚡ [REALTIME-ORDERS] Optimistic update:", newOrder.id)
-    mutate(
-      (currentData: any) => {
-        if (!currentData?.orders) return currentData
-        return {
-          ...currentData,
-          orders: [newOrder, ...currentData.orders]
-        }
-      },
-      false // Don't revalidate immediately
-    )
+  // Optimistic update function with validation
+  const optimisticUpdate = useCallback((newOrder: Partial<Order>) => {
+    // Validate input
+    if (!validateOrder(newOrder)) {
+      console.error('❌ [REALTIME-ORDERS] Cannot perform optimistic update: Invalid order')
+      return
+    }
     
-    // Revalidate after a short delay to confirm
-    setTimeout(() => mutate(), 500)
+    console.log("⚡ [REALTIME-ORDERS] Optimistic update:", newOrder.id)
+    
+    try {
+      mutate(
+        (currentData: OrdersResponse | undefined) => {
+          // Safety check
+          if (!currentData) {
+            console.warn('⚠️ [REALTIME-ORDERS] No current data for optimistic update')
+            return currentData
+          }
+          
+          if (!Array.isArray(currentData.orders)) {
+            console.warn('⚠️ [REALTIME-ORDERS] Invalid orders array in current data')
+            return currentData
+          }
+          
+          return {
+            ...currentData,
+            orders: [newOrder as Order, ...currentData.orders]
+          }
+        },
+        false // Don't revalidate immediately
+      )
+      
+      // Revalidate after a short delay to confirm
+      setTimeout(() => {
+        mutate().catch(err => {
+          console.error('❌ [REALTIME-ORDERS] Delayed revalidation failed:', err)
+        })
+      }, 500)
+    } catch (error) {
+      console.error('❌ [REALTIME-ORDERS] Optimistic update failed:', error)
+    }
   }, [mutate])
+
+  // Safe data extraction with fallback
+  const orders: Order[] = (() => {
+    try {
+      if (data?.orders && Array.isArray(data.orders)) {
+        return data.orders
+      }
+      return []
+    } catch (err) {
+      console.error('❌ [REALTIME-ORDERS] Error extracting orders:', err)
+      return []
+    }
+  })()
 
   return {
-    orders: data?.orders || [],
+    orders,
     isLoading,
-    error,
+    error: error || null,
     refresh,
     optimisticUpdate,
-    mutate
+    mutate,
+    retryCount: retryCountRef.current
   }
 }
