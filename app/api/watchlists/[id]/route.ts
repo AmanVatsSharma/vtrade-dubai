@@ -1,12 +1,16 @@
 /**
  * @file route.ts
- * @description API endpoints for individual watchlist operations
+ * @description API endpoints for individual watchlist operations using Prisma transactions
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { supabaseServer } from '@/lib/supabase/supabase-server'
 import { z } from 'zod'
+import {
+  getWatchlistById,
+  withUpdateWatchlistTransaction,
+  withDeleteWatchlistTransaction,
+} from '@/lib/watchlist-transactions'
 
 const updateWatchlistSchema = z.object({
   name: z.string().min(1).max(50).optional(),
@@ -28,51 +32,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: watchlist, error } = await supabaseServer
-      .from('Watchlist')
-      .select(`
-        id,
-        name,
-        description,
-        color,
-        isDefault,
-        isPrivate,
-        sortOrder,
-        createdAt,
-        updatedAt,
-        watchlistItemCollection (
-          id,
-          notes,
-          alertPrice,
-          alertType,
-          sortOrder,
-          createdAt,
-          stock (
-            id,
-            instrumentId,
-            exchange,
-            ticker,
-            name,
-            ltp,
-            close,
-            segment,
-            strikePrice,
-            optionType,
-            expiry,
-            lot_size
-          )
-        )
-      `)
-      .eq('id', params.id)
-      .eq('userId', session.user.id)
-      .single()
+    const watchlist = await getWatchlistById(params.id, session.user.id)
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Watchlist not found' }, { status: 404 })
-      }
-      console.error('Error fetching watchlist:', error)
-      return NextResponse.json({ error: 'Failed to fetch watchlist' }, { status: 500 })
+    if (!watchlist) {
+      return NextResponse.json({ error: 'Watchlist not found' }, { status: 404 })
     }
 
     return NextResponse.json({ watchlist })
@@ -97,33 +60,12 @@ export async function PUT(
     const body = await request.json()
     const validatedData = updateWatchlistSchema.parse(body)
 
-    // If setting as default, unset other default watchlists
-    if (validatedData.isDefault) {
-      await supabaseServer
-        .from('Watchlist')
-        .update({ isDefault: false })
-        .eq('userId', session.user.id)
-        .neq('id', params.id)
-    }
-
-    const { data: watchlist, error } = await supabaseServer
-      .from('Watchlist')
-      .update({
-        ...validatedData,
-        updatedAt: new Date().toISOString(),
-      })
-      .eq('id', params.id)
-      .eq('userId', session.user.id)
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Watchlist not found' }, { status: 404 })
-      }
-      console.error('Error updating watchlist:', error)
-      return NextResponse.json({ error: 'Failed to update watchlist' }, { status: 500 })
-    }
+    // Update watchlist with atomic transaction
+    const watchlist = await withUpdateWatchlistTransaction(
+      params.id,
+      session.user.id,
+      validatedData
+    )
 
     return NextResponse.json({ watchlist })
   } catch (error) {
@@ -132,7 +74,9 @@ export async function PUT(
     }
     
     console.error('Update watchlist API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    }, { status: error instanceof Error && error.message.includes('not found') ? 404 : 500 })
   }
 }
 
@@ -148,37 +92,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if watchlist exists and belongs to user
-    const { data: existingWatchlist, error: checkError } = await supabaseServer
-      .from('Watchlist')
-      .select('id, isDefault')
-      .eq('id', params.id)
-      .eq('userId', session.user.id)
-      .single()
-
-    if (checkError) {
-      if (checkError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Watchlist not found' }, { status: 404 })
-      }
-      console.error('Error checking watchlist:', checkError)
-      return NextResponse.json({ error: 'Failed to check watchlist' }, { status: 500 })
-    }
-
-    // Delete the watchlist (cascade will handle items)
-    const { error } = await supabaseServer
-      .from('Watchlist')
-      .delete()
-      .eq('id', params.id)
-      .eq('userId', session.user.id)
-
-    if (error) {
-      console.error('Error deleting watchlist:', error)
-      return NextResponse.json({ error: 'Failed to delete watchlist' }, { status: 500 })
-    }
+    // Delete watchlist with atomic transaction
+    await withDeleteWatchlistTransaction(params.id, session.user.id)
 
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Delete watchlist API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    }, { status: error instanceof Error && error.message.includes('not found') ? 404 : 500 })
   }
 }

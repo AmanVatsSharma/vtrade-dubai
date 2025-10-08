@@ -170,26 +170,26 @@ export function WatchlistItemCard({
 
   return (
     <div className={cn("relative overflow-hidden", className)}>
-      {/* Swipe Delete Background */}
+      {/* Swipe Delete Background - RIGHT SIDE */}
       <AnimatePresence>
         {showActions && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-y-0 left-0 flex items-center justify-center bg-red-500 z-10 rounded-xl"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="absolute inset-y-0 right-0 flex items-center justify-center bg-gradient-to-l from-red-500 to-red-600 z-10 rounded-xl w-20 shadow-lg"
           >
             <Button
               size="sm"
               variant="ghost"
               onClick={() => handleQuickAction('remove')}
-              className="h-12 w-12 p-0 text-white hover:bg-red-600"
+              className="h-full w-full p-0 text-white hover:bg-red-700 rounded-xl"
               disabled={isAnimating || isRemoving}
             >
               {isRemoving ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                <Trash2 className="h-5 w-5" />
+                <Trash2 className="h-6 w-6" />
               )}
             </Button>
           </motion.div>
@@ -204,7 +204,7 @@ export function WatchlistItemCard({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         style={{ x, opacity, scale }}
-        className="relative z-20"
+        className="relative z-20 bg-card"
       >
         <Card
           onClick={handleCardClick}

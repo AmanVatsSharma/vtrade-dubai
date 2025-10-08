@@ -39,7 +39,7 @@ import {
   useWatchlistItems,
   type WatchlistData,
   type WatchlistItemData 
-} from "@/lib/hooks/use-enhanced-watchlist"
+} from "@/lib/hooks/use-prisma-watchlist"
 
 interface Quote {
   last_trade_price: number
