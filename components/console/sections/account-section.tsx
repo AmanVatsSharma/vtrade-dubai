@@ -20,6 +20,8 @@ import { BalanceTrendChart } from "../account/balance-trend-chart"
 import { ExposurePieChart } from "../account/exposure-pie-chart"
 import { PLTrendChart } from "../account/pl-trend-chart"
 import { QuickActionsMenu } from "../account/quick-actions-menu"
+import { ConsoleErrorState } from "../console-error-state"
+import { ConsoleLoadingSkeleton } from "../console-loading-state"
 import { useSession } from "next-auth/react"
 import { usePortfolio, usePositions } from "@/lib/hooks/use-trading-data"
 import { useConsoleData } from "@/lib/hooks/use-console-data"
@@ -72,23 +74,12 @@ export function AccountSection() {
 
   // Loading state
   if (isConsoleLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        Loading account data...
-      </div>
-    )
+    return <ConsoleLoadingSkeleton />
   }
 
   // Error state
   if (consoleError) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-center space-y-2">
-          <div className="text-xl font-semibold text-destructive">Error loading account data</div>
-          <div className="text-sm text-muted-foreground">{consoleError}</div>
-        </div>
-      </div>
-    )
+    return <ConsoleErrorState error={consoleError} onRetry={handleRefresh} />
   }
 
   return (

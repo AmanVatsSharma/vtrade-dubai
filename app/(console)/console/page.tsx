@@ -8,7 +8,9 @@ import { ProfileSection } from "@/components/console/sections/profile-section"
 import { StatementsSection } from "@/components/console/sections/statements-section"
 import { WithdrawalsSection } from "@/components/console/sections/withdrawals-section"
 import { SidebarMenu } from "@/components/console/sidebar-menu"
-import { useState } from "react"
+import { ConsoleErrorBoundary } from "@/components/console/console-error-boundary"
+import { ConsoleLoadingState } from "@/components/console/console-loading-state"
+import { useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
 
 export default function ConsolePage() {
@@ -59,18 +61,22 @@ export default function ConsolePage() {
   }
 
   return (
-    <ConsoleLayout activeSection={activeSection} onNavigateSection={(section) => setActiveSection(section)}>
-      <div className="flex gap-6">
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:block w-70">
-          <div className="sticky top-0">
-            <SidebarMenu activeSection={activeSection} onSectionChange={setActiveSection} />
-          </div>
-        </div>
+    <ConsoleErrorBoundary>
+      <Suspense fallback={<ConsoleLoadingState />}>
+        <ConsoleLayout activeSection={activeSection} onNavigateSection={(section) => setActiveSection(section)}>
+          <div className="flex gap-6">
+            {/* Desktop Sidebar */}
+            <div className="hidden lg:block w-70">
+              <div className="sticky top-0">
+                <SidebarMenu activeSection={activeSection} onSectionChange={setActiveSection} />
+              </div>
+            </div>
 
-        {/* Main Content */}
-        <div className="flex-1 min-w-0">{renderSection()}</div>
-      </div>
-    </ConsoleLayout>
+            {/* Main Content */}
+            <div className="flex-1 min-w-0">{renderSection()}</div>
+          </div>
+        </ConsoleLayout>
+      </Suspense>
+    </ConsoleErrorBoundary>
   )
 }
