@@ -101,7 +101,7 @@ const SwipeablePositionCard = ({
     displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0
     currentPrice = position.averagePrice
   } else {
-    currentPrice = quote?.last_trade_price || position.averagePrice
+    currentPrice = ((quote as any)?.display_price ?? quote?.last_trade_price) ?? position.averagePrice
     displayPnL = (currentPrice - position.averagePrice) * position.quantity
     displayPnLPercent = position.averagePrice !== 0 
       ? ((currentPrice - position.averagePrice) / position.averagePrice) * 100 
@@ -402,7 +402,7 @@ export function PositionTracking({
         if (pos.unrealizedPnL > 0) winners++
       } else {
         const quote = pos.instrumentId ? quotes[pos.instrumentId] : null
-        const ltp = quote?.last_trade_price ?? pos.averagePrice
+        const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
         const pnl = (ltp - pos.averagePrice) * pos.quantity
         total += pnl
         day += pnl
@@ -432,12 +432,12 @@ export function PositionTracking({
         case 'profit':
           if (pos.quantity === 0) return pos.unrealizedPnL > 0
           const quote = pos.instrumentId ? quotes[pos.instrumentId] : null
-          const ltp = quote?.last_trade_price ?? pos.averagePrice
+          const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
           return (ltp - pos.averagePrice) * pos.quantity > 0
         case 'loss':
           if (pos.quantity === 0) return pos.unrealizedPnL < 0
           const quoteLoss = pos.instrumentId ? quotes[pos.instrumentId] : null
-          const ltpLoss = quoteLoss?.last_trade_price ?? pos.averagePrice
+          const ltpLoss = (((quoteLoss as any)?.display_price ?? quoteLoss?.last_trade_price) ?? pos.averagePrice)
           return (ltpLoss - pos.averagePrice) * pos.quantity < 0
         case 'today':
           // Filter for today's positions (this would need actual date logic)

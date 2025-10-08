@@ -9,7 +9,7 @@ import { createContext, useContext, useState, useEffect, useMemo, useRef, useCal
 import { usePortfolio, useUserWatchlist, useOrders, usePositions } from "@/lib/hooks/use-trading-data"
 import { isMarketOpen } from "./market-timing"
 
-const LIVE_PRICE_POLL_INTERVAL = 3000 // 3 seconds for actual price updates (optimized for responsiveness)
+const LIVE_PRICE_POLL_INTERVAL = 5000 // 5 seconds per requirement; UI remains smooth via jitter/interpolation
 const JITTER_INTERVAL = 250 // 250ms for jitter updates (perfect for realistic market movement)
 const INTERPOLATION_STEPS = 50 // Number of interpolation steps
 const INTERPOLATION_DURATION = 2800 // Duration of interpolation in ms

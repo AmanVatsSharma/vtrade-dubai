@@ -88,13 +88,14 @@ const IndexDisplay: React.FC<IndexDisplayProps> = React.memo(({ name, instrument
     return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
   }
   
-  const change = ((quote.last_trade_price - quote.prev_close_price) / quote.prev_close_price) * 100
+  const price = (quote as any)?.display_price ?? quote.last_trade_price
+  const change = ((price - quote.prev_close_price) / quote.prev_close_price) * 100
   
   return (
     <div className="text-center">
       <span className="text-xs font-semibold text-muted-foreground">{name}</span>
       <p className={`text-sm font-mono font-bold ${change >= 0 ? "text-green-600" : "text-red-600"}`}>
-        ₹{quote.last_trade_price.toFixed(2)}
+        ₹{price.toFixed(2)}
       </p>
     </div>
   )

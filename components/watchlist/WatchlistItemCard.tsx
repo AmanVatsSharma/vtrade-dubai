@@ -95,8 +95,8 @@ export function WatchlistItemCard({
   const opacity = useTransform(x, [-200, -SWIPE_THRESHOLD, 0], [0.8, 1, 1])
   const scale = useTransform(x, [-200, -SWIPE_THRESHOLD, 0], [0.95, 1, 1])
 
-  // Calculate price data
-  const ltp = quote?.last_trade_price || item.ltp
+  // Calculate price data (prefer display_price for UI)
+  const ltp = ((quote as any)?.display_price ?? quote?.last_trade_price) ?? item.ltp
   const prevClose = quote?.prev_close_price || item.close
   const change = ltp - prevClose
   const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0

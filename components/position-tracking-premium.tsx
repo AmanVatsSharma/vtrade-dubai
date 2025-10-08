@@ -101,7 +101,7 @@ const SwipeablePositionCard = ({
     displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0
     currentPrice = position.averagePrice
   } else {
-    currentPrice = quote?.last_trade_price || position.averagePrice
+    currentPrice = ((quote as any)?.display_price ?? quote?.last_trade_price) ?? position.averagePrice
     displayPnL = (currentPrice - position.averagePrice) * position.quantity
     displayPnLPercent = position.averagePrice !== 0 
       ? ((currentPrice - position.averagePrice) / position.averagePrice) * 100 

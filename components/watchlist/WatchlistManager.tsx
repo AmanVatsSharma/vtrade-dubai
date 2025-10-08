@@ -109,12 +109,12 @@ export function WatchlistManager({
         case 'name':
           return a.symbol.localeCompare(b.symbol)
         case 'change':
-          const changeA = (quotes[a.instrumentId]?.last_trade_price || a.ltp) - a.close
-          const changeB = (quotes[b.instrumentId]?.last_trade_price || b.ltp) - b.close
+          const changeA = ((((quotes[a.instrumentId] as any)?.display_price ?? quotes[a.instrumentId]?.last_trade_price) ?? a.ltp)) - a.close
+          const changeB = ((((quotes[b.instrumentId] as any)?.display_price ?? quotes[b.instrumentId]?.last_trade_price) ?? b.ltp)) - b.close
           return changeB - changeA
         case 'price':
-          const priceA = quotes[a.instrumentId]?.last_trade_price || a.ltp
-          const priceB = quotes[b.instrumentId]?.last_trade_price || b.ltp
+          const priceA = (((quotes[a.instrumentId] as any)?.display_price ?? quotes[a.instrumentId]?.last_trade_price) ?? a.ltp)
+          const priceB = (((quotes[b.instrumentId] as any)?.display_price ?? quotes[b.instrumentId]?.last_trade_price) ?? b.ltp)
           return priceB - priceA
         case 'added':
         default:
@@ -384,21 +384,21 @@ export function WatchlistManager({
                           // Mock market depth data for demonstration
                           market_depth: {
                             bid: [
-                              { price: (quotes[item.instrumentId]?.last_trade_price || item.ltp) - 0.5, quantity: 1000 },
-                              { price: (quotes[item.instrumentId]?.last_trade_price || item.ltp) - 1.0, quantity: 2500 },
-                              { price: (quotes[item.instrumentId]?.last_trade_price || item.ltp) - 1.5, quantity: 5000 }
+                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 0.5, quantity: 1000 },
+                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 1.0, quantity: 2500 },
+                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 1.5, quantity: 5000 }
                             ],
                             ask: [
-                              { price: (quotes[item.instrumentId]?.last_trade_price || item.ltp) + 0.5, quantity: 1200 },
-                              { price: (quotes[item.instrumentId]?.last_trade_price || item.ltp) + 1.0, quantity: 1800 },
-                              { price: (quotes[item.instrumentId]?.last_trade_price || item.ltp) + 1.5, quantity: 3200 }
+                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 0.5, quantity: 1200 },
+                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 1.0, quantity: 1800 },
+                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 1.5, quantity: 3200 }
                             ]
                           },
                           // Mock OHLC data
                           ohlc: {
-                            open: (quotes[item.instrumentId]?.last_trade_price || item.ltp) - 2,
-                            high: (quotes[item.instrumentId]?.last_trade_price || item.ltp) + 5,
-                            low: (quotes[item.instrumentId]?.last_trade_price || item.ltp) - 3,
+                            open: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 2,
+                            high: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 5,
+                            low: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 3,
                             close: quotes[item.instrumentId]?.prev_close_price || item.close,
                             volume: Math.floor(Math.random() * 10000000) + 1000000,
                             turnover: Math.floor(Math.random() * 100000000) + 10000000
