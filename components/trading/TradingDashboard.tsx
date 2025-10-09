@@ -113,12 +113,13 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   const [error, setError] = useState<string | null>(null)
 
   // Data hooks
-  const { portfolio, isLoading: isPortfolioLoading, mutate: refreshPortfolio, error: portfolioError } = usePortfolio(userId)
-  const { watchlist: watchlistData, isLoading: isWatchlistLoading, mutate: refetchWatchlist, error: watchlistError } = useUserWatchlist(userId)
+  const { portfolio, isLoading: isPortfolioLoading, isRefreshing: isPortfolioRefreshing, mutate: refreshPortfolio, error: portfolioError } = usePortfolio(userId)
+  const { watchlist: watchlistData, isLoading: isWatchlistLoading, isRefreshing: isWatchlistRefreshing, mutate: refetchWatchlist, error: watchlistError } = useUserWatchlist(userId)
   const { 
     orders: initialOrders, 
     positions: initialPositions, 
     isLoading: isOrdersPositionsLoading, 
+    isRefreshing: isOrdersPositionsRefreshing,
     isError: isOrdersPositionsError, 
     mutate: refreshOrdersPositions,
     error: ordersPositionsError
@@ -229,6 +230,13 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Loading state
   const anyLoading = isPortfolioLoading || isWatchlistLoading || isOrdersPositionsLoading || isQuotesLoading
+  const anyRefreshing = isPortfolioRefreshing || isWatchlistRefreshing || isOrdersPositionsRefreshing
+
+  useEffect(() => {
+    if (anyRefreshing) {
+      console.info('[TradingDashboard] Refreshing data...')
+    }
+  }, [anyRefreshing])
 
   // Debug logging (only in development)
   useEffect(() => {
@@ -356,6 +364,9 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
                 <Wifi className="h-3 w-3 text-green-500" />
               ) : (
                 <WifiOff className="h-3 w-3 text-gray-400" />
+              )}
+              {anyRefreshing && (
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
               )}
             </div>
           </div>

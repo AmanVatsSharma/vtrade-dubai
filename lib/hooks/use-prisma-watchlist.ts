@@ -123,21 +123,37 @@ const transformWatchlistData = (watchlists: any[]): WatchlistData[] => {
 // Main Hook for All Watchlists
 export function useEnhancedWatchlists(userId?: string) {
   const [watchlists, setWatchlists] = useState<WatchlistData[]>([])
+  // Initial-only loading flag. Once we have loaded at least once, this stays false.
   const [isLoading, setIsLoading] = useState(false)
+  // Refreshing flag used when we refetch while existing data is present
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
   const fetchWatchlists = useCallback(async () => {
     if (!userId) return
 
-    setIsLoading(true)
+    // Distinguish initial load vs refresh
+    if (hasLoadedOnce) {
+      setIsRefreshing(true)
+    } else {
+      setIsLoading(true)
+    }
     setError(null)
 
+    // Timeout + abort for robust error handling
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
     try {
+      console.info('[useEnhancedWatchlists] Fetching watchlists', { userId, hasLoadedOnce })
       const response = await fetch('/api/watchlists', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
+        cache: 'no-store'
       })
 
       if (!response.ok) {
@@ -147,13 +163,21 @@ export function useEnhancedWatchlists(userId?: string) {
       const data = await response.json()
       const transformed = transformWatchlistData(data.watchlists)
       setWatchlists(transformed)
+      if (!hasLoadedOnce) setHasLoadedOnce(true)
+      console.info('[useEnhancedWatchlists] Watchlists updated', { count: transformed.length })
     } catch (err) {
-      console.error('Error fetching watchlists:', err)
+      if ((err as any)?.name === 'AbortError') {
+        console.error('⏱️ [useEnhancedWatchlists] Fetch aborted (timeout)')
+      } else {
+        console.error('❌ [useEnhancedWatchlists] Error fetching watchlists:', err)
+      }
       setError(err instanceof Error ? err : new Error('Unknown error'))
     } finally {
+      clearTimeout(timeoutId)
       setIsLoading(false)
+      setIsRefreshing(false)
     }
-  }, [userId])
+  }, [userId, hasLoadedOnce])
 
   useEffect(() => {
     fetchWatchlists()
@@ -253,7 +277,9 @@ export function useEnhancedWatchlists(userId?: string) {
 
   return {
     watchlists,
+    // Keep previous data during refetches; only block UI on first load
     isLoading,
+    isRefreshing,
     isError: !!error,
     error,
     refetch: fetchWatchlists,

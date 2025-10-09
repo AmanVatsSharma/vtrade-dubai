@@ -81,6 +81,7 @@ export function WatchlistManager({
   const {
     watchlists,
     isLoading: watchlistsLoading,
+    isRefreshing: watchlistsRefreshing,
     createWatchlist,
     updateWatchlist,
     deleteWatchlist,
@@ -234,6 +235,7 @@ export function WatchlistManager({
     setShowSearchDialog(true)
   }, [])
 
+  // Only block UI before first load. Keep content during refresh.
   if (watchlistsLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -302,7 +304,13 @@ export function WatchlistManager({
                 <Star className="h-3 w-3 text-yellow-500 flex-shrink-0" />
               )}
             </TabsTrigger>
-          ))}
+            ))}
+            {watchlistsRefreshing && (
+              <div className="flex items-center gap-2 ml-2 px-3 py-2 rounded-lg bg-white/60 dark:bg-gray-700/50">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                <span className="text-xs text-gray-600 dark:text-gray-300">Refreshing…</span>
+              </div>
+            )}
           
           {/* Add New Watchlist Tab - Compact */}
           <button
@@ -348,6 +356,12 @@ export function WatchlistManager({
 
             {/* Watchlist Items - Compact */}
             <div className="space-y-2">
+              {watchlistsRefreshing && (
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                  <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
+                  <span>Refreshing latest items…</span>
+                </div>
+              )}
               <AnimatePresence mode="popLayout">
                 {sortedItems.length === 0 ? (
                   <motion.div

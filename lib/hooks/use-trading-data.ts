@@ -492,7 +492,12 @@ async function createOrUpdatePosition(apolloClient: any, executedOrder: { tradin
 // -----------------------------
 
 export function usePortfolio(userId?: string, userName?: string | null, userEmail?: string | null) {
-  const { data, refetch, loading, error } = useQuery(GET_ACCOUNT_BY_USER, { variables: { userId: userId ?? "" }, skip: !userId, errorPolicy: "all" })
+  const { data, refetch, loading, error } = useQuery(GET_ACCOUNT_BY_USER, { 
+    variables: { userId: userId ?? "" }, 
+    skip: !userId, 
+    errorPolicy: "all",
+    notifyOnNetworkStatusChange: true,
+  })
 
   async function ensure() {
     if (!userId) return
@@ -508,15 +513,28 @@ export function usePortfolio(userId?: string, userName?: string | null, userEmai
   const availableMargin = toNumber(account?.availableMargin)
   const totalValue = balance || (availableMargin + usedMargin)
   const client_id = account?.client_id || ""
+  const isInitialLoading = loading && !data
+  const isRefreshing = loading && !!data
+
   return {
     portfolio: account ? { account: { id: account.id, totalValue, availableMargin, usedMargin, balance, client_id } } : null,
-    isLoading: loading, isError: !!error, error, mutate: refetch, ensure
+    isLoading: isInitialLoading,
+    isRefreshing,
+    isError: !!error,
+    error,
+    mutate: refetch,
+    ensure
   }
 }
 
 export function useUserWatchlist(userId?: string) {
   const tradingAccountId = useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery(GET_USER_WATCHLIST, { variables: { userId: userId ?? "" }, skip: !userId, errorPolicy: "all" });
+  const { data, loading, error, refetch } = useQuery(GET_USER_WATCHLIST, {
+    variables: { userId: userId ?? "" },
+    skip: !userId,
+    errorPolicy: "all",
+    notifyOnNetworkStatusChange: true,
+  });
 
   const watchlist = useMemo(() => {
     const wlNode = data?.watchlistCollection?.edges?.[0]?.node;
@@ -541,8 +559,16 @@ export function useUserWatchlist(userId?: string) {
     return { id: wlNode.id, name: wlNode.name, items };
   }, [data]);
 
+  const isInitialLoading = loading && !data
+  const isRefreshing = loading && !!data
+
   return {
-    watchlist, isLoading: loading, isError: !!error, error, mutate: refetch,
+    watchlist,
+    isLoading: isInitialLoading,
+    isRefreshing,
+    isError: !!error,
+    error,
+    mutate: refetch,
   };
 }
 
@@ -554,16 +580,28 @@ function useAccountId(userId?: string) {
 
 export function useOrders(userId?: string) {
   const tradingAccountId = useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery(GET_ORDERS, { variables: { tradingAccountId: tradingAccountId ?? "" }, skip: !tradingAccountId, errorPolicy: "all" })
+  const { data, loading, error, refetch } = useQuery(GET_ORDERS, {
+    variables: { tradingAccountId: tradingAccountId ?? "" },
+    skip: !tradingAccountId,
+    errorPolicy: "all",
+    notifyOnNetworkStatusChange: true,
+  })
 
   const orders = useMemo(() => data?.ordersCollection?.edges?.map((e: any) => ({ ...e.node, price: e.node.price != null ? toNumber(e.node.price) : null, averagePrice: e.node.averagePrice != null ? toNumber(e.node.averagePrice) : null })) ?? [], [data])
 
-  return { orders, isLoading: loading || !tradingAccountId, isError: !!error, error, mutate: refetch }
+  const isInitialLoading = (loading && !data) || !tradingAccountId
+  const isRefreshing = loading && !!data
+  return { orders, isLoading: isInitialLoading, isRefreshing, isError: !!error, error, mutate: refetch }
 }
 
 export function usePositions(userId?: string) {
   const tradingAccountId = useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery(GET_POSITIONS, { variables: { tradingAccountId: tradingAccountId ?? "" }, skip: !tradingAccountId, errorPolicy: "all" })
+  const { data, loading, error, refetch } = useQuery(GET_POSITIONS, {
+    variables: { tradingAccountId: tradingAccountId ?? "" },
+    skip: !tradingAccountId,
+    errorPolicy: "all",
+    notifyOnNetworkStatusChange: true,
+  })
 
   const positions = useMemo(() => data?.positionsCollection?.edges?.map((e: any) => ({ 
     ...e.node, 
@@ -580,7 +618,9 @@ export function usePositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
-  return { positions, isLoading: loading || !tradingAccountId, isError: !!error, error, mutate: refetch }
+  const isInitialLoading = (loading && !data) || !tradingAccountId
+  const isRefreshing = loading && !!data
+  return { positions, isLoading: isInitialLoading, isRefreshing, isError: !!error, error, mutate: refetch }
 }
 
 export function useOrdersAndPositions(userId?: string) {
@@ -588,7 +628,8 @@ export function useOrdersAndPositions(userId?: string) {
   const { data, loading, error, refetch } = useQuery(GET_ORDERS_AND_POSITIONS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
-    errorPolicy: "all"
+    errorPolicy: "all",
+    notifyOnNetworkStatusChange: true,
   })
 
   const orders = useMemo(() => data?.ordersCollection?.edges?.map((e: any) => ({
@@ -610,10 +651,13 @@ export function useOrdersAndPositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
+  const isInitialLoading = (loading && !data) || !tradingAccountId
+  const isRefreshing = loading && !!data
   return {
     orders,
     positions,
-    isLoading: loading || !tradingAccountId,
+    isLoading: isInitialLoading,
+    isRefreshing,
     isError: !!error,
     error,
     mutate: refetch
@@ -621,7 +665,12 @@ export function useOrdersAndPositions(userId?: string) {
 }
 
 export function useTransactions(tradingAccountId?: string) {
-  const { data, loading, error, refetch } = useQuery(GET_TRANSACTIONS, { variables: { tradingAccountId: tradingAccountId ?? "" }, skip: !tradingAccountId, errorPolicy: "all" })
+  const { data, loading, error, refetch } = useQuery(GET_TRANSACTIONS, { 
+    variables: { tradingAccountId: tradingAccountId ?? "" },
+    skip: !tradingAccountId,
+    errorPolicy: "all",
+    notifyOnNetworkStatusChange: true,
+  })
   const transactions = useMemo(() => {
     try {
       return data?.transactionsCollection?.edges?.map((e: any) => e.node) ?? []
@@ -629,7 +678,9 @@ export function useTransactions(tradingAccountId?: string) {
       return []
     }
   }, [data])
-  return { transactions, isLoading: loading, isError: !!error, error, mutate: refetch }
+  const isInitialLoading = loading && !data
+  const isRefreshing = loading && !!data
+  return { transactions, isLoading: isInitialLoading, isRefreshing, isError: !!error, error, mutate: refetch }
 }
 
 // -----------------------------
