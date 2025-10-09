@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Star, Palette, Trash2, Loader2, AlertTriangle } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import type { WatchlistData } from "@/lib/hooks/use-enhanced-watchlist"
+import type { WatchlistData } from "@/lib/hooks/use-prisma-watchlist"
 
 interface EditWatchlistDialogProps {
   open: boolean

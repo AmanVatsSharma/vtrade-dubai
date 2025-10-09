@@ -149,21 +149,24 @@ export function useEnhancedWatchlists(userId?: string) {
     const timeoutId = setTimeout(() => controller.abort(), 15000)
 
     try {
-      console.info('[useEnhancedWatchlists] Fetching watchlists', { userId, hasLoadedOnce })
+      console.info('[useEnhancedWatchlists] Fetching watchlists', { userId, hasLoadedOnce: hasLoadedOnceGlobal })
       const response = await fetch('/api/watchlists', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
         signal: controller.signal,
-        cache: 'no-store'
+        cache: 'no-store',
+        credentials: 'include',
       })
 
       if (!response.ok) {
+        console.warn('[useEnhancedWatchlists] Non-OK response from /api/watchlists', { status: response.status })
         throw new Error('Failed to fetch watchlists')
       }
 
       const data = await response.json()
+      console.info('[useEnhancedWatchlists] Raw watchlists payload received', { count: Array.isArray(data?.watchlists) ? data.watchlists.length : 0 })
       const transformed = transformWatchlistData(data.watchlists)
       setWatchlists(transformed)
       // Update global cache
