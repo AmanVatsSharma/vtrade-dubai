@@ -295,29 +295,41 @@ const AdvancedChart = () => {
 
   useEffect(() => {
     const loadScript = () => {
-      if (document.getElementById('tradingview-advanced-chart')) return
+      try {
+        if (document.getElementById('tradingview-advanced-chart')) return
+        if (!containerRef.current) {
+          console.error('[AdvancedChart] containerRef is null; aborting inject')
+          return
+        }
 
-      const script = document.createElement('script')
-      script.id = 'tradingview-advanced-chart'
-      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
-      script.async = true
-      script.innerHTML = JSON.stringify({
-        autosize: true,
-        symbol: "NSE:NIFTY",
-        interval: "D",
-        timezone: "Asia/Kolkata",
-        theme: "light",
-        style: "1",
-        locale: "in",
-        enable_publishing: false,
-        backgroundColor: "rgba(255, 255, 255, 1)",
-        gridColor: "rgba(240, 243, 250, 1)",
-        allow_symbol_change: true,
-        calendar: false,
-        support_host: "https://www.tradingview.com"
-      })
+        const script = document.createElement('script')
+        script.id = 'tradingview-advanced-chart'
+        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
+        script.async = true
 
-      containerRef.current?.appendChild(script)
+        const config = {
+          autosize: true,
+          // Use free, globally accessible index CFD for reliability
+          symbol: 'FOREXCOM:SPXUSD',
+          interval: 'D',
+          timezone: 'America/New_York',
+          theme: 'light',
+          style: '1',
+          locale: 'en',
+          enable_publishing: false,
+          backgroundColor: 'rgba(255, 255, 255, 1)',
+          gridColor: 'rgba(240, 243, 250, 1)',
+          allow_symbol_change: true,
+          calendar: false,
+          support_host: 'https://www.tradingview.com'
+        }
+
+        console.info('[AdvancedChart] injecting TradingView advanced chart', config)
+        script.innerHTML = JSON.stringify(config)
+        containerRef.current.appendChild(script)
+      } catch (err) {
+        console.error('[AdvancedChart] failed to inject widget', err)
+      }
     }
 
     const timer = setTimeout(loadScript, 100)
@@ -344,30 +356,42 @@ const MarketHeatMap = () => {
 
   useEffect(() => {
     const loadScript = () => {
-      if (document.getElementById('tradingview-heatmap')) return
+      try {
+        if (document.getElementById('tradingview-heatmap')) return
+        if (!containerRef.current) {
+          console.error('[MarketHeatMap] containerRef is null; aborting inject')
+          return
+        }
 
-      const script = document.createElement('script')
-      script.id = 'tradingview-heatmap'
-      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js'
-      script.async = true
-      script.innerHTML = JSON.stringify({
-        exchanges: ["NSE"],
-        dataSource: "NSE",
-        grouping: "sector",
-        blockSize: "market_cap_basic",
-        blockColor: "change",
-        locale: "in",
-        symbolUrl: "",
-        colorTheme: "light",
-        hasTopBar: false,
-        isDataSetEnabled: false,
-        isZoomEnabled: true,
-        hasSymbolTooltip: true,
-        width: "100%",
-        height: "400"
-      })
+        const script = document.createElement('script')
+        script.id = 'tradingview-heatmap'
+        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js'
+        script.async = true
 
-      containerRef.current?.appendChild(script)
+        const config = {
+          // Show US market heatmap (free and broadly accessible)
+          exchanges: ['NYSE', 'NASDAQ'],
+          dataSource: 'S&P500',
+          grouping: 'sector',
+          blockSize: 'market_cap_basic',
+          blockColor: 'change',
+          locale: 'en',
+          symbolUrl: '',
+          colorTheme: 'light',
+          hasTopBar: false,
+          isDataSetEnabled: false,
+          isZoomEnabled: true,
+          hasSymbolTooltip: true,
+          width: '100%',
+          height: '400'
+        }
+
+        console.info('[MarketHeatMap] injecting TradingView heatmap', config)
+        script.innerHTML = JSON.stringify(config)
+        containerRef.current.appendChild(script)
+      } catch (err) {
+        console.error('[MarketHeatMap] failed to inject widget', err)
+      }
     }
 
     const timer = setTimeout(loadScript, 100)
@@ -400,24 +424,36 @@ const StockScreener = () => {
 
   useEffect(() => {
     const loadScript = () => {
-      if (document.getElementById('tradingview-screener')) return
+      try {
+        if (document.getElementById('tradingview-screener')) return
+        if (!containerRef.current) {
+          console.error('[StockScreener] containerRef is null; aborting inject')
+          return
+        }
 
-      const script = document.createElement('script')
-      script.id = 'tradingview-screener'
-      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-screener.js'
-      script.async = true
-      script.innerHTML = JSON.stringify({
-        width: "100%",
-        height: 490,
-        defaultColumn: "overview",
-        defaultScreen: "most_capitalized",
-        market: "india",
-        showToolbar: true,
-        colorTheme: "light",
-        locale: "in"
-      })
+        const script = document.createElement('script')
+        script.id = 'tradingview-screener'
+        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-screener.js'
+        script.async = true
 
-      containerRef.current?.appendChild(script)
+        const config = {
+          width: '100%',
+          height: 490,
+          defaultColumn: 'overview',
+          defaultScreen: 'most_capitalized',
+          // Use US market for broad coverage
+          market: 'america',
+          showToolbar: true,
+          colorTheme: 'light',
+          locale: 'en'
+        }
+
+        console.info('[StockScreener] injecting TradingView screener', config)
+        script.innerHTML = JSON.stringify(config)
+        containerRef.current.appendChild(script)
+      } catch (err) {
+        console.error('[StockScreener] failed to inject widget', err)
+      }
     }
 
     const timer = setTimeout(loadScript, 100)
@@ -728,31 +764,49 @@ const TickerTape = () => {
 
   useEffect(() => {
     const loadScript = () => {
-      if (document.getElementById('tradingview-ticker-script')) return
+      try {
+        if (document.getElementById('tradingview-ticker-script')) return
+        if (!containerRef.current) {
+          console.error('[TickerTape] containerRef is null; aborting inject')
+          return
+        }
 
-      const script = document.createElement('script')
-      script.id = 'tradingview-ticker-script'
-      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js'
-      script.async = true
-      script.innerHTML = JSON.stringify({
-        symbols: [
-          { proName: "BSE:SENSEX", title: "SENSEX" },
-          { proName: "NSE:NIFTY", title: "NIFTY 50" },
-          { proName: "NSE:BANKNIFTY", title: "BANK NIFTY" },
-          { proName: "NSE:RELIANCE", title: "RELIANCE" },
-          { proName: "NSE:TCS", title: "TCS" },
-          { proName: "NSE:HDFCBANK", title: "HDFC BANK" },
-          { proName: "NSE:INFY", title: "INFOSYS" },
-          { proName: "NSE:ICICIBANK", title: "ICICI BANK" },
-        ],
-        showSymbolLogo: true,
-        colorTheme: "light",
-        isTransparent: true,
-        displayMode: "adaptive",
-        locale: "in"
-      })
+        const script = document.createElement('script')
+        script.id = 'tradingview-ticker-script'
+        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js'
+        script.async = true
 
-      containerRef.current?.appendChild(script)
+        const config = {
+          symbols: [
+            // Broad US indices via free providers
+            { proName: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
+            { proName: 'FOREXCOM:NSXUSD', title: 'NASDAQ 100' },
+            { proName: 'FOREXCOM:DJI', title: 'Dow 30' },
+            // Major ETFs and mega-cap stocks
+            { proName: 'AMEX:SPY', title: 'SPY' },
+            { proName: 'NASDAQ:AAPL', title: 'AAPL' },
+            { proName: 'NASDAQ:MSFT', title: 'MSFT' },
+            { proName: 'NASDAQ:AMZN', title: 'AMZN' },
+            { proName: 'NASDAQ:GOOGL', title: 'GOOGL' },
+            { proName: 'NASDAQ:NVDA', title: 'NVDA' },
+            { proName: 'NASDAQ:TSLA', title: 'TSLA' },
+            // Global market indicators
+            { proName: 'TVC:DXY', title: 'DXY' },
+            { proName: 'TVC:VIX', title: 'VIX' }
+          ],
+          showSymbolLogo: true,
+          colorTheme: 'light',
+          isTransparent: true,
+          displayMode: 'adaptive',
+          locale: 'en'
+        }
+
+        console.info('[TickerTape] injecting TradingView ticker', config)
+        script.innerHTML = JSON.stringify(config)
+        containerRef.current.appendChild(script)
+      } catch (err) {
+        console.error('[TickerTape] failed to inject widget', err)
+      }
     }
 
     const timer = setTimeout(loadScript, 100)
