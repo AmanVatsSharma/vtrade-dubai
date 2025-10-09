@@ -36,6 +36,7 @@ import {
   BarChart4
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import type { PnLData } from "@/types/trading"
 
 // TradingView Widget Types
 declare global {
@@ -48,6 +49,7 @@ interface TradingHomeProps {
   userName?: string
   session?: any
   portfolio?: any
+  pnl?: PnLData
 }
 
 // Market Status Component (centralized timing)
@@ -71,12 +73,22 @@ const MarketStatus = () => {
 }
 
 // Portfolio Summary Component with Real Data
-const PortfolioSummary = ({ portfolio }: { portfolio?: any }) => {
-  const totalPnL = 12450.50 // This should come from real data
-  const dayPnL = 850.25 // This should come from real data
-  const invested = portfolio?.account?.balance || 50000
+const PortfolioSummary = ({ portfolio, pnl }: { portfolio?: any, pnl?: PnLData }) => {
+  const totalPnL = Number(pnl?.totalPnL ?? 0)
+  const dayPnL = Number(pnl?.dayPnL ?? 0)
+  const invested = Number(
+    // Prefer balance; fall back to totalValue if balance is unavailable
+    (portfolio?.account?.balance ?? portfolio?.account?.totalValue ?? 0)
+  )
   const currentValue = invested + totalPnL
-  const returns = ((totalPnL / invested) * 100).toFixed(2)
+  const returnsNumber = invested > 0 ? (totalPnL / invested) * 100 : 0
+  const returns = returnsNumber.toFixed(2)
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[PortfolioSummary] values', { invested, totalPnL, dayPnL, currentValue, returns: returnsNumber })
+    }
+  }, [invested, totalPnL, dayPnL, currentValue, returnsNumber])
   
   return (
     <Card className="bg-gradient-to-br from-primary/20 via-primary/10 to-background border-primary/30 backdrop-blur-sm">
@@ -757,7 +769,7 @@ const TickerTape = () => {
 }
 
 // Main Trading Home Component
-export const TradingHome: React.FC<TradingHomeProps> = ({ userName, session, portfolio }) => {
+export const TradingHome: React.FC<TradingHomeProps> = ({ userName, session, portfolio, pnl }) => {
   const displayName = userName || session?.user?.name || "Trader"
   const currentTime = new Date().toLocaleTimeString('en-IN', { 
     hour: '2-digit', 
@@ -815,7 +827,7 @@ export const TradingHome: React.FC<TradingHomeProps> = ({ userName, session, por
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.15 }}
       >
-        <PortfolioSummary portfolio={portfolio} />
+        <PortfolioSummary portfolio={portfolio} pnl={pnl} />
       </motion.div>
 
       {/* Quick Actions */}

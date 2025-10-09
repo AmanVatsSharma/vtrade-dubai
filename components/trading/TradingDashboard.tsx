@@ -270,6 +270,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
             userName={session?.user?.name}
             session={session}
             portfolio={portfolio}
+            pnl={{ totalPnL, dayPnL }}
           />
         )
       case "watchlist":
