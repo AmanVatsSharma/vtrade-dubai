@@ -96,7 +96,9 @@ export function WatchlistManager({
 
   // Computed values
   const activeWatchlist = useMemo(() => {
-    return watchlists.find(w => w.id === activeTab) || watchlists[0]
+    // Preserve last selected tab if still present; otherwise fall back gracefully
+    const current = watchlists.find(w => w.id === activeTab)
+    return current || watchlists[0]
   }, [watchlists, activeTab])
 
   const sortedItems = useMemo(() => {
@@ -223,9 +225,15 @@ export function WatchlistManager({
 
   // Set default watchlist on first load
   React.useEffect(() => {
-    if (watchlists.length > 0 && !activeTab) {
-      const defaultWatchlist = watchlists.find(w => w.isDefault) || watchlists[0]
-      setActiveTab(defaultWatchlist.id)
+    if (watchlists.length > 0) {
+      if (!activeTab) {
+        const defaultWatchlist = watchlists.find(w => w.isDefault) || watchlists[0]
+        setActiveTab(defaultWatchlist.id)
+      } else if (!watchlists.some(w => w.id === activeTab)) {
+        // Previously selected tab removed; pick a new default
+        const fallback = watchlists.find(w => w.isDefault) || watchlists[0]
+        setActiveTab(fallback.id)
+      }
     }
   }, [watchlists, activeTab])
 
@@ -236,7 +244,7 @@ export function WatchlistManager({
   }, [])
 
   // Only block UI before first load. Keep content during refresh.
-  if (watchlistsLoading) {
+  if (watchlistsLoading && watchlists.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">

@@ -2,11 +2,19 @@
  * @file MarketDataProvider.tsx
  * @description Enhanced market data provider with smooth transitions, jittering effects, and configurable deviation.
  * Provides near real-time price updates with linear interpolation and randomized micro-movements.
+ *
+ * Flow (high-level):
+ * - On mount and whenever instrument set changes:
+ *   - If market is OPEN: fetch immediately and start polling + animations
+ *   - If market is CLOSED: perform a ONE-OFF fetch to show last known prices; no polling/jitter
+ * - Whenever watchlist items change (add/remove), we recompute instrument set and trigger the above behavior
+ * - Quotes payloads are normalized to include prev_close_price, and support multiple upstream shapes (ltp/close/etc.)
  */
 "use client"
 
 import { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback, ReactNode } from "react"
-import { usePortfolio, useUserWatchlist, useOrders, usePositions } from "@/lib/hooks/use-trading-data"
+import { usePositions } from "@/lib/hooks/use-trading-data"
+import { useEnhancedWatchlists } from "@/lib/hooks/use-prisma-watchlist"
 import { isMarketOpen } from "./market-timing"
 
 const LIVE_PRICE_POLL_INTERVAL = 5000 // 5 seconds per requirement; UI remains smooth via jitter/interpolation
@@ -56,6 +64,9 @@ const DEFAULT_CONFIG: MarketDataConfig = {
 
 interface EnhancedQuote {
   last_trade_price: number;
+  prev_close_price: number;
+  day_high?: number;
+  day_low?: number;
   display_price: number; // The price shown to user (with jitter/deviation)
   actual_price: number; // The real LTP
   trend: 'up' | 'down' | 'neutral';
@@ -125,7 +136,8 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
   const quotesRef = useRef<Record<string, EnhancedQuote>>({})
   useEffect(() => { quotesRef.current = quotes }, [quotes])
   
-  const { watchlist } = useUserWatchlist(userId);
+  // Use Prisma-backed watchlists for consistency with WatchlistManager
+  const { watchlists } = useEnhancedWatchlists(userId)
   const { positions } = usePositions(userId);
 
   // Refs for managing animations and intervals
@@ -141,19 +153,43 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
   }>>({})
   const jitterRefs = useRef<Record<string, number>>({})
   const pollKeyRef = useRef<string | null>(null)
+  const lastClosedFetchFingerprintRef = useRef<string | null>(null)
+
+  // Build a small fingerprint for watchlists to detect any updates (even if instrument set is unchanged)
+  const watchlistsFingerprint = useMemo(() => {
+    try {
+      if (!Array.isArray(watchlists)) return "";
+      const parts: string[] = []
+      for (const wl of watchlists) {
+        const id = wl?.id || "unknown"
+        const updatedAt = wl?.updatedAt || wl?.createdAt || ""
+        const count = wl?.items?.length || 0
+        parts.push(`${id}:${updatedAt}:${count}`)
+      }
+      return parts.sort().join("|")
+    } catch (e) {
+      console.warn('[MARKET-DATA] Failed to compute watchlists fingerprint', e)
+      return ""
+    }
+  }, [watchlists])
 
   const instrumentIds = useMemo(() => {
     const ids = new Set<string>()
     ids.add(INDEX_INSTRUMENTS.NIFTY)
     ids.add(INDEX_INSTRUMENTS.BANKNIFTY)
-    watchlist?.items.forEach((item: { instrumentId?: string }) => item.instrumentId && ids.add(item.instrumentId))
-    // Handle both direct instrumentId and nested stock.instrumentId structures
+    // Aggregate instruments across ALL user watchlists
+    watchlists?.forEach((wl: any) => {
+      wl?.items?.forEach((item: { instrumentId?: string }) => {
+        if (item?.instrumentId) ids.add(item.instrumentId)
+      })
+    })
+    // Handle both direct instrumentId and nested stock.instrumentId structures for positions
     positions?.forEach((pos: { instrumentId?: string; stock?: { instrumentId?: string } }) => {
       const instrumentId = pos.stock?.instrumentId ?? pos.instrumentId
       if (instrumentId) ids.add(instrumentId)
     })
     return Array.from(ids)
-  }, [watchlist, positions])
+  }, [watchlists, positions])
 
   // Stable key that won't change if the set content is the same
   const instrumentKey = useMemo(() => {
@@ -179,8 +215,24 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
 
     for (const instrumentId in rawQuotes) {
       const quote: any = (rawQuotes as any)[instrumentId]
-      const actualPrice = quote?.last_trade_price || 0
-  const previousQuote = previousQuotes[instrumentId]
+      // Normalize price fields from varying upstream shapes
+      const actualPrice = (
+        quote?.last_trade_price ??
+        quote?.ltp ??
+        quote?.LTP ??
+        quote?.price ??
+        0
+      )
+      const previousClose = (
+        quote?.prev_close_price ??
+        quote?.close ??
+        quote?.ohlc?.close ??
+        previousQuotes[instrumentId]?.prev_close_price ??
+        0
+      )
+      const dayHigh = quote?.day_high ?? quote?.high ?? quote?.ohlc?.high
+      const dayLow = quote?.day_low ?? quote?.low ?? quote?.ohlc?.low
+      const previousQuote = previousQuotes[instrumentId]
       const previousPrice = previousQuote?.actual_price || actualPrice
       
       // Calculate trend
@@ -211,6 +263,9 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
       
       processedQuotes[instrumentId] = {
         last_trade_price: actualPrice,
+        prev_close_price: previousClose,
+        day_high: dayHigh,
+        day_low: dayLow,
         display_price: displayPrice,
         actual_price: actualPrice,
         trend,
@@ -321,9 +376,9 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
   }, [])
 
   // Main fetch function - optimized with error handling and retry logic
-  const fetchQuotes = useCallback(async (retryCount = 0) => {
-      // Respect market hours: do not fetch when market is closed
-      if (!isMarketOpen()) {
+  const fetchQuotes = useCallback(async (retryCount = 0, options?: { force?: boolean; mode?: string }) => {
+      // Respect market hours unless forced (e.g., one-off fetch on dashboard open/changes while closed)
+      if (!isMarketOpen() && !options?.force) {
         console.log("🔕 [MARKET-DATA] Skipping fetch: market closed")
         setIsLoading(false)
         return
@@ -338,6 +393,8 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
         }
         
         ids.forEach((id: string) => params.append("q", id))
+        // Allow callers to request a specific mode; default to ltp
+        params.append("mode", options?.mode || 'ltp')
         
         // Add timeout for better error handling
         const controller = new AbortController()
@@ -375,7 +432,7 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
         // Retry logic for failed fetches (up to 2 retries)
         if (retryCount < 2) {
           console.log(`Retrying fetch (attempt ${retryCount + 1})...`)
-          setTimeout(() => fetchQuotes(retryCount + 1), 1000)
+          setTimeout(() => fetchQuotes(retryCount + 1, options), 1000)
         }
       } finally {
         setIsLoading(false)
@@ -398,6 +455,13 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
         pollIntervalRef.current = undefined as any
         console.log("🔕 [MARKET-DATA] Polling stopped: market closed")
       }
+      // Perform a one-off fetch while market is closed to show last known prices.
+      // Only fetch once per instrument set to avoid churn on re-renders.
+      if (instrumentKey && pollKeyRef.current !== instrumentKey) {
+        console.log("📄 [MARKET-DATA] One-off fetch while market closed for instrument set")
+        fetchQuotes(0, { force: true, mode: 'ltp' })
+          .catch((e) => console.error('❌ [MARKET-DATA] One-off closed fetch failed:', e))
+      }
       pollKeyRef.current = instrumentKey
       return () => {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
@@ -410,10 +474,10 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
       pollKeyRef.current = instrumentKey
 
       // Initial fetch on key change or when resuming after market open
-      fetchQuotes()
+      fetchQuotes(0, { mode: 'ltp' })
 
       // Set up polling interval only when market is open
-      pollIntervalRef.current = setInterval(() => fetchQuotes(), LIVE_PRICE_POLL_INTERVAL)
+      pollIntervalRef.current = setInterval(() => fetchQuotes(0, { mode: 'ltp' }), LIVE_PRICE_POLL_INTERVAL)
       console.log("🔔 [MARKET-DATA] Polling started (" + LIVE_PRICE_POLL_INTERVAL + "ms)")
     }
 
@@ -509,6 +573,19 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
       fetchQuotes()
     }
   }, [marketOpen, fetchQuotes])
+
+  // When market is CLOSED, fetch ONCE whenever watchlists update in any way (notes, adds, removes)
+  useEffect(() => {
+    if (!watchlistsFingerprint) return
+    if (marketOpen) return
+    if (lastClosedFetchFingerprintRef.current === watchlistsFingerprint) return
+
+    console.log('📄 [MARKET-DATA] Watchlists updated during closed market, performing one-off fetch')
+    lastClosedFetchFingerprintRef.current = watchlistsFingerprint
+    fetchQuotes(0, { force: true, mode: 'ltp' }).catch((e) => {
+      console.error('❌ [MARKET-DATA] Closed market watchlist-change fetch failed:', e)
+    })
+  }, [marketOpen, watchlistsFingerprint, fetchQuotes])
 
   return (
     <MarketDataContext.Provider value={{ quotes, isLoading, config, updateConfig }}>

@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { usePortfolio, useUserWatchlist, useOrdersAndPositions } from "@/lib/hooks/use-trading-data"
+import { usePortfolio, useOrdersAndPositions } from "@/lib/hooks/use-trading-data"
 import { MarketDataProvider, useMarketData } from "@/lib/hooks/MarketDataProvider"
 import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
@@ -114,7 +114,6 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Data hooks
   const { portfolio, isLoading: isPortfolioLoading, isRefreshing: isPortfolioRefreshing, mutate: refreshPortfolio, error: portfolioError } = usePortfolio(userId)
-  const { watchlist: watchlistData, isLoading: isWatchlistLoading, isRefreshing: isWatchlistRefreshing, mutate: refetchWatchlist, error: watchlistError } = useUserWatchlist(userId)
   const { 
     orders: initialOrders, 
     positions: initialPositions, 
@@ -167,13 +166,13 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Error handling
   useEffect(() => {
-    const errors = [portfolioError, watchlistError, ordersPositionsError].filter(Boolean)
+    const errors = [portfolioError, ordersPositionsError].filter(Boolean)
     if (errors.length > 0) {
       setError(errors[0]?.message || "An error occurred while loading trading data")
     } else {
       setError(null)
     }
-  }, [portfolioError, watchlistError, ordersPositionsError])
+  }, [portfolioError, ordersPositionsError])
 
   // Event handlers
   const handleSelectStock: StockSelectHandler = useCallback((stock: Stock) => {
@@ -184,7 +183,6 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   const handleRefreshAllData: RefreshHandler = useCallback(() => {
     try {
       refreshPortfolio()
-      refetchWatchlist()
       refreshOrdersPositions()
       toast({ title: "Refreshed", description: "Trading data updated." })
     } catch (err) {
@@ -194,7 +192,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
         variant: "destructive"
       })
     }
-  }, [refreshPortfolio, refetchWatchlist, refreshOrdersPositions])
+  }, [refreshPortfolio, refreshOrdersPositions])
 
   const handleRetry: RetryHandler = useCallback(() => {
     setError(null)
@@ -230,8 +228,8 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   }, [positions, quotes])
 
   // Loading state (do not block UI render; use only for subtle indicators)
-  const anyLoading = isPortfolioLoading || isWatchlistLoading || isOrdersPositionsLoading || isQuotesLoading
-  const anyRefreshing = isPortfolioRefreshing || isWatchlistRefreshing || isOrdersPositionsRefreshing
+  const anyLoading = isPortfolioLoading || isOrdersPositionsLoading || isQuotesLoading
+  const anyRefreshing = isPortfolioRefreshing || isOrdersPositionsRefreshing
 
   useEffect(() => {
     if (anyRefreshing) {

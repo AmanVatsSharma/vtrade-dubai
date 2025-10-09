@@ -120,21 +120,24 @@ const transformWatchlistData = (watchlists: any[]): WatchlistData[] => {
   })
 }
 
+// Simple module-level cache to persist data across component unmounts
+let cachedWatchlistsGlobal: WatchlistData[] = []
+let hasLoadedOnceGlobal = false
+
 // Main Hook for All Watchlists
 export function useEnhancedWatchlists(userId?: string) {
-  const [watchlists, setWatchlists] = useState<WatchlistData[]>([])
-  // Initial-only loading flag. Once we have loaded at least once, this stays false.
-  const [isLoading, setIsLoading] = useState(false)
+  const [watchlists, setWatchlists] = useState<WatchlistData[]>(cachedWatchlistsGlobal)
+  // Initial-only loading flag. Remains false after first successful load globally.
+  const [isLoading, setIsLoading] = useState<boolean>(!hasLoadedOnceGlobal)
   // Refreshing flag used when we refetch while existing data is present
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
   const fetchWatchlists = useCallback(async () => {
     if (!userId) return
 
-    // Distinguish initial load vs refresh
-    if (hasLoadedOnce) {
+    // Distinguish initial load vs refresh using global flag
+    if (hasLoadedOnceGlobal) {
       setIsRefreshing(true)
     } else {
       setIsLoading(true)
@@ -163,7 +166,9 @@ export function useEnhancedWatchlists(userId?: string) {
       const data = await response.json()
       const transformed = transformWatchlistData(data.watchlists)
       setWatchlists(transformed)
-      if (!hasLoadedOnce) setHasLoadedOnce(true)
+      // Update global cache
+      cachedWatchlistsGlobal = transformed
+      if (!hasLoadedOnceGlobal) hasLoadedOnceGlobal = true
       console.info('[useEnhancedWatchlists] Watchlists updated', { count: transformed.length })
     } catch (err) {
       if ((err as any)?.name === 'AbortError') {
@@ -177,10 +182,17 @@ export function useEnhancedWatchlists(userId?: string) {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [userId, hasLoadedOnce])
+  }, [userId])
 
+  // Only fetch automatically the first time across the whole app
   useEffect(() => {
-    fetchWatchlists()
+    if (!hasLoadedOnceGlobal) {
+      fetchWatchlists()
+    } else {
+      // Ensure loading flags are not shown on remount when we already have cache
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
   }, [fetchWatchlists])
 
   const createWatchlist = useCallback(async (input: CreateWatchlistInput) => {
@@ -201,7 +213,7 @@ export function useEnhancedWatchlists(userId?: string) {
       }
 
       const data = await response.json()
-      await fetchWatchlists()
+      await fetchWatchlists() // Refetch on structural change (create)
       
       toast({ 
         title: "Watchlist Created", 
@@ -234,8 +246,8 @@ export function useEnhancedWatchlists(userId?: string) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to update watchlist')
       }
-
-      await fetchWatchlists()
+      // Do not refetch for cosmetic updates; rely on next mutation or user-driven refresh
+      // We keep stale data visible to avoid tab flicker
       toast({ title: "Watchlist Updated", description: "Watchlist has been updated successfully." })
     } catch (error) {
       console.error("Error updating watchlist:", error)
@@ -261,8 +273,7 @@ export function useEnhancedWatchlists(userId?: string) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to delete watchlist')
       }
-
-      await fetchWatchlists()
+      await fetchWatchlists() // Refetch on structural change (delete)
       toast({ title: "Watchlist Deleted", description: "Watchlist has been deleted successfully." })
     } catch (error) {
       console.error("Error deleting watchlist:", error)
@@ -277,7 +288,7 @@ export function useEnhancedWatchlists(userId?: string) {
 
   return {
     watchlists,
-    // Keep previous data during refetches; only block UI on first load
+    // Keep previous data during refetches; only block UI on first global load
     isLoading,
     isRefreshing,
     isError: !!error,
