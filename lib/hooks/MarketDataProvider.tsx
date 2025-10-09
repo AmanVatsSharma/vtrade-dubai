@@ -117,6 +117,7 @@ const linearInterpolate = (start: number, end: number, progress: number): number
 export function MarketDataProvider({ userId, children, config: userConfig }: MarketDataProviderProps) {
   const [quotes, setQuotes] = useState<Record<string, EnhancedQuote>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [marketOpen, setMarketOpen] = useState<boolean>(isMarketOpen())
   const [config, setConfig] = useState<MarketDataConfig>({ ...DEFAULT_CONFIG, ...userConfig })
   // Keep latest config and quotes in refs to avoid unstable callback deps
   const configRef = useRef<MarketDataConfig>({ ...DEFAULT_CONFIG, ...userConfig })
@@ -285,6 +286,8 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
 
   // Jitter update function (uses refs to avoid dependency churn)
   const updateJitter = useCallback(() => {
+    // Prevent jitter updates when market is closed
+    if (!isMarketOpen()) return
     const localConfig = configRef.current
     if (!localConfig.jitter.enabled) return
 
@@ -319,6 +322,12 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
 
   // Main fetch function - optimized with error handling and retry logic
   const fetchQuotes = useCallback(async (retryCount = 0) => {
+      // Respect market hours: do not fetch when market is closed
+      if (!isMarketOpen()) {
+        console.log("🔕 [MARKET-DATA] Skipping fetch: market closed")
+        setIsLoading(false)
+        return
+      }
       try {
         const params = new URLSearchParams()
         const ids = instrumentKey ? instrumentKey.split('|').filter(Boolean) : []
@@ -356,7 +365,7 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
         setQuotes(processedQuotes)
         
         // Start interpolation animation if enabled
-        if (configRef.current.interpolation.enabled) {
+        if (configRef.current.interpolation.enabled && isMarketOpen()) {
           animationFrameRef.current = requestAnimationFrame(animateInterpolation)
         }
       
@@ -381,40 +390,60 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
     }
 
     const keyChanged = pollKeyRef.current !== instrumentKey
-    if (keyChanged) {
+
+    // If market is closed, stop polling and exit
+    if (!marketOpen) {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = undefined as any
+        console.log("🔕 [MARKET-DATA] Polling stopped: market closed")
+      }
+      pollKeyRef.current = instrumentKey
+      return () => {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+
+    if (keyChanged || !pollIntervalRef.current) {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
       pollKeyRef.current = instrumentKey
 
-      // Initial fetch on key change
+      // Initial fetch on key change or when resuming after market open
       fetchQuotes()
 
-            // Set up polling interval - optimized for smooth enterprise-grade experience
-      // Always poll to keep UI alive and responsive, regardless of market status
+      // Set up polling interval only when market is open
       pollIntervalRef.current = setInterval(() => fetchQuotes(), LIVE_PRICE_POLL_INTERVAL)
+      console.log("🔔 [MARKET-DATA] Polling started (" + LIVE_PRICE_POLL_INTERVAL + "ms)")
     }
 
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
     }
-  }, [instrumentKey, fetchQuotes])
+  }, [instrumentKey, fetchQuotes, marketOpen])
 
   // Update jitter interval when config changes
   useEffect(() => {
     if (jitterIntervalRef.current) {
       clearInterval(jitterIntervalRef.current)
+      jitterIntervalRef.current = undefined as any
     }
     
-    if (config.jitter.enabled) {
+    if (config.jitter.enabled && marketOpen) {
       jitterIntervalRef.current = setInterval(updateJitter, config.jitter.interval)
+      console.log("🔔 [MARKET-DATA] Jitter started (" + config.jitter.interval + "ms)")
+    } else {
+      console.log("🔕 [MARKET-DATA] Jitter stopped")
     }
 
     return () => {
       if (jitterIntervalRef.current) {
         clearInterval(jitterIntervalRef.current)
+        jitterIntervalRef.current = undefined as any
       }
     }
-  }, [config.jitter.enabled, config.jitter.interval, updateJitter])
+  }, [config.jitter.enabled, config.jitter.interval, updateJitter, marketOpen])
 
   // Ensure loading flips off once quotes arrive (extra safety)
   useEffect(() => {
@@ -422,6 +451,64 @@ export function MarketDataProvider({ userId, children, config: userConfig }: Mar
       setIsLoading(false)
     }
   }, [quotes, isLoading])
+
+  // Track market open/close status and handle transitions
+  useEffect(() => {
+    const checkStatus = () => {
+      const open = isMarketOpen()
+      setMarketOpen(prev => {
+        if (prev !== open) {
+          console.log(`📣 [MARKET-DATA] Market status changed -> ${open ? 'OPEN' : 'CLOSED'}`)
+        }
+        return open
+      })
+    }
+    checkStatus()
+    const statusInterval = setInterval(checkStatus, 15000)
+    return () => clearInterval(statusInterval)
+  }, [])
+
+  // Respond to market status changes (pause/resume animations, snap prices)
+  useEffect(() => {
+    if (!marketOpen) {
+      // Stop polling
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = undefined as any
+        console.log("🔕 [MARKET-DATA] Polling cleared due to market close")
+      }
+      // Stop interpolation animations
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = undefined
+        console.log("🔕 [MARKET-DATA] Interpolation canceled due to market close")
+      }
+      // Deactivate any active interpolations
+      Object.keys(interpolationRefs.current).forEach((k) => {
+        if (interpolationRefs.current[k]) {
+          interpolationRefs.current[k].isActive = false
+        }
+      })
+      // Snap display prices to actual prices and zero jitter
+      setQuotes(prev => {
+        const updated: Record<string, EnhancedQuote> = {}
+        for (const key in prev) {
+          const q = prev[key]
+          updated[key] = {
+            ...q,
+            display_price: q.actual_price,
+            jitter_offset: 0,
+            deviation_offset: calculateDeviation(q.actual_price, configRef.current.deviation)
+          }
+        }
+        return updated
+      })
+    } else {
+      // Market reopened: fetch immediately to refresh quotes
+      console.log("🔔 [MARKET-DATA] Market open detected, refreshing quotes")
+      fetchQuotes()
+    }
+  }, [marketOpen, fetchQuotes])
 
   return (
     <MarketDataContext.Provider value={{ quotes, isLoading, config, updateConfig }}>

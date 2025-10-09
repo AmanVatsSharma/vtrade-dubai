@@ -50,25 +50,21 @@ interface TradingHomeProps {
   portfolio?: any
 }
 
-// Market Status Component
+// Market Status Component (centralized timing)
+import { isMarketOpen as checkMarketOpen } from "@/lib/hooks/market-timing"
 const MarketStatus = () => {
-  const now = new Date()
-  const hours = now.getHours()
-  const minutes = now.getMinutes()
-  const currentTime = hours * 60 + minutes
-  
-  const marketOpen = 9 * 60 + 15 // 9:15 AM
-  const marketClose = 15 * 60 + 30 // 3:30 PM
-  
-  const isMarketOpen = currentTime >= marketOpen && currentTime <= marketClose
-  
+  const [open, setOpen] = React.useState<boolean>(checkMarketOpen())
+  React.useEffect(() => {
+    const t = setInterval(() => setOpen(checkMarketOpen()), 15000)
+    return () => clearInterval(t)
+  }, [])
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
-      isMarketOpen ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'
+      open ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'
     }`}>
-      <div className={`w-2 h-2 rounded-full ${isMarketOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+      <div className={`w-2 h-2 rounded-full ${open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
       <span className="text-xs font-semibold">
-        {isMarketOpen ? 'Market Open' : 'Market Closed'}
+        {open ? 'Market Open' : 'Market Closed'}
       </span>
     </div>
   )
