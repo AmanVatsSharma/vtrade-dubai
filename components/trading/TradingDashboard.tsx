@@ -131,8 +131,9 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Get trading account ID early to avoid hoisting issues
   const tradingAccountId = useMemo(() => {
-    return (portfolio as any)?.account?.id || null
-  }, [portfolio])
+    // Prefer session-provided tradingAccountId; fallback to portfolio-derived
+    return (session?.user as any)?.tradingAccountId || (portfolio as any)?.account?.id || null
+  }, [session, portfolio])
 
   // Realtime subscriptions (use userId for API calls)
   const { 
@@ -228,7 +229,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     return { totalPnL: total, dayPnL: day }
   }, [positions, quotes])
 
-  // Loading state
+  // Loading state (do not block UI render; use only for subtle indicators)
   const anyLoading = isPortfolioLoading || isWatchlistLoading || isOrdersPositionsLoading || isQuotesLoading
   const anyRefreshing = isPortfolioRefreshing || isWatchlistRefreshing || isOrdersPositionsRefreshing
 
@@ -262,15 +263,6 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Render content based on current tab
   const renderContent = () => {
-    if (anyLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center p-8 text-gray-500">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-          <p>Loading your trading data...</p>
-        </div>
-      )
-    }
-
     switch (currentTab) {
       case "home":
         return (

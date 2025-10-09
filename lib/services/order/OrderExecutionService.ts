@@ -210,29 +210,40 @@ export class OrderExecutionService {
         chargesDeducted: result.chargesDeducted
       })
 
-      // Step 6: Execute immediately (INSTANT - no 3-second delay)
-      console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order immediately (INSTANT MODE)")
-      
-      // Execute in background with timeout and error handling
-      this.executeOrderWithTimeout(result.orderId, input, result.executionPrice)
-        .catch(async (error) => {
-          console.error("❌ [ORDER-EXECUTION-SERVICE] Background execution failed:", error)
-          // Mark order as failed
-          try {
-            await this.orderRepo.update(result.orderId, { status: 'REJECTED' })
-            await this.logger.error("ORDER_EXECUTION_FAILED", error.message, error, {
-              orderId: result.orderId
-            })
-          } catch (updateError) {
-            console.error("❌ [ORDER-EXECUTION-SERVICE] Failed to update failed order:", updateError)
-          }
-        })
+      // Step 6: Execute synchronously and return executed status to client
+      console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order synchronously (no background)")
+      try {
+        await this.executeOrder(input.symbol, input, result.executionPrice, result.orderId)
+      } catch (execError: any) {
+        console.error("❌ [ORDER-EXECUTION-SERVICE] Synchronous execution failed:", execError)
+        // Best-effort cleanup: mark rejected and release margin
+        try {
+          await executeInTransaction(async (tx) => {
+            await this.orderRepo.update(result.orderId, { status: 'REJECTED' }, tx)
+            const marginCalc = await this.marginCalculator.calculateMargin(
+              input.segment,
+              input.productType,
+              input.quantity,
+              result.executionPrice,
+              input.lotSize || 1
+            )
+            await this.fundService.releaseMargin(
+              input.tradingAccountId,
+              marginCalc.requiredMargin,
+              `Margin released for failed order ${result.orderId}`
+            )
+          })
+        } catch (cleanupError) {
+          console.error("❌ [ORDER-EXECUTION-SERVICE] Cleanup after execution failure failed:", cleanupError)
+        }
+        throw execError
+      }
 
       const response: OrderExecutionResult = {
         success: true,
         orderId: result.orderId,
-        message: "Order placed and executing instantly",
-        executionScheduled: true,
+        message: "Order placed and executed",
+        executionScheduled: false,
         marginBlocked: result.marginBlocked,
         chargesDeducted: result.chargesDeducted
       }
@@ -330,10 +341,12 @@ export class OrderExecutionService {
    * - Logs everything
    */
   private async executeOrder(
-    orderId: string,
+    symbolForLog: string,
     input: PlaceOrderInput,
-    executionPrice: number
+    executionPrice: number,
+    existingOrderId?: string
   ): Promise<void> {
+    const orderId = existingOrderId || 'new-order'
     console.log("🎯 [ORDER-EXECUTION-SERVICE] Executing order:", orderId)
 
     await this.logger.logOrder("ORDER_EXECUTION_START", `Executing order: ${orderId}`, {

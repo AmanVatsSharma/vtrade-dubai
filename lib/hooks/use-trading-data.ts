@@ -499,14 +499,6 @@ export function usePortfolio(userId?: string, userName?: string | null, userEmai
     notifyOnNetworkStatusChange: true,
   })
 
-  async function ensure() {
-    if (!userId) return
-    if (!data?.trading_accountsCollection?.edges?.[0]?.node) {
-      await ensureUserAndAccount(client, userId, userName, userEmail)
-      await refetch()
-    }
-  }
-
   const account = data?.trading_accountsCollection?.edges?.[0]?.node
   const balance = toNumber(account?.balance)
   const usedMargin = toNumber(account?.usedMargin)
@@ -522,8 +514,7 @@ export function usePortfolio(userId?: string, userName?: string | null, userEmai
     isRefreshing,
     isError: !!error,
     error,
-    mutate: refetch,
-    ensure
+    mutate: refetch
   }
 }
 
@@ -578,8 +569,8 @@ function useAccountId(userId?: string) {
   return data?.trading_accountsCollection?.edges?.[0]?.node?.id as string | undefined
 }
 
-export function useOrders(userId?: string) {
-  const tradingAccountId = useAccountId(userId)
+export function useOrders(userId?: string, tradingAccountIdOverride?: string) {
+  const tradingAccountId = tradingAccountIdOverride || useAccountId(userId)
   const { data, loading, error, refetch } = useQuery(GET_ORDERS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
@@ -589,13 +580,14 @@ export function useOrders(userId?: string) {
 
   const orders = useMemo(() => data?.ordersCollection?.edges?.map((e: any) => ({ ...e.node, price: e.node.price != null ? toNumber(e.node.price) : null, averagePrice: e.node.averagePrice != null ? toNumber(e.node.averagePrice) : null })) ?? [], [data])
 
-  const isInitialLoading = (loading && !data) || !tradingAccountId
+  // Do not block UI when accountId is not yet available; treat as not loading
+  const isInitialLoading = loading && !data
   const isRefreshing = loading && !!data
   return { orders, isLoading: isInitialLoading, isRefreshing, isError: !!error, error, mutate: refetch }
 }
 
-export function usePositions(userId?: string) {
-  const tradingAccountId = useAccountId(userId)
+export function usePositions(userId?: string, tradingAccountIdOverride?: string) {
+  const tradingAccountId = tradingAccountIdOverride || useAccountId(userId)
   const { data, loading, error, refetch } = useQuery(GET_POSITIONS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
@@ -618,13 +610,14 @@ export function usePositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
-  const isInitialLoading = (loading && !data) || !tradingAccountId
+  // Do not block UI while accountId is unknown; only show loading when fetching
+  const isInitialLoading = loading && !data
   const isRefreshing = loading && !!data
   return { positions, isLoading: isInitialLoading, isRefreshing, isError: !!error, error, mutate: refetch }
 }
 
-export function useOrdersAndPositions(userId?: string) {
-  const tradingAccountId = useAccountId(userId)
+export function useOrdersAndPositions(userId?: string, tradingAccountIdOverride?: string) {
+  const tradingAccountId = tradingAccountIdOverride || useAccountId(userId)
   const { data, loading, error, refetch } = useQuery(GET_ORDERS_AND_POSITIONS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
@@ -651,7 +644,8 @@ export function useOrdersAndPositions(userId?: string) {
     lotSize: e.node.stock?.lot_size
   })) ?? [], [data])
 
-  const isInitialLoading = (loading && !data) || !tradingAccountId
+  // Do not mark as loading due to missing accountId; render with empty arrays
+  const isInitialLoading = loading && !data
   const isRefreshing = loading && !!data
   return {
     orders,
