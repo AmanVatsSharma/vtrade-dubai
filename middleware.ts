@@ -15,7 +15,10 @@ const publicRoutes = [
   "/api/otp",
   "/api/mpin",
   "/api/health",
-  "/api/auth/*"
+  "/api/auth/*",
+  // Allow console API to handle auth itself (returns 401 JSON)
+  // Prevent middleware redirect which breaks client fetch with HTML responses
+  "/api/console"
 ];
 
 /**
