@@ -23,12 +23,15 @@ import {
   MoreVertical,
   BarChart3,
   Activity,
-  X
+  X,
+  LineChart
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import type { WatchlistItemData } from "@/lib/hooks/use-enhanced-watchlist"
 import { MiniChart } from "@/components/charts/MiniChart"
+import { AdvancedChart } from "@/components/charts/AdvancedChart"
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
 
 interface MarketDepth {
   bid: Array<{ price: number; quantity: number }>
@@ -90,6 +93,7 @@ export function WatchlistItemCard({
   const [isDragging, setIsDragging] = useState(false)
   const [showActions, setShowActions] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [showChartDrawer, setShowChartDrawer] = useState(false)
   
   const x = useMotionValue(0)
   const opacity = useTransform(x, [-200, -SWIPE_THRESHOLD, 0], [0.8, 1, 1])
@@ -167,6 +171,12 @@ export function WatchlistItemCard({
       onToggleExpanded()
     }
   }
+
+  const openAdvancedChart = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowChartDrawer(true)
+  }
+  const closeAdvancedChart = () => setShowChartDrawer(false)
 
   return (
     <div className={cn("relative overflow-hidden", className)}>
@@ -277,6 +287,15 @@ export function WatchlistItemCard({
                   whileTap={{ scale: 0.95 }}
                 >
                   B
+                </motion.button>
+                <motion.button
+                  onClick={openAdvancedChart}
+                  className="px-2 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  title="Open advanced chart"
+                >
+                  <LineChart className="h-4 w-4" />
                 </motion.button>
                 <motion.button
                   onClick={(e) => {
@@ -428,6 +447,25 @@ export function WatchlistItemCard({
             )}
           </AnimatePresence>
         </Card>
+        {/* Left-side Drawer for Full Chart */}
+        <Drawer open={showChartDrawer} onOpenChange={setShowChartDrawer} direction="left">
+          <DrawerContent className="data-[vaul-drawer-direction=left]:w-full">
+            <DrawerHeader className="flex items-center justify-between">
+              <DrawerTitle className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Advanced Chart — {item.symbol}
+              </DrawerTitle>
+              <DrawerClose asChild>
+                <button className="rounded-md p-2 hover:bg-muted" aria-label="Close chart">
+                  <X className="h-4 w-4" />
+                </button>
+              </DrawerClose>
+            </DrawerHeader>
+            <div className="p-2">
+              <AdvancedChart symbol={item.symbol} onClose={closeAdvancedChart} />
+            </div>
+          </DrawerContent>
+        </Drawer>
       </motion.div>
     </div>
   )

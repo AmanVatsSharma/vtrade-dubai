@@ -6,7 +6,7 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
-import { createChart, ColorType, CrosshairMode, AreaSeries } from "lightweight-charts"
+import { createChart, ColorType, CrosshairMode } from "lightweight-charts"
 import { cn } from "@/lib/utils"
 
 interface MiniChartProps {
@@ -26,6 +26,7 @@ export function MiniChart({ symbol, currentPrice, previousClose, height = 80, cl
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
   const seriesRef = useRef<any>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   // Derived values
@@ -87,7 +88,7 @@ export function MiniChart({ symbol, currentPrice, previousClose, height = 80, cl
         timeScale: { visible: false, fixLeftEdge: true, fixRightEdge: true },
       })
 
-      const areaSeries = chart.addSeries(AreaSeries as any, {
+      const areaSeries = chart.addAreaSeries({
         lineColor: isPositive ? "#10B981" : "#EF4444",
         topColor: isPositive ? "#10B98120" : "#EF444420",
         bottomColor: "transparent",
@@ -109,17 +110,32 @@ export function MiniChart({ symbol, currentPrice, previousClose, height = 80, cl
       setIsLoading(false)
     }
 
-    const handleResize = () => {
-      if (chartRef.current && chartContainerRef.current) {
-        const width = chartContainerRef.current.clientWidth
-        chartRef.current.applyOptions({ width })
-        console.debug("[MiniChart] resized", { width })
+    // Observe container resize for responsive width
+    try {
+      if (typeof ResizeObserver !== "undefined" && chartContainerRef.current) {
+        const ro = new ResizeObserver((entries) => {
+          const entry = entries[0]
+          if (!entry) return
+          const width = Math.floor(entry.contentRect.width)
+          if (width > 0 && chartRef.current) {
+            chartRef.current.applyOptions({ width })
+            console.debug("[MiniChart] resizeObserver", { width })
+          }
+        })
+        ro.observe(chartContainerRef.current)
+        resizeObserverRef.current = ro
       }
+    } catch (err) {
+      console.warn("[MiniChart] ResizeObserver not available", err)
     }
-
-    window.addEventListener("resize", handleResize)
     return () => {
-      window.removeEventListener("resize", handleResize)
+      if (resizeObserverRef.current && chartContainerRef.current) {
+        try {
+          resizeObserverRef.current.unobserve(chartContainerRef.current)
+          resizeObserverRef.current.disconnect()
+        } catch {}
+        resizeObserverRef.current = null
+      }
       if (chartRef.current) {
         chartRef.current.remove()
         chartRef.current = null
