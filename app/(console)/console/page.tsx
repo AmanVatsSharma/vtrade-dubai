@@ -8,6 +8,7 @@ import { ProfileSection } from "@/components/console/sections/profile-section"
 import { StatementsSection } from "@/components/console/sections/statements-section"
 import { WithdrawalsSection } from "@/components/console/sections/withdrawals-section"
 import { SidebarMenu } from "@/components/console/sidebar-menu"
+import { DesktopSidebar } from "@/components/ui/sidebar"
 import { ConsoleErrorBoundary } from "@/components/console/console-error-boundary"
 import { ConsoleLoadingState } from "@/components/console/console-loading-state"
 import { useState, Suspense } from "react"
@@ -65,10 +66,12 @@ export default function ConsolePage() {
       <Suspense fallback={<ConsoleLoadingState />}>
         <ConsoleLayout activeSection={activeSection} onNavigateSection={(section) => setActiveSection(section)}>
           <div className="flex gap-6">
-            {/* Desktop Sidebar */}
-            <div className="hidden lg:block w-70">
+            {/* Desktop Sidebar - shared component */}
+            <div className="hidden lg:block">
               <div className="sticky top-0">
-                <SidebarMenu activeSection={activeSection} onSectionChange={setActiveSection} />
+                <DesktopSidebar className="bg-card border-r border-border">
+                  <SidebarMenu activeSection={activeSection} onSectionChange={setActiveSection} />
+                </DesktopSidebar>
               </div>
             </div>
 

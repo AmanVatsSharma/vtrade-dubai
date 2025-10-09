@@ -27,13 +27,11 @@ import { useSession, signOut } from "next-auth/react"
 import { useConsoleData } from "@/lib/hooks/use-console-data"
 import { useMemo } from "react"
 
-interface TopbarProps {
-  sidebarOpen: boolean
-  setSidebarOpen: (open: boolean) => void
-}
+import { useSidebar } from "@/components/ui/sidebar"
 
-export function Topbar({ sidebarOpen, setSidebarOpen }: TopbarProps) {
-  console.log('🎯 [TOPBAR] Rendering with sidebarOpen:', sidebarOpen)
+export function Topbar() {
+  const { open, setOpen } = useSidebar()
+  console.log('🎯 [TOPBAR] Rendering with sidebarOpen:', open)
 
   // Get real user data
   const { data: session } = useSession()
@@ -91,12 +89,12 @@ export function Topbar({ sidebarOpen, setSidebarOpen }: TopbarProps) {
           size="sm" 
           onClick={() => {
             console.log('🍔 [TOPBAR] Menu button clicked')
-            setSidebarOpen(!sidebarOpen)
+            setOpen(!open)
           }}
           className="lg:hidden h-9 w-9 p-0 hover:bg-accent"
-          aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+          aria-label={open ? "Close menu" : "Open menu"}
         >
-          {sidebarOpen ? (
+          {open ? (
             <X className="w-5 h-5" />
           ) : (
             <Menu className="w-5 h-5" />
