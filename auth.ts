@@ -2,7 +2,7 @@
 // @ts-nocheck
 import { prisma } from "@/lib/prisma"
 import { signInSchema, mobileSignInSchema } from "@/schemas"
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"

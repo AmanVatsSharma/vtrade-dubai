@@ -18,9 +18,11 @@ interface UPIPaymentModalProps {
   onOpenChange: (open: boolean) => void
   amount: number
   onSuccess: (utr: string) => void
+  upiId?: string
+  qrCodeUrl?: string
 }
 
-export function UPIPaymentModal({ open, onOpenChange, amount, onSuccess }: UPIPaymentModalProps) {
+export function UPIPaymentModal({ open, onOpenChange, amount, onSuccess, upiId, qrCodeUrl }: UPIPaymentModalProps) {
   const [step, setStep] = useState<"qr" | "details" | "success">("qr")
   const [timeLeft, setTimeLeft] = useState(300) // 5 minutes
   const [utr, setUtr] = useState("")
@@ -28,8 +30,12 @@ export function UPIPaymentModal({ open, onOpenChange, amount, onSuccess }: UPIPa
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
 
-  const upiId = "trading@paytm"
-  const qrCodeUrl = `/placeholder.svg?height=200&width=200&query=UPI QR code for payment of ₹${amount}`
+  const fallbackUpiId = "trading@paytm"
+  const fallbackQrCodeUrl = `/placeholder.svg?height=200&width=200&query=UPI QR code for payment of ₹${amount}`
+
+  const effectiveUpiId = upiId || fallbackUpiId
+  const effectiveQrCodeUrl = qrCodeUrl || fallbackQrCodeUrl
+  console.log("💳 [UPI-MODAL] Payment settings:", { providedUpiId: upiId, providedQr: qrCodeUrl, usingUpiId: effectiveUpiId, usingQr: effectiveQrCodeUrl })
 
   // Countdown timer
   useEffect(() => {
@@ -73,7 +79,7 @@ export function UPIPaymentModal({ open, onOpenChange, amount, onSuccess }: UPIPa
 
   const copyUPIId = async () => {
     try {
-      await navigator.clipboard.writeText(upiId)
+      await navigator.clipboard.writeText(effectiveUpiId)
       toast({
         title: "Copied!",
         description: "UPI ID copied to clipboard",
@@ -157,14 +163,14 @@ export function UPIPaymentModal({ open, onOpenChange, amount, onSuccess }: UPIPa
                 <CardContent className="p-6 text-center">
                   <div className="flex justify-center mb-4">
                     <img
-                      src={qrCodeUrl || "/placeholder.svg"}
+                      src={effectiveQrCodeUrl || "/placeholder.svg"}
                       alt="UPI QR Code"
                       className="w-48 h-48 border rounded-lg"
                     />
                   </div>
                   <p className="text-sm text-muted-foreground mb-2">Scan with any UPI app</p>
                   <div className="flex items-center justify-center gap-2">
-                    <span className="text-sm font-mono">{upiId}</span>
+                    <span className="text-sm font-mono">{effectiveUpiId}</span>
                     <Button variant="ghost" size="sm" onClick={copyUPIId} className="h-6 w-6 p-0">
                       <Copy className="w-3 h-3" />
                     </Button>

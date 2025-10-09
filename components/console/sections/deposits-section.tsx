@@ -73,6 +73,30 @@ export function DepositsSection() {
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
   const { consoleData, isLoading, error, createDepositRequest } = useConsoleData(userId)
+  const [upiId, setUpiId] = useState<string | undefined>(undefined)
+  const [qrUrl, setQrUrl] = useState<string | undefined>(undefined)
+
+  // Pull payment settings from admin-configured system settings
+  // Fallbacks handled inside the modal itself
+  useEffect(() => {
+    async function loadPaymentSettings() {
+      try {
+        const [qrRes, upiRes] = await Promise.all([
+          fetch('/api/admin/settings?key=payment_qr_code'),
+          fetch('/api/admin/settings?key=payment_upi_id')
+        ])
+        const [qrJson, upiJson] = await Promise.all([qrRes.json(), upiRes.json()])
+        const qr = qrJson?.setting?.value as string | undefined
+        const upi = upiJson?.setting?.value as string | undefined
+        setQrUrl(qr)
+        setUpiId(upi)
+        console.log('💾 [DEPOSITS] Loaded payment settings', { qr, upi })
+      } catch (e) {
+        console.warn('⚠️ [DEPOSITS] Failed to load payment settings')
+      }
+    }
+    loadPaymentSettings()
+  }, [])
 
   const deposits = consoleData?.deposits || []
   const bankAccounts = consoleData?.bankAccounts || []
@@ -256,6 +280,8 @@ export function DepositsSection() {
         onOpenChange={setShowUPIModal}
         amount={depositAmount}
         onSuccess={handleUPISuccess}
+        upiId={upiId}
+        qrCodeUrl={qrUrl}
       />
     </motion.div>
   )

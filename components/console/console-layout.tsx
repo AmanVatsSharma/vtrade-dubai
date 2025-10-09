@@ -51,7 +51,7 @@ export function ConsoleLayout({ children, activeSection, onNavigateSection }: Co
   }, [sidebarOpen])
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex min-h-[100dvh] bg-background">
       {/* Mobile Drawer Sidebar */}
       <AnimatePresence mode="wait">
         {sidebarOpen && (
@@ -109,7 +109,10 @@ export function ConsoleLayout({ children, activeSection, onNavigateSection }: Co
         <Topbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         {/* Main Content - optimized scrolling for mobile */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
+        <main
+          className="flex-1 overflow-y-auto overflow-x-hidden bg-background overscroll-y-contain scroll-smooth"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        >
           <div className="p-3 sm:p-4 md:p-6 lg:p-8">
             <motion.div
               initial={{ opacity: 0, y: 10 }}

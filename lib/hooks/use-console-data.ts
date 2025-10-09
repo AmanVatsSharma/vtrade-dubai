@@ -9,6 +9,7 @@ export function useConsoleData(userId?: string) {
   const [consoleData, setConsoleData] = useState<ConsoleData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [paymentSettings, setPaymentSettings] = useState<{ upiId?: string; qrCodeUrl?: string } | null>(null)
 
   const fetchConsoleData = useCallback(async () => {
     if (!userId) return
@@ -32,6 +33,8 @@ export function useConsoleData(userId?: string) {
       const data = await response.json()
       console.log('✅ [USE-CONSOLE-DATA] Console data fetched successfully')
       setConsoleData(data)
+      // Fire and forget fetch of payment settings used by deposits UI
+      fetchPaymentSettings()
     } catch (err) {
       console.error('❌ [USE-CONSOLE-DATA] Error fetching console data:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch console data')
@@ -39,6 +42,23 @@ export function useConsoleData(userId?: string) {
       setIsLoading(false)
     }
   }, [userId])
+
+  const fetchPaymentSettings = useCallback(async () => {
+    try {
+      console.log('🔄 [USE-CONSOLE-DATA] Fetching payment settings')
+      const [qrRes, upiRes] = await Promise.all([
+        fetch('/api/admin/settings?key=payment_qr_code'),
+        fetch('/api/admin/settings?key=payment_upi_id')
+      ])
+      const [qrJson, upiJson] = await Promise.all([qrRes.json(), upiRes.json()])
+      const qr = qrJson?.setting?.value as string | undefined
+      const upi = upiJson?.setting?.value as string | undefined
+      setPaymentSettings({ upiId: upi, qrCodeUrl: qr })
+      console.log('✅ [USE-CONSOLE-DATA] Payment settings loaded', { upi, qr })
+    } catch (e) {
+      console.warn('⚠️ [USE-CONSOLE-DATA] Failed to load payment settings')
+    }
+  }, [])
 
   useEffect(() => {
     fetchConsoleData()

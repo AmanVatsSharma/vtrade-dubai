@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card'
 
 export function ConsoleLoadingState() {
   return (
-    <div className="flex items-center justify-center min-h-screen p-4">
+    <div className="flex items-center justify-center min-h-[100dvh] p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}

@@ -75,7 +75,7 @@ function ConsoleErrorFallback({ error, onReset }: ConsoleErrorFallbackProps) {
   const router = useRouter()
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-background">
+    <div className="flex items-center justify-center min-h-[100dvh] p-4 bg-background">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
