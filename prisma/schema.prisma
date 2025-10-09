@@ -531,6 +531,9 @@ model Deposit {
   utr              String? // UTR number for tracking
   reference        String? // Reference number
   remarks          String?
+  // Optional proof of payment image storage
+  screenshotUrl    String?
+  screenshotKey    String?
   processedAt      DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt

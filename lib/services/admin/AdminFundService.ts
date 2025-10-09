@@ -13,6 +13,9 @@ import { executeInTransaction } from "@/lib/services/utils/prisma-transaction"
 import { prisma } from "@/lib/prisma"
 import { TradingLogger } from "@/lib/services/logging/TradingLogger"
 import { DepositStatus, WithdrawalStatus } from "@prisma/client"
+import { getS3Service } from "@/lib/aws-s3"
+import { unlink } from "fs/promises"
+import path from "path"
 
 console.log("💰 [ADMIN-FUND-SERVICE] Module loaded")
 
@@ -53,6 +56,44 @@ export interface RejectWithdrawalInput {
 
 export class AdminFundService {
   private logger: TradingLogger
+  
+  /**
+   * Delete deposit proof image from storage (S3 or local) and clear fields
+   */
+  private async cleanupDepositProof(depositId: string, screenshotKey?: string | null) {
+    try {
+      if (!screenshotKey) return
+      console.log("🧹 [ADMIN-FUND-SERVICE] Cleaning up deposit proof", { depositId, screenshotKey })
+
+      if (screenshotKey.startsWith('local:')) {
+        const rel = screenshotKey.replace(/^local:/, '')
+        const filePath = path.join(process.cwd(), 'public', rel)
+        try {
+          await unlink(filePath)
+          console.log("✅ [ADMIN-FUND-SERVICE] Local proof deleted", { filePath })
+        } catch (e) {
+          console.warn("⚠️ [ADMIN-FUND-SERVICE] Failed to delete local proof", { filePath, error: (e as any)?.message })
+        }
+      } else {
+        try {
+          const s3 = getS3Service()
+          const ok = await s3.deleteFile(screenshotKey)
+          console.log(ok ? "✅ [ADMIN-FUND-SERVICE] S3 proof deleted" : "⚠️ [ADMIN-FUND-SERVICE] S3 delete returned false", { screenshotKey })
+        } catch (e) {
+          console.warn("⚠️ [ADMIN-FUND-SERVICE] Failed to delete S3 proof", { screenshotKey, error: (e as any)?.message })
+        }
+      }
+
+      // Null out fields in DB
+      await prisma.deposit.update({
+        where: { id: depositId },
+        data: { screenshotUrl: null, screenshotKey: null }
+      })
+      console.log("✅ [ADMIN-FUND-SERVICE] Cleared screenshot fields for deposit", depositId)
+    } catch (e) {
+      console.warn("⚠️ [ADMIN-FUND-SERVICE] cleanupDepositProof failed", { depositId, error: (e as any)?.message })
+    }
+  }
 
   constructor(logger?: TradingLogger) {
     this.logger = logger || new TradingLogger({ clientId: 'ADMIN' })
@@ -332,6 +373,7 @@ export class AdminFundService {
     )
 
     try {
+      let proofKey: string | null = null
       const result = await executeInTransaction(async (tx) => {
         // Get deposit details
         const deposit = await tx.deposit.findUnique({
@@ -349,6 +391,9 @@ export class AdminFundService {
         if (deposit.status !== DepositStatus.PENDING) {
           throw new Error(`Cannot approve ${deposit.status} deposit`)
         }
+
+        // Remember proof key for cleanup after commit
+        proofKey = deposit.screenshotKey || null
 
         // Update trading account balance
         const updatedAccount = await tx.tradingAccount.update({
@@ -397,6 +442,8 @@ export class AdminFundService {
       )
 
       console.log("🎉 [ADMIN-FUND-SERVICE] Approve deposit completed:", result)
+      // Best-effort cleanup of proof image
+      await this.cleanupDepositProof(input.depositId, proofKey)
       return result
 
     } catch (error: any) {
@@ -419,6 +466,11 @@ export class AdminFundService {
     )
 
     try {
+      const existing = await prisma.deposit.findUnique({ where: { id: input.depositId } })
+      if (!existing) {
+        throw new Error("Deposit not found")
+      }
+
       const deposit = await prisma.deposit.update({
         where: { id: input.depositId },
         data: {
@@ -434,6 +486,8 @@ export class AdminFundService {
       )
 
       console.log("✅ [ADMIN-FUND-SERVICE] Deposit rejected")
+      // Cleanup proof image after rejection
+      await this.cleanupDepositProof(input.depositId, existing.screenshotKey || null)
       return { success: true, depositId: deposit.id }
 
     } catch (error: any) {

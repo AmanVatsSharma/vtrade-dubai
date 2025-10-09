@@ -672,6 +672,8 @@ export class ConsoleService {
       utr?: string
       reference?: string
       remarks?: string
+      screenshotUrl?: string
+      screenshotKey?: string
     }
   ): Promise<{ success: boolean; message: string; depositId?: string }> {
     console.log('💰 [CONSOLE-SERVICE] Creating deposit request:', { userId, amount: depositData.amount, method: depositData.method })
@@ -703,7 +705,9 @@ export class ConsoleService {
             status: DepositStatus.PENDING,
             utr: depositData.utr,
             reference: depositData.reference,
-            remarks: depositData.remarks
+            remarks: depositData.remarks,
+            screenshotUrl: depositData.screenshotUrl,
+            screenshotKey: depositData.screenshotKey
           }
         })
 

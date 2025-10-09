@@ -197,6 +197,8 @@ export class ConsoleDataService {
     utr?: string
     reference?: string
     remarks?: string
+    screenshotUrl?: string
+    screenshotKey?: string
   }): Promise<{ success: boolean; message: string; depositId?: string }> {
     console.log('🔄 [CONSOLE-DATA-SERVICE] Creating deposit request via new Prisma service')
     try {

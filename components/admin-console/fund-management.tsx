@@ -20,6 +20,7 @@ const mockFundRequests = [
   {
     id: "1",
     userId: "USR_001234",
+    userClientId: "CLI001234",
     userName: "Alex Chen",
     amount: 5000,
     method: "Bank Transfer",
@@ -82,7 +83,7 @@ export function FundManagement() {
         const data = await depositsResponse.json()
         console.log("✅ [FUND-MANAGEMENT] Deposits received:", data)
 
-        if (data.success && data.deposits) {
+          if (data.success && data.deposits) {
           const realDeposits = data.deposits.map((d: any) => ({
             id: d.id,
             userId: d.userId,
@@ -94,7 +95,8 @@ export function FundManagement() {
             status: d.status,
             requestDate: new Date(d.createdAt).toLocaleString(),
             description: d.remarks || '',
-            tradingAccount: d.tradingAccount
+            tradingAccount: d.tradingAccount,
+            screenshot: d.screenshotUrl || null
           }))
           setDeposits(realDeposits)
           hasRealData = true
@@ -381,6 +383,7 @@ export function FundManagement() {
                         <TableHead className="text-muted-foreground">Amount</TableHead>
                         <TableHead className="text-muted-foreground">Method</TableHead>
                         <TableHead className="text-muted-foreground">UTR/Reference</TableHead>
+                        <TableHead className="text-muted-foreground">Proof</TableHead>
                         <TableHead className="text-muted-foreground">Status</TableHead>
                         <TableHead className="text-muted-foreground">Date</TableHead>
                         <TableHead className="text-muted-foreground">Actions</TableHead>
@@ -416,6 +419,20 @@ export function FundManagement() {
                             </TableCell>
                             <TableCell>
                               <code className="text-xs bg-muted px-2 py-1 rounded">{request.utrCode}</code>
+                            </TableCell>
+                            <TableCell>
+                              {request.screenshot ? (
+                                <a
+                                  href={request.screenshot}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-primary underline"
+                                >
+                                  View
+                                </a>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell>{getStatusBadge(request.status)}</TableCell>
                             <TableCell>

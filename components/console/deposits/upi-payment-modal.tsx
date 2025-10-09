@@ -17,7 +17,7 @@ interface UPIPaymentModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   amount: number
-  onSuccess: (utr: string) => void
+  onSuccess: (data: { utr?: string; screenshotUrl?: string; screenshotKey?: string }) => void
   upiId?: string
   qrCodeUrl?: string
 }
@@ -109,7 +109,8 @@ export function UPIPaymentModal({ open, onOpenChange, amount, onSuccess, upiId, 
   }
 
   const handleSubmit = async () => {
-    if (!utr || utr.length !== 12) {
+    // UTR optional; validate only if provided
+    if (utr && utr.length !== 12) {
       toast({
         title: "Invalid UTR",
         description: "UTR number must be exactly 12 digits",
@@ -120,14 +121,38 @@ export function UPIPaymentModal({ open, onOpenChange, amount, onSuccess, upiId, 
 
     setIsSubmitting(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false)
+    let uploadedUrl: string | undefined
+    let uploadedKey: string | undefined
+
+    try {
+      if (screenshot) {
+        const formData = new FormData()
+        formData.append('file', screenshot)
+        formData.append('folder', 'uploads/deposits')
+        formData.append('isPublic', 'true')
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        })
+        const json = await res.json()
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.error || 'Upload failed')
+        }
+        uploadedUrl = json.url as string
+        uploadedKey = json.key as string
+      }
+
       setStep("success")
       setTimeout(() => {
-        onSuccess(utr)
-      }, 2000)
-    }, 2000)
+        onSuccess({ utr: utr || undefined, screenshotUrl: uploadedUrl, screenshotKey: uploadedKey })
+      }, 600)
+    } catch (e: any) {
+      console.error('❌ [UPI-MODAL] Upload failed', e)
+      toast({ title: 'Upload failed', description: e?.message || 'Please try again', variant: 'destructive' })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

@@ -125,13 +125,15 @@ export function DepositsSection() {
     }
   }
 
-  const handleUPISuccess = async (utr: string) => {
+  const handleUPISuccess = async (data: { utr?: string; screenshotUrl?: string; screenshotKey?: string }) => {
     const result = await createDepositRequest({
       amount: depositAmount,
       method: "upi",
       bankAccountId: bankAccounts.find(ba => ba.isDefault)?.id,
-      utr,
-      reference: `UPI-DEP-${Date.now()}`
+      utr: data.utr,
+      reference: `UPI-DEP-${Date.now()}`,
+      screenshotUrl: data.screenshotUrl,
+      screenshotKey: data.screenshotKey,
     })
 
     if (result.success) {
