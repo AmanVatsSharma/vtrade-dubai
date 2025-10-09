@@ -47,33 +47,74 @@ export class PositionRepository {
 
     const client = tx || prisma
 
-    const position = await client.position.create({
-      data: {
-        tradingAccountId: data.tradingAccountId,
-        stockId: data.stockId,
-        symbol: data.symbol,
-        quantity: data.quantity,
-        averagePrice: data.averagePrice,
-        unrealizedPnL: 0,
-        dayPnL: 0,
-        createdAt: new Date()
-      },
-      include: {
-        Stock: {
-          select: {
-            instrumentId: true,
-            segment: true,
-            lot_size: true,
-            strikePrice: true,
-            optionType: true,
-            expiry: true
+    try {
+      const position = await client.position.create({
+        data: {
+          tradingAccountId: data.tradingAccountId,
+          stockId: data.stockId,
+          symbol: data.symbol,
+          quantity: data.quantity,
+          averagePrice: data.averagePrice,
+          unrealizedPnL: 0,
+          dayPnL: 0,
+          createdAt: new Date()
+        },
+        include: {
+          Stock: {
+            select: {
+              instrumentId: true,
+              segment: true,
+              lot_size: true,
+              strikePrice: true,
+              optionType: true,
+              expiry: true
+            }
           }
         }
-      }
-    })
+      })
 
-    console.log("✅ [POSITION-REPO] Position created:", position.id)
-    return position
+      console.log("✅ [POSITION-REPO] Position created:", position.id)
+      return position
+    } catch (error: any) {
+      // Handle unique constraint conflict gracefully (concurrent create)
+      if (error?.code === 'P2002' || error?.name === 'PrismaClientKnownRequestError') {
+        console.warn("⚠️ [POSITION-REPO] Unique constraint conflict on create; falling back to update", {
+          tradingAccountId: data.tradingAccountId,
+          symbol: data.symbol
+        })
+
+        // Re-fetch existing position by unique key (includes closed positions)
+        const existing = await this.findBySymbol(data.tradingAccountId, data.symbol, client)
+        if (!existing) {
+          console.error("❌ [POSITION-REPO] Conflict occurred but position not found after re-fetch")
+          throw error
+        }
+
+        // Compute new state as if this was an add of data.quantity at data.averagePrice
+        const newQuantity = existing.quantity + data.quantity
+        if (newQuantity === 0) {
+          return this.update(
+            existing.id,
+            { quantity: 0, stopLoss: null, target: null },
+            client
+          )
+        }
+
+        const existingValue = Number(existing.averagePrice) * Math.abs(existing.quantity)
+        const newValue = Number(data.averagePrice) * Math.abs(data.quantity)
+        const totalValue = existingValue + newValue
+        const totalQuantity = Math.abs(existing.quantity) + Math.abs(data.quantity)
+        const newAveragePrice = totalValue / totalQuantity
+
+        return this.update(
+          existing.id,
+          { quantity: newQuantity, averagePrice: newAveragePrice },
+          client
+        )
+      }
+
+      throw error
+    }
   }
 
   /**
@@ -170,11 +211,12 @@ export class PositionRepository {
 
     const client = tx || prisma
 
+    // Note: We find ANY position by unique key (including closed with quantity=0)
+    // This avoids unique constraint violations when re-opening a closed position.
     const position = await client.position.findFirst({
       where: {
         tradingAccountId,
-        symbol,
-        quantity: { not: 0 } // Only active positions
+        symbol
       },
       include: {
         Stock: {
@@ -188,7 +230,7 @@ export class PositionRepository {
     })
 
     if (position) {
-      console.log("✅ [POSITION-REPO] Position found")
+      console.log("✅ [POSITION-REPO] Position found (may be active or closed)")
     } else {
       console.log("⚠️ [POSITION-REPO] No position found for symbol")
     }
