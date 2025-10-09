@@ -16,7 +16,7 @@ import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { SidebarMenu } from "./sidebar-menu"
 import { Topbar } from "./topbar"
-import { Sidebar, MobileSidebar, useSidebar } from "@/components/ui/sidebar"
+import { Sidebar, MobileSidebar, DesktopSidebar, useSidebar } from "@/components/ui/sidebar"
 
 interface ConsoleLayoutProps {
   children: React.ReactNode
@@ -29,7 +29,7 @@ export function ConsoleLayout({ children, activeSection, onNavigateSection }: Co
 
   // Body scroll lock synced with shared Sidebar context
   const SidebarEffects = () => {
-    const { open } = useSidebar()
+    const { open, setOpen } = useSidebar()
     useEffect(() => {
       if (open) {
         console.log('🔒 [CONSOLE-LAYOUT] Locking body scroll')
@@ -42,6 +42,20 @@ export function ConsoleLayout({ children, activeSection, onNavigateSection }: Co
         document.body.style.overflow = 'unset'
       }
     }, [open])
+
+    // Ensure mobile overlay never stays open on large screens
+    useEffect(() => {
+      const handleResize = () => {
+        const isDesktop = window.innerWidth >= 1024 // lg breakpoint
+        if (isDesktop && open) {
+          console.log('🧹 [CONSOLE-LAYOUT] Auto-closing mobile sidebar on desktop')
+          setOpen(false)
+        }
+      }
+      handleResize()
+      window.addEventListener('resize', handleResize)
+      return () => window.removeEventListener('resize', handleResize)
+    }, [open, setOpen])
     return null
   }
 
@@ -59,6 +73,21 @@ export function ConsoleLayout({ children, activeSection, onNavigateSection }: Co
             }}
           />
         </MobileSidebar>
+
+        {/* Desktop Sidebar - fixed left rail on large screens */}
+        <div className="hidden lg:block">
+          <div className="sticky top-0 h-[100dvh]">
+            <DesktopSidebar className="bg-card border-r border-border">
+              <SidebarMenu
+                activeSection={activeSection}
+                onSectionChange={(section) => {
+                  console.log('🧭 [CONSOLE-LAYOUT] Desktop section change:', section)
+                  onNavigateSection?.(section)
+                }}
+              />
+            </DesktopSidebar>
+          </div>
+        </div>
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden w-full">

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import type { DepositRecord } from "./deposits-section"
+import type { DepositRecord } from "../sections/deposits-section"
 
 interface DepositHistoryProps {
   deposits: DepositRecord[]
@@ -33,12 +33,13 @@ export function DepositHistory({ deposits }: DepositHistoryProps) {
   }
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "completed":
+    const s = status.toUpperCase()
+    switch (s) {
+      case "COMPLETED":
         return <CheckCircle className="w-4 h-4 text-green-600" />
-      case "pending":
+      case "PENDING":
         return <Clock className="w-4 h-4 text-orange-600" />
-      case "failed":
+      case "FAILED":
         return <XCircle className="w-4 h-4 text-red-600" />
       default:
         return null
@@ -46,12 +47,13 @@ export function DepositHistory({ deposits }: DepositHistoryProps) {
   }
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
+    const s = status.toUpperCase()
+    switch (s) {
+      case "COMPLETED":
         return "border-green-200 text-green-700 bg-green-50 dark:border-green-800 dark:text-green-300 dark:bg-green-950"
-      case "pending":
+      case "PENDING":
         return "border-orange-200 text-orange-700 bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:bg-orange-950"
-      case "failed":
+      case "FAILED":
         return "border-red-200 text-red-700 bg-red-50 dark:border-red-800 dark:text-red-300 dark:bg-red-950"
       default:
         return "border-gray-200 text-gray-700 bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:bg-gray-950"
@@ -119,8 +121,8 @@ export function DepositHistory({ deposits }: DepositHistoryProps) {
             >
               <TableCell>
                 <div>
-                  <div className="font-medium">{formatDate(deposit.date)}</div>
-                  <div className="text-sm text-muted-foreground">{deposit.time}</div>
+                  <div className="font-medium">{deposit.createdAt ? formatDate(deposit.createdAt) : '-'}</div>
+                  <div className="text-sm text-muted-foreground">{deposit.createdAt ? new Date(deposit.createdAt).toLocaleTimeString("en-IN") : '-'}</div>
                 </div>
               </TableCell>
               <TableCell>
@@ -132,7 +134,7 @@ export function DepositHistory({ deposits }: DepositHistoryProps) {
               <TableCell>
                 <Badge variant="outline" className={cn("gap-1", getStatusColor(deposit.status))}>
                   {getStatusIcon(deposit.status)}
-                  {deposit.status.charAt(0).toUpperCase() + deposit.status.slice(1)}
+                  {String(deposit.status).toUpperCase()}
                 </Badge>
               </TableCell>
               <TableCell>

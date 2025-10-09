@@ -10,7 +10,7 @@
  * - Compact card design
  */
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { ArrowDownToLine, CreditCard, Building2, Smartphone } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,10 +24,9 @@ import { useToast } from "@/hooks/use-toast"
 export interface DepositRecord {
   id: string
   amount: number
-  method: "upi" | "bank" | "cash"
-  status: "pending" | "completed" | "failed"
-  date: string
-  time: string
+  method: string
+  status: string
+  createdAt?: string
   utr?: string
   reference?: string
 }
@@ -37,9 +36,8 @@ const mockDeposits: DepositRecord[] = [
     id: "DEP001",
     amount: 50000,
     method: "upi",
-    status: "completed",
-    date: "2024-01-15",
-    time: "14:30:25",
+    status: "COMPLETED",
+    createdAt: "2024-01-15T14:30:25.000Z",
     utr: "402912345678",
     reference: "UPI-DEP-001",
   },
@@ -47,18 +45,16 @@ const mockDeposits: DepositRecord[] = [
     id: "DEP002",
     amount: 25000,
     method: "bank",
-    status: "completed",
-    date: "2024-01-12",
-    time: "10:15:42",
+    status: "COMPLETED",
+    createdAt: "2024-01-12T10:15:42.000Z",
     reference: "NEFT-DEP-002",
   },
   {
     id: "DEP003",
     amount: 10000,
     method: "upi",
-    status: "pending",
-    date: "2024-01-10",
-    time: "16:45:18",
+    status: "PENDING",
+    createdAt: "2024-01-10T16:45:18.000Z",
     utr: "402987654321",
     reference: "UPI-DEP-003",
   },
@@ -154,8 +150,11 @@ export function DepositsSection() {
     setShowUPIModal(false)
   }
 
-  const totalDeposited = deposits.filter((d) => d.status === "COMPLETED").reduce((sum, d) => sum + Number(d.amount), 0)
-  const pendingDeposits = deposits.filter((d) => d.status === "PENDING" || d.status === "PROCESSING").length
+  const totalDeposited = deposits.filter((d) => String(d.status).toUpperCase() === "COMPLETED").reduce((sum, d) => sum + Number(d.amount), 0)
+  const pendingDeposits = deposits.filter((d) => {
+    const s = String(d.status).toUpperCase()
+    return s === "PENDING" || s === "PROCESSING"
+  }).length
 
   // Loading state
   if (isLoading) {
