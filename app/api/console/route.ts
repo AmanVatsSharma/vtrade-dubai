@@ -7,6 +7,42 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { ConsoleDataService } from '@/lib/console-data-service'
 
+// Provide a minimal fallback payload so UI can render even if DB fails
+function buildFallbackConsoleData(userId: string) {
+  const nowIso = new Date().toISOString()
+  return {
+    user: {
+      id: userId,
+      role: 'USER',
+      isActive: true,
+      createdAt: nowIso,
+      kycStatus: 'PENDING'
+    },
+    tradingAccount: {
+      id: '',
+      balance: 0,
+      availableMargin: 0,
+      usedMargin: 0,
+      createdAt: nowIso
+    },
+    bankAccounts: [],
+    deposits: [],
+    withdrawals: [],
+    transactions: [],
+    positions: [],
+    orders: [],
+    userProfile: undefined,
+    summary: {
+      totalDeposits: 0,
+      totalWithdrawals: 0,
+      pendingDeposits: 0,
+      pendingWithdrawals: 0,
+      totalBankAccounts: 0
+    },
+    _fallback: true
+  }
+}
+
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   console.log('📥 [CONSOLE-API] GET request received')
@@ -31,19 +67,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Step 2: Fetch console data
+    // Step 2: Fetch console data with graceful fallback
     console.log('📊 [CONSOLE-API] Fetching console data for user:', session.user.id)
     const consoleData = await ConsoleDataService.getConsoleData(session.user.id)
-    
+
     if (!consoleData) {
-      console.error('❌ [CONSOLE-API] Failed to fetch console data - null returned')
-      return NextResponse.json(
-        { 
-          error: 'Failed to fetch console data',
-          message: 'Unable to load your console data. Please try again.'
-        }, 
-        { status: 500 }
-      )
+      console.warn('⚠️ [CONSOLE-API] Console data service returned null - serving fallback payload')
+      const fallback = buildFallbackConsoleData(session.user.id)
+      return NextResponse.json(fallback, { 
+        status: 200,
+        headers: {
+          'x-console-fallback': '1',
+          'x-console-fallback-reason': 'service_null',
+          'x-console-user-id': session.user.id
+        }
+      })
     }
 
     // Step 3: Return success
@@ -66,6 +104,25 @@ export async function GET(request: NextRequest) {
       elapsed: `${elapsed}ms`
     })
     
+    try {
+      // Last-resort fallback to avoid breaking the console UI
+      const session = await auth()
+      if (session?.user?.id) {
+        console.warn('🛟 [CONSOLE-API] Serving fallback console payload from catch')
+        const fallback = buildFallbackConsoleData(session.user.id)
+        return NextResponse.json(fallback, { 
+          status: 200,
+          headers: {
+            'x-console-fallback': '1',
+            'x-console-fallback-reason': 'exception',
+            'x-console-user-id': session.user.id
+          }
+        })
+      }
+    } catch {
+      // ignore and proceed to error response
+    }
+
     return NextResponse.json(
       { 
         error: 'Internal server error',

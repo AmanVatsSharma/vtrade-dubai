@@ -139,96 +139,79 @@ export class ConsoleService {
     console.log('📊 [CONSOLE-SERVICE] Fetching console data for user:', userId)
     
     try {
-      // Fetch all data in parallel for performance
-      const [user, tradingAccount, bankAccounts, deposits, withdrawals, transactions, positions, orders, userProfile] = 
-        await Promise.all([
-          // Fetch user with KYC
-          prisma.user.findUnique({
-            where: { id: userId },
-            include: {
-              kyc: true
-            }
-          }),
-          
-          // Fetch trading account
-          prisma.tradingAccount.findUnique({
-            where: { userId }
-          }),
-          
-          // Fetch bank accounts
-          prisma.bankAccount.findMany({
-            where: { userId, isActive: true },
-            orderBy: [
-              { isDefault: 'desc' },
-              { createdAt: 'desc' }
-            ]
-          }),
-          
-          // Fetch deposits
-          prisma.deposit.findMany({
-            where: { userId },
-            include: {
-              bankAccount: {
-                select: {
-                  bankName: true,
-                  accountNumber: true
-                }
-              }
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 50 // Limit to last 50 deposits
-          }),
-          
-          // Fetch withdrawals
-          prisma.withdrawal.findMany({
-            where: { userId },
-            include: {
-              bankAccount: {
-                select: {
-                  bankName: true,
-                  accountNumber: true,
-                  ifscCode: true
-                }
-              }
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 50 // Limit to last 50 withdrawals
-          }),
-          
-          // Fetch transactions (by relation to user's trading account)
-          prisma.transaction.findMany({
-            where: { tradingAccount: { userId } },
-            orderBy: { createdAt: 'desc' },
-            take: 100 // Limit to last 100 transactions
-          }),
-          
-          // Fetch positions (by relation to user's trading account)
-          prisma.position.findMany({
-            where: { 
-              tradingAccount: { userId },
-              quantity: { not: 0 }
-            },
-            include: {
-              Stock: true
-            },
-            orderBy: { createdAt: 'desc' }
-          }),
-          
-          // Fetch orders (by relation to user's trading account)
-          prisma.order.findMany({
-            where: { tradingAccount: { userId } },
-            include: {
-              Stock: true
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 50 // Limit to last 50 orders
-          }),
-          
-          // Fetch user profile
-          prisma.userProfile.findUnique({
-            where: { userId }
-          })
-        ])
+      // Fetch user first (authoritative gate)
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { kyc: true }
+      })
+
+      if (!user) {
+        console.error('❌ [CONSOLE-SERVICE] User not found:', userId)
+        return null
+      }
+
+      // Fetch other data with resilience; partial failures won't break response
+      const [
+        tradingAccountRes,
+        bankAccountsRes,
+        depositsRes,
+        withdrawalsRes,
+        transactionsRes,
+        positionsRes,
+        ordersRes,
+        userProfileRes
+      ] = await Promise.allSettled([
+        prisma.tradingAccount.findUnique({ where: { userId } }),
+        prisma.bankAccount.findMany({
+          where: { userId, isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
+        }),
+        prisma.deposit.findMany({
+          where: { userId },
+          include: { bankAccount: { select: { bankName: true, accountNumber: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 50
+        }),
+        prisma.withdrawal.findMany({
+          where: { userId },
+          include: { bankAccount: { select: { bankName: true, accountNumber: true, ifscCode: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 50
+        }),
+        prisma.transaction.findMany({
+          where: { tradingAccount: { userId } },
+          orderBy: { createdAt: 'desc' },
+          take: 100
+        }),
+        prisma.position.findMany({
+          where: { tradingAccount: { userId }, quantity: { not: 0 } },
+          include: { Stock: true },
+          orderBy: { createdAt: 'desc' }
+        }),
+        prisma.order.findMany({
+          where: { tradingAccount: { userId } },
+          include: { Stock: true },
+          orderBy: { createdAt: 'desc' },
+          take: 50
+        }),
+        prisma.userProfile.findUnique({ where: { userId } })
+      ])
+
+      // Extract values with safe defaults and log failures
+      const extract = <T,>(res: PromiseSettledResult<T>, fallback: T, label: string): T => {
+        if (res.status === 'fulfilled') return res.value as T
+        console.error(`⚠️ [CONSOLE-SERVICE] '${label}' query failed:`, res.reason)
+        return fallback
+      }
+
+      const tradingAccount = extract(tradingAccountRes, null as any, 'tradingAccount') as any
+      const bankAccounts = extract(bankAccountsRes, [] as any[], 'bankAccounts')
+      const deposits = extract(depositsRes, [] as any[], 'deposits')
+      const withdrawals = extract(withdrawalsRes, [] as any[], 'withdrawals')
+      const transactions = extract(transactionsRes, [] as any[], 'transactions')
+      const positions = extract(positionsRes, [] as any[], 'positions')
+      const orders = extract(ordersRes, [] as any[], 'orders')
+      const userProfile = extract(userProfileRes, null as any, 'userProfile') as any
 
       console.log('✅ [CONSOLE-SERVICE] Data fetched successfully', {
         userFound: !!user,
@@ -241,11 +224,6 @@ export class ConsoleService {
         ordersCount: orders.length,
         profileFound: !!userProfile
       })
-
-      if (!user) {
-        console.error('❌ [CONSOLE-SERVICE] User not found:', userId)
-        return null
-      }
 
       // Calculate summary statistics
       const totalDeposits = deposits

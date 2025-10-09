@@ -24,9 +24,23 @@ export function useConsoleData(userId?: string) {
         headers: {
           'Content-Type': 'application/json',
         },
+        cache: 'no-store'
       })
 
       if (!response.ok) {
+        console.warn('⚠️ [USE-CONSOLE-DATA] Non-OK response for console data', { status: response.status })
+        // Attempt to read body for structured error or fallback
+        try {
+          const maybeJson = await response.json()
+          if (maybeJson && (maybeJson.user || maybeJson._fallback)) {
+            console.log('🛟 [USE-CONSOLE-DATA] Using fallback/partial console payload')
+            setConsoleData(maybeJson)
+            fetchPaymentSettings()
+            return
+          }
+        } catch {
+          // ignore parsing failure
+        }
         throw new Error(`Failed to fetch console data: ${response.statusText}`)
       }
 
