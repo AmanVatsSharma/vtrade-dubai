@@ -46,25 +46,37 @@ export function SidebarMenu({ activeSection = "account", onSectionChange }: Side
   console.log('📱 [SIDEBAR-MENU] Rendering with activeSection:', activeSection)
 
   const handleLogout = async () => {
-    console.log('🚪 [SIDEBAR-MENU] User logging out')
-    await signOut({ callbackUrl: '/' })
+    try {
+      console.log('🚪 [SIDEBAR-MENU] User logging out')
+      await signOut({ callbackUrl: '/' })
+    } catch (error) {
+      console.error('❌ [SIDEBAR-MENU] Logout error:', error)
+    }
   }
 
   const handleSectionChange = (sectionId: string) => {
-    console.log('📍 [SIDEBAR-MENU] Section changing to:', sectionId)
-    onSectionChange?.(sectionId)
+    try {
+      console.log('📍 [SIDEBAR-MENU] Section changing to:', sectionId)
+      onSectionChange?.(sectionId)
+    } catch (error) {
+      console.error('❌ [SIDEBAR-MENU] Section change error:', error)
+    }
   }
 
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Logo/Brand */}
-      <div className="p-4 sm:p-6 border-b border-border">
+      <div className="p-5 sm:p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+          <motion.div 
+            className="w-10 h-10 sm:w-11 sm:h-11 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg"
+            whileHover={{ scale: 1.05, rotate: 5 }}
+            transition={{ duration: 0.2 }}
+          >
             <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
-          </div>
+          </motion.div>
           <div className="min-w-0 flex-1">
-            <h1 className="font-semibold text-foreground text-sm sm:text-base truncate">
+            <h1 className="font-bold text-foreground text-base sm:text-lg truncate">
               Trading Console
             </h1>
             <p className="text-xs text-muted-foreground truncate">
@@ -75,8 +87,8 @@ export function SidebarMenu({ activeSection = "account", onSectionChange }: Side
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-3 sm:p-4 overflow-y-auto">
-        <div className="space-y-1.5 sm:space-y-2">
+      <nav className="flex-1 p-3 sm:p-4 overflow-y-auto overscroll-contain">
+        <div className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = activeSection === item.id
@@ -84,38 +96,48 @@ export function SidebarMenu({ activeSection = "account", onSectionChange }: Side
             return (
               <motion.div 
                 key={item.id} 
-                whileHover={{ x: 4 }} 
+                whileHover={{ x: 2 }} 
                 whileTap={{ scale: 0.98 }}
                 transition={{ duration: 0.15 }}
               >
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3 h-12 sm:h-11 text-left font-medium transition-all",
-                    "touch-manipulation", // Better touch response on mobile
+                    "w-full justify-start gap-3 h-auto py-3 px-4 text-left font-medium transition-all relative overflow-hidden group",
+                    "touch-manipulation",
                     isActive
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "text-foreground hover:bg-accent hover:text-accent-foreground",
+                      ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
+                      : "text-foreground hover:bg-accent/80 hover:text-accent-foreground",
                   )}
                   onClick={() => handleSectionChange(item.id)}
                   onMouseEnter={() => setHoveredItem(item.id)}
                   onMouseLeave={() => setHoveredItem(null)}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <div className="flex flex-col items-start min-w-0 flex-1">
-                    <span className="text-sm sm:text-base truncate w-full">{item.label}</span>
-                    <span className="text-xs text-muted-foreground truncate w-full hidden sm:block">
+                  <Icon className={cn(
+                    "w-5 h-5 flex-shrink-0 transition-transform",
+                    isActive && "scale-110"
+                  )} />
+                  <div className="flex flex-col items-start min-w-0 flex-1 gap-0.5">
+                    <span className={cn(
+                      "text-sm font-semibold truncate w-full",
+                      isActive && "text-primary-foreground"
+                    )}>
+                      {item.label}
+                    </span>
+                    <span className={cn(
+                      "text-xs truncate w-full",
+                      isActive ? "text-primary-foreground/80" : "text-muted-foreground"
+                    )}>
                       {item.description}
                     </span>
                   </div>
-                  {hoveredItem === item.id && !isActive && (
+                  
+                  {/* Active indicator */}
+                  {isActive && (
                     <motion.div
-                      layoutId="sidebar-hover"
-                      className="absolute inset-0 bg-accent/50 rounded-md -z-10"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15 }}
+                      layoutId="sidebar-active"
+                      className="absolute left-0 top-0 bottom-0 w-1 bg-primary-foreground rounded-r-full"
+                      transition={{ duration: 0.2 }}
                     />
                   )}
                 </Button>
@@ -126,15 +148,20 @@ export function SidebarMenu({ activeSection = "account", onSectionChange }: Side
       </nav>
 
       {/* Logout Button */}
-      <div className="p-3 sm:p-4 border-t border-border">
-        <Button
-          variant="ghost"
-          onClick={handleLogout}
-          className="w-full justify-start gap-3 h-12 sm:h-11 text-destructive hover:bg-destructive/10 hover:text-destructive transition-all touch-manipulation"
+      <div className="p-3 sm:p-4 border-t border-border bg-gradient-to-br from-destructive/5 to-transparent">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          <span className="text-sm sm:text-base">Logout</span>
-        </Button>
+          <Button
+            variant="ghost"
+            onClick={handleLogout}
+            className="w-full justify-start gap-3 h-auto py-3 px-4 text-destructive hover:bg-destructive/10 hover:text-destructive transition-all touch-manipulation font-medium"
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            <span className="text-sm font-semibold">Logout</span>
+          </Button>
+        </motion.div>
       </div>
     </div>
   )
