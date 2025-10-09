@@ -61,7 +61,7 @@ export interface WithdrawalData {
   charges: number
   processedAt?: string
   createdAt: string
-  bankAccount: {
+  bankAccount?: {
     bankName: string
     accountNumber: string
     ifscCode: string
@@ -195,34 +195,34 @@ export class ConsoleService {
             take: 50 // Limit to last 50 withdrawals
           }),
           
-          // Fetch transactions
-          tradingAccount ? prisma.transaction.findMany({
-            where: { tradingAccountId: tradingAccount.id },
+          // Fetch transactions (by relation to user's trading account)
+          prisma.transaction.findMany({
+            where: { tradingAccount: { userId } },
             orderBy: { createdAt: 'desc' },
             take: 100 // Limit to last 100 transactions
-          }) : Promise.resolve([]),
+          }),
           
-          // Fetch positions
-          tradingAccount ? prisma.position.findMany({
+          // Fetch positions (by relation to user's trading account)
+          prisma.position.findMany({
             where: { 
-              tradingAccountId: tradingAccount.id,
+              tradingAccount: { userId },
               quantity: { not: 0 }
             },
             include: {
               Stock: true
             },
             orderBy: { createdAt: 'desc' }
-          }) : Promise.resolve([]),
+          }),
           
-          // Fetch orders
-          tradingAccount ? prisma.order.findMany({
-            where: { tradingAccountId: tradingAccount.id },
+          // Fetch orders (by relation to user's trading account)
+          prisma.order.findMany({
+            where: { tradingAccount: { userId } },
             include: {
               Stock: true
             },
             orderBy: { createdAt: 'desc' },
             take: 50 // Limit to last 50 orders
-          }) : Promise.resolve([]),
+          }),
           
           // Fetch user profile
           prisma.userProfile.findUnique({
@@ -330,11 +330,11 @@ export class ConsoleService {
           charges: Number(w.charges),
           processedAt: w.processedAt?.toISOString(),
           createdAt: w.createdAt.toISOString(),
-          bankAccount: {
+          bankAccount: w.bankAccount ? {
             bankName: w.bankAccount.bankName,
             accountNumber: w.bankAccount.accountNumber,
             ifscCode: w.bankAccount.ifscCode
-          }
+          } : undefined
         })),
         transactions: transactions.map(t => ({
           id: t.id,

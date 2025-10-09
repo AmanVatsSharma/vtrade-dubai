@@ -43,7 +43,7 @@ export interface Withdrawal {
   charges: number
   processedAt?: string
   createdAt: string
-  bankAccount: {
+  bankAccount?: {
     bankName: string
     accountNumber: string
     ifscCode: string
