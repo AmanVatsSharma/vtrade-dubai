@@ -57,7 +57,7 @@ export default function AdminKYCPage() {
       router.push('/auth/login');
     } else if (status === 'authenticated' && session?.user) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== 'ADMIN' && userRole !== 'MODERATOR') {
+      if (userRole !== 'ADMIN' && userRole !== 'MODERATOR' && userRole !== 'SUPER_ADMIN') {
         router.push('/dashboard');
       }
     }

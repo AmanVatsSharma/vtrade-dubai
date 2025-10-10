@@ -23,6 +23,7 @@ const menuItems = [
   { id: "cleanup", label: "Cleanup", icon: Eraser },
   { id: "settings", label: "Settings", icon: Settings },
   { id: "logs", label: "Logs & Terminal", icon: Terminal },
+  // Super Admin items will be conditionally appended in component based on role
 ]
 
 export function Sidebar({
@@ -33,6 +34,19 @@ export function Sidebar({
   mobileMenuOpen,
   setMobileMenuOpen,
 }: SidebarProps) {
+  // Read role from localStorage/session via window (client-only sidebar)
+  let role: string | null = null
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem('session_user_role')
+      role = raw || null
+    } catch {}
+  }
+
+  const computedMenu = [...menuItems]
+  if (role === 'SUPER_ADMIN') {
+    computedMenu.splice(3, 0, { id: 'financial-overview', label: 'Financial Overview', icon: Wallet })
+  }
   return (
     <>
       {mobileMenuOpen && (
@@ -75,7 +89,7 @@ export function Sidebar({
 
         {/* Navigation */}
         <nav className="p-2 space-y-1">
-          {menuItems.map((item) => {
+          {computedMenu.map((item) => {
             const Icon = item.icon
             const isActive = activeTab === item.id
 

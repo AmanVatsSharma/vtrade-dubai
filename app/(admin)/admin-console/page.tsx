@@ -17,6 +17,8 @@ import { OrdersManagement } from "@/components/admin-console/orders-management"
 import { Sidebar } from "@/components/admin-console/sidebar"
 import { Header } from "@/components/admin-console/header"
 import { Settings } from "@/components/admin-console/settings"
+import { useEffect } from "react"
+import { FinancialOverview } from "@/components/admin-console/financial-overview"
 import { useRouter, useSearchParams } from "next/navigation"
 
 function AdminConsoleInner() {
@@ -26,6 +28,21 @@ function AdminConsoleInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [qrScannerOpen, setQrScannerOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
+  useEffect(() => {
+    // Initialize role from localStorage and subscribe to changes
+    try {
+      const r = window.localStorage.getItem('session_user_role')
+      if (r) setRole(r)
+    } catch {}
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'session_user_role') {
+        setRole(e.newValue)
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   const handleQRScanComplete = (data: { clientId: string; amount: number; utr: string }) => {
     toast({
@@ -44,6 +61,8 @@ function AdminConsoleInner() {
         return <UserManagement />
       case "funds":
         return <FundManagement />
+      case "financial-overview":
+        return role === 'SUPER_ADMIN' ? <FinancialOverview /> : <Dashboard />
       case "advanced":
         return <TradeManagement />
       case "positions":

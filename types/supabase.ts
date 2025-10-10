@@ -14,7 +14,7 @@ export interface Database {
           id: string
           email: string | null
           name: string | null
-          role: 'USER' | 'ADMIN' | 'MODERATOR'
+          role: 'USER' | 'ADMIN' | 'MODERATOR' | 'SUPER_ADMIN'
           emailVerified: Date | null
           password: string | null
           image: string | null
@@ -29,7 +29,7 @@ export interface Database {
           id?: string
           email?: string | null
           name?: string | null
-          role?: 'USER' | 'ADMIN' | 'MODERATOR'
+          role?: 'USER' | 'ADMIN' | 'MODERATOR' | 'SUPER_ADMIN'
           emailVerified?: Date | null
           password?: string | null
           image?: string | null
@@ -44,7 +44,7 @@ export interface Database {
           id?: string
           email?: string | null
           name?: string | null
-          role?: 'USER' | 'ADMIN' | 'MODERATOR'
+          role?: 'USER' | 'ADMIN' | 'MODERATOR' | 'SUPER_ADMIN'
           emailVerified?: Date | null
           password?: string | null
           image?: string | null

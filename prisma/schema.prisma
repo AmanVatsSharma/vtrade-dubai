@@ -33,6 +33,7 @@ enum Role {
   USER
   ADMIN
   MODERATOR
+  SUPER_ADMIN
 }
 
 enum KycStatus {

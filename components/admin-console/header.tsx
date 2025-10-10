@@ -52,6 +52,9 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
       if (data.success && data.user) {
         console.log("✅ [HEADER] Admin user loaded:", data.user.email)
         setAdminUser(data.user)
+        try {
+          window.localStorage.setItem('session_user_role', data.user.role)
+        } catch {}
       } else {
         console.error("❌ [HEADER] Failed to load admin user")
       }
@@ -70,6 +73,15 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
   useEffect(() => {
     fetchAdminUser()
   }, [])
+
+  // Persist role in localStorage for client components like Sidebar
+  useEffect(() => {
+    if (adminUser?.role) {
+      try {
+        window.localStorage.setItem('session_user_role', adminUser.role)
+      } catch {}
+    }
+  }, [adminUser])
 
   return (
     <motion.header
@@ -141,7 +153,13 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
                 {loading ? 'Loading...' : adminUser?.name || adminUser?.email || 'Admin User'}
               </p>
               <p className="text-xs text-muted-foreground">
-                {loading ? '...' : adminUser?.role === 'ADMIN' ? 'Super Admin' : 'Moderator'}
+                {loading
+                  ? '...'
+                  : adminUser?.role === 'SUPER_ADMIN'
+                    ? 'Super Admin'
+                    : adminUser?.role === 'ADMIN'
+                      ? 'Admin'
+                      : 'Moderator'}
               </p>
             </div>
           </div>

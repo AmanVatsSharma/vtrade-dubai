@@ -157,13 +157,27 @@ export default auth((req) => {
       return NextResponse.redirect(new URL('/auth/login', nextUrl));
     }
     
-    if (userRole !== 'ADMIN' && userRole !== 'MODERATOR') {
+    if (userRole !== 'ADMIN' && userRole !== 'MODERATOR' && userRole !== 'SUPER_ADMIN') {
       console.log(`[MIDDLEWARE] ❌ Insufficient permissions (role: ${userRole}) - redirecting to dashboard`);
       return NextResponse.redirect(new URL('/dashboard', nextUrl));
     }
     
     console.log(`[MIDDLEWARE] ✅ Admin access granted`);
     return NextResponse.next();
+  }
+
+  // 2.6 Super Admin API access control for /api/super-admin/**
+  if (nextUrl.pathname.startsWith('/api/super-admin')) {
+    console.log(`[MIDDLEWARE] 🛡️ Super Admin API route detected`)
+    if (!isLoggedIn) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (userRole !== 'SUPER_ADMIN') {
+      console.log(`[MIDDLEWARE] ❌ Super Admin required (role: ${userRole})`)
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    console.log(`[MIDDLEWARE] ✅ Super Admin access granted`)
+    return NextResponse.next()
   }
 
   // 3. If the user is fully authenticated and tries to access auth routes,
