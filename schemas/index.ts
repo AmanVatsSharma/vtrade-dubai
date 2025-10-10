@@ -66,6 +66,9 @@ export const signUpSchema = object({
     name: string({required_error: "Name is required"})
         .min(3, "Name is required")
         .max(64, "Name must be less than 64 characters"),
+}).extend({
+    // Optional referral code captured from signup URL
+    ref: string().optional(),
 })
 
 export const NewPasswordSchema = object({

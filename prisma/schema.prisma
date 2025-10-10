@@ -209,7 +209,19 @@ model User {
   withdrawals  Withdrawal[]
   userProfile  UserProfile?
 
+  // Relationship Manager (RM) self-relation
+  managedById   String?
+  managedBy     User?                @relation("UserRM", fields: [managedById], references: [id], onDelete: SetNull)
+  managedUsers  User[]               @relation("UserRM")
+
+  // Referrals created by this user (typically admins)
+  referralLinks ReferralLink[]
+
+  // Owned scoped settings (per-admin/RM)
+  ownedSettings SystemSettings[] @relation("UserOwnedSettings")
+
   @@map("users")
+  @@index([managedById])
 }
 
 model KYC {
@@ -597,18 +609,38 @@ model UserProfile {
 // System Settings - Platform-wide configuration
 model SystemSettings {
   id          String   @id @default(uuid())
-  key         String   @unique // e.g., "payment_qr_code", "payment_upi_id", "platform_logo"
-  value       String // URL or text value
-  description String? // Description of the setting
+  ownerId     String?
+  owner       User?    @relation("UserOwnedSettings", fields: [ownerId], references: [id], onDelete: SetNull)
+  key         String   // e.g., "payment_qr_code", "payment_upi_id", "platform_logo"
+  value       String   // URL or text value
+  description String?  // Description of the setting
   category    String   @default("GENERAL") // PAYMENT, BRANDING, NOTIFICATION, etc.
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([ownerId, key])
   @@index([key])
   @@index([category])
   @@map("system_settings")
 }
+// Referral links for RM-led onboarding
+model ReferralLink {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  createdById  String
+  createdBy    User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt    DateTime?
+  maxUses      Int?
+  usedCount    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdById])
+  @@map("referral_links")
+}
+
 
 // Additional enums for console functionality
 enum DepositStatus {

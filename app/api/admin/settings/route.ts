@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     console.log("📋 [API-ADMIN-SETTINGS] Query params:", { key, category })
 
-    // Build query
+    // Build query (global settings only for now; per-RM scoping will use ownerId in prod DB)
     const where: any = { isActive: true }
     if (key) where.key = key
     if (category) where.category = category
@@ -78,7 +78,8 @@ export async function POST(req: NextRequest) {
   try {
     // Authenticate admin
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
       console.error("❌ [API-ADMIN-SETTINGS] Unauthorized access attempt")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Upsert setting
+    // Upsert setting (global for now). In prod DB with ownerId, scope by ownerId=session.user.id for ADMIN
     const setting = await prisma.systemSettings.upsert({
       where: { key },
       update: {

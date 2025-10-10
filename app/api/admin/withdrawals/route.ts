@@ -7,14 +7,19 @@ export async function GET(req: Request) {
   
   try {
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     console.log("📋 [API-ADMIN-WITHDRAWALS] Fetching pending withdrawals")
 
     const adminFundService = createAdminFundService()
-    const withdrawals = await adminFundService.getPendingWithdrawals()
+    // Scope by RM for admins and moderators; super admin sees all
+    const managedByIdFilter = role === 'SUPER_ADMIN' ? undefined
+      : role === 'ADMIN' ? session.user.id!
+      : (session.user as any).managedById || undefined
+    const withdrawals = await adminFundService.getPendingWithdrawals(managedByIdFilter)
 
     console.log(`✅ [API-ADMIN-WITHDRAWALS] Found ${withdrawals.length} pending withdrawals`)
 
@@ -34,7 +39,8 @@ export async function POST(req: Request) {
   
   try {
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -64,7 +70,8 @@ export async function POST(req: Request) {
         withdrawalId,
         transactionId,
         adminId: session.user.id!,
-        adminName: session.user.name || 'Admin'
+        adminName: session.user.name || 'Admin',
+        actorRole: role as any,
       })
 
       console.log("✅ [API-ADMIN-WITHDRAWALS] Withdrawal approved:", withdrawalId)

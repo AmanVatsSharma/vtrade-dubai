@@ -294,12 +294,14 @@ export class AdminFundService {
   /**
    * Get all pending deposit requests
    */
-  async getPendingDeposits() {
-    console.log("📋 [ADMIN-FUND-SERVICE] Fetching pending deposits")
+  async getPendingDeposits(managedByIdFilter?: string) {
+    console.log("📋 [ADMIN-FUND-SERVICE] Fetching pending deposits", { managedByIdFilter })
 
     const deposits = await prisma.deposit.findMany({
       where: {
-        status: { in: [DepositStatus.PENDING, DepositStatus.PROCESSING] }
+        status: { in: [DepositStatus.PENDING, DepositStatus.PROCESSING] },
+        // managedById is planned in production DB; condition included here for future compatibility
+        ...(managedByIdFilter ? { user: { /* @ts-ignore - field present in prod */ managedById: managedByIdFilter } } : {})
       },
       include: {
         user: {
@@ -307,7 +309,9 @@ export class AdminFundService {
             id: true,
             name: true,
             email: true,
-            clientId: true
+            clientId: true,
+            // @ts-ignore - field present in prod
+            managedById: true,
           }
         },
         tradingAccount: {
@@ -328,12 +332,14 @@ export class AdminFundService {
   /**
    * Get all pending withdrawal requests
    */
-  async getPendingWithdrawals() {
-    console.log("📋 [ADMIN-FUND-SERVICE] Fetching pending withdrawals")
+  async getPendingWithdrawals(managedByIdFilter?: string) {
+    console.log("📋 [ADMIN-FUND-SERVICE] Fetching pending withdrawals", { managedByIdFilter })
 
     const withdrawals = await prisma.withdrawal.findMany({
       where: {
-        status: { in: [WithdrawalStatus.PENDING, WithdrawalStatus.PROCESSING] }
+        status: { in: [WithdrawalStatus.PENDING, WithdrawalStatus.PROCESSING] },
+        // managedById is planned in production DB; condition included here for future compatibility
+        ...(managedByIdFilter ? { user: { /* @ts-ignore - field present in prod */ managedById: managedByIdFilter } } : {})
       },
       include: {
         user: {
@@ -341,7 +347,9 @@ export class AdminFundService {
             id: true,
             name: true,
             email: true,
-            clientId: true
+            clientId: true,
+            // @ts-ignore - field present in prod
+            managedById: true,
           }
         },
         tradingAccount: {
@@ -363,7 +371,7 @@ export class AdminFundService {
   /**
    * Approve deposit request
    */
-  async approveDeposit(input: ApproveDepositInput) {
+  async approveDeposit(input: ApproveDepositInput & { actorRole?: 'ADMIN' | 'SUPER_ADMIN' | 'MODERATOR' }) {
     console.log("✅ [ADMIN-FUND-SERVICE] Approving deposit:", input.depositId)
 
     await this.logger.logFunds(
@@ -390,6 +398,17 @@ export class AdminFundService {
 
         if (deposit.status !== DepositStatus.PENDING) {
           throw new Error(`Cannot approve ${deposit.status} deposit`)
+        }
+
+        // Authorization: moderators cannot approve; admins can only approve their managed users
+        if (input.actorRole === 'MODERATOR') {
+          throw new Error('Not authorized to approve deposits')
+        }
+        if (input.actorRole !== 'SUPER_ADMIN') {
+          // @ts-ignore - field present in prod
+          if (deposit.user.managedById && deposit.user.managedById !== input.adminId) {
+            throw new Error('Cannot approve deposit outside your managed users')
+          }
         }
 
         // Remember proof key for cleanup after commit
@@ -500,7 +519,7 @@ export class AdminFundService {
   /**
    * Approve withdrawal request
    */
-  async approveWithdrawal(input: ApproveWithdrawalInput) {
+  async approveWithdrawal(input: ApproveWithdrawalInput & { actorRole?: 'ADMIN' | 'SUPER_ADMIN' | 'MODERATOR' }) {
     console.log("✅ [ADMIN-FUND-SERVICE] Approving withdrawal:", input.withdrawalId)
 
     await this.logger.logFunds(
@@ -520,6 +539,16 @@ export class AdminFundService {
             bankAccount: true
           }
         })
+        // Authorization: moderators cannot approve; admins can only approve their managed users
+        if (input.actorRole === 'MODERATOR') {
+          throw new Error('Not authorized to approve withdrawals')
+        }
+        if (input.actorRole !== 'SUPER_ADMIN') {
+          // @ts-ignore - field present in prod
+          if (withdrawal.user.managedById && withdrawal.user.managedById !== input.adminId) {
+            throw new Error('Cannot approve withdrawal outside your managed users')
+          }
+        }
 
         if (!withdrawal) {
           throw new Error("Withdrawal not found")

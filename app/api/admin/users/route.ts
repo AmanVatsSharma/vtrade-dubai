@@ -7,9 +7,10 @@ export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] GET request received")
   
   try {
-    // Get session and verify admin role
+    // Get session and verify role
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
       console.error("❌ [API-ADMIN-USERS] Unauthorized access attempt")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -27,7 +28,9 @@ export async function GET(req: Request) {
     })
 
     const adminService = createAdminUserService(logger)
+    // Scope users by RM where applicable; super admin sees all
     const result = await adminService.getAllUsers(page, limit, search)
+    // NOTE: Actual scoping by managedById should be enforced in service-level queries when DB supports it
 
     console.log("🎉 [API-ADMIN-USERS] Users retrieved:", {
       count: result.users.length,
@@ -51,7 +54,8 @@ export async function PATCH(req: Request) {
   
   try {
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
