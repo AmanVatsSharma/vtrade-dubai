@@ -145,8 +145,9 @@ export async function DELETE(req: NextRequest) {
   try {
     // Authenticate admin
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
-      console.error("❌ [API-ADMIN-SETTINGS] Unauthorized access attempt")
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error("❌ [API-ADMIN-SETTINGS] Unauthorized access attempt (DELETE):", role)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

@@ -21,12 +21,13 @@ export async function POST(req: NextRequest) {
   try {
     // Authenticate admin
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
-      console.error("❌ [API-ADMIN-UPLOAD] Unauthorized access attempt")
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error("❌ [API-ADMIN-UPLOAD] Unauthorized role attempting POST:", role)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    console.log("✅ [API-ADMIN-UPLOAD] Admin authenticated:", session.user.email)
+    console.log("✅ [API-ADMIN-UPLOAD] Admin/SuperAdmin authenticated:", session.user.email)
 
     // Get form data
     const formData = await req.formData()

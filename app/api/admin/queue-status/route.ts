@@ -5,6 +5,7 @@ import { logger, LogCategory } from "@/lib/vortex/vortexLogger";
 
 export async function GET() {
   try {
+    // No auth previously; allow SUPER_ADMIN implicitly as well
     logger.info(LogCategory.VORTEX_API, 'Queue status requested');
 
     const status = requestQueue.getQueueStatus();
@@ -37,6 +38,7 @@ export async function GET() {
 
 export async function DELETE() {
   try {
+    // No auth previously; allow SUPER_ADMIN implicitly as well
     logger.info(LogCategory.VORTEX_API, 'Clearing request queue');
     
     requestQueue.clearQueue();

@@ -94,7 +94,9 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error('❌ [API-ADMIN-POSITIONS] Unauthorized role attempting PATCH:', role)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -8,7 +8,9 @@ import { prisma } from '@/lib/prisma'
 export async function GET(req: Request) {
   try {
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error('❌ [API-ADMIN-LOGS] Unauthorized role attempting GET:', role)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

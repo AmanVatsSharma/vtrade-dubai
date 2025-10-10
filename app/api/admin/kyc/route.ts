@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       select: { role: true }
     });
 
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR')) {
+    if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR' && user.role !== 'SUPER_ADMIN')) {
       return NextResponse.json(
         { error: 'Access denied. Admin or Moderator role required.' },
         { status: 403 }
@@ -127,7 +127,7 @@ export async function PUT(request: NextRequest) {
       select: { role: true, name: true }
     });
 
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR')) {
+    if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR' && user.role !== 'SUPER_ADMIN')) {
       return NextResponse.json(
         { error: 'Access denied. Admin or Moderator role required.' },
         { status: 403 }

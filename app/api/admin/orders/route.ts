@@ -6,9 +6,12 @@ import { prisma } from '@/lib/prisma'
 export async function GET(req: Request) {
   try {
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error('❌ [API-ADMIN-ORDERS] Unauthorized role attempting GET:', role)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.log('✅ [API-ADMIN-ORDERS] Admin/SuperAdmin authenticated:', session.user.email)
 
     const { searchParams } = new URL(req.url)
     const page = Math.max(parseInt(searchParams.get('page') || '1'), 1)
@@ -94,7 +97,9 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const session = await auth()
-    if (!session?.user || (session.user as any).role !== 'ADMIN') {
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error('❌ [API-ADMIN-ORDERS] Unauthorized role attempting PATCH:', role)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
