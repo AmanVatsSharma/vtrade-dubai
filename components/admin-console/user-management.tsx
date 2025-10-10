@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +52,8 @@ const mockUsers = [
 ]
 
 export function UserManagement() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -427,6 +430,31 @@ export function UserManagement() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              // Open Advanced trades tab filtered by this user via URL
+                              const qp = new URLSearchParams({ user: user.clientId || user.id })
+                              router.push(`/admin-console?tab=advanced&${qp.toString()}`)
+                            }}
+                            title="View Trades"
+                          >
+                            <Activity className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              const qp = new URLSearchParams({ user: user.clientId || user.id, openOnly: 'true' })
+                              router.push(`/admin-console?tab=positions&${qp.toString()}`)
+                            }}
+                            title="View Positions"
+                          >
+                            <Shield className="w-4 h-4" />
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -441,6 +469,18 @@ export function UserManagement() {
                             title="Edit User"
                           >
                             <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              const qp = new URLSearchParams({ user: user.clientId || user.id })
+                              router.push(`/admin-console?tab=orders&${qp.toString()}`)
+                            }}
+                            title="View Orders"
+                          >
+                            <Download className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 

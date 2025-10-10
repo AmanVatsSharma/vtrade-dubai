@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings } from "lucide-react"
+import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface SidebarProps {
@@ -17,6 +17,10 @@ const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "users", label: "User Management", icon: Users },
   { id: "funds", label: "Fund Management", icon: Wallet },
+  { id: "advanced", label: "Advanced (Trades)", icon: BarChart3 },
+  { id: "positions", label: "Positions", icon: Boxes },
+  { id: "orders", label: "Orders", icon: ListOrdered },
+  { id: "cleanup", label: "Cleanup", icon: Eraser },
   { id: "settings", label: "Settings", icon: Settings },
   { id: "logs", label: "Logs & Terminal", icon: Terminal },
 ]

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { QrCode } from "lucide-react"
@@ -9,12 +9,19 @@ import { UserManagement } from "@/components/admin-console/user-management"
 import { Dashboard } from "@/components/admin-console/dashboard"
 import { FundManagement } from "@/components/admin-console/fund-management"
 import { LogsTerminal } from "@/components/admin-console/logs-terminal"
+import { TradeManagement } from "@/components/admin-console/trade-management"
 import { QRScanner } from "@/components/admin-console/qr-scanner"
+import { CleanupManagement } from "@/components/admin-console/cleanup-management"
+import { PositionsManagement } from "@/components/admin-console/positions-management"
+import { OrdersManagement } from "@/components/admin-console/orders-management"
 import { Sidebar } from "@/components/admin-console/sidebar"
 import { Header } from "@/components/admin-console/header"
 import { Settings } from "@/components/admin-console/settings"
+import { useRouter, useSearchParams } from "next/navigation"
 
-export default function AdminConsole() {
+function AdminConsoleInner() {
+  const router = useRouter()
+  const sp = useSearchParams()
   const [activeTab, setActiveTab] = useState("dashboard")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [qrScannerOpen, setQrScannerOpen] = useState(false)
@@ -37,6 +44,14 @@ export default function AdminConsole() {
         return <UserManagement />
       case "funds":
         return <FundManagement />
+      case "advanced":
+        return <TradeManagement />
+      case "positions":
+        return <PositionsManagement />
+      case "orders":
+        return <OrdersManagement />
+      case "cleanup":
+        return <CleanupManagement />
       case "settings":
         return <Settings />
       case "logs":
@@ -45,6 +60,22 @@ export default function AdminConsole() {
         return <Dashboard />
     }
   }
+
+  // Sync active tab with URL (?tab=...)
+  useEffect(() => {
+    const urlTab = sp.get("tab")
+    if (urlTab && urlTab !== activeTab) {
+      setActiveTab(urlTab)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp])
+
+  useEffect(() => {
+    const current = new URLSearchParams(sp.toString())
+    current.set("tab", activeTab)
+    router.replace(`/admin-console?${current.toString()}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -87,5 +118,13 @@ export default function AdminConsole() {
         <QrCode className="w-6 h-6" />
       </Button>
     </div>
+  )
+}
+
+export default function AdminConsole() {
+  return (
+    <Suspense fallback={null}>
+      <AdminConsoleInner />
+    </Suspense>
   )
 }
