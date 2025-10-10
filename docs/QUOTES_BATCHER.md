@@ -33,8 +33,13 @@ Fan-out results back to each request -----------------------------> resolve per 
 ```
 
 ## Integration
-- `app/api/quotes/route.ts` now uses `requestQuotesBatched()` instead of calling Vortex directly.
-- No change to response shape; errors map to existing API codes.
+- `app/api/quotes/route.ts` uses `requestQuotesBatched()` instead of calling Vortex directly.
+- Response shape:
+  - Success:
+    - `{ success: true, data: { [instrumentId]: Quote }, meta: { instrumentCount, mode, processingTime, timestamp } }`
+  - Error:
+    - `{ error, code, timestamp }` with appropriate HTTP status
+  - Note: Upstream responses are normalized in `vortex-enhanced.getQuotes()` so `data` is always a flat mapping.
 
 ## Diagnostics & Control
 - Admin endpoint: `GET /api/admin/quotes-batcher-status`

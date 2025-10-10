@@ -355,7 +355,10 @@ export class VortexAPI {
   }
 
   // Get quotes for instruments
-  public async getQuotes(instruments: string[], mode: string = 'ltp'): Promise<Record<string, VortexQuote>> {
+  public async getQuotes(
+    instruments: string[],
+    mode: string = 'ltp'
+  ): Promise<Record<string, VortexQuote>> {
     try {
       logger.info(LogCategory.VORTEX_QUOTES, 'Fetching quotes', {
         instruments: instruments.length,
@@ -367,13 +370,27 @@ export class VortexAPI {
       const endpoint = `/data/quotes?${queryString}&mode=${mode}`;
 
       // High priority for quotes requests
-      const data = await this.makeRequest<Record<string, VortexQuote>>('GET', endpoint, undefined, undefined, 10);
+      const rawResponse = await this.makeRequest<any>('GET', endpoint, undefined, undefined, 10);
 
+      // Normalize upstream response shape to a plain mapping
+      // Vortex may return { status, data: { [instrumentId]: quote }, meta }
+      // We always return just the mapping: { [instrumentId]: VortexQuote }
+      let mapping: Record<string, VortexQuote> = {};
+      if (rawResponse && typeof rawResponse === 'object') {
+        const candidate = (rawResponse as any).data ?? rawResponse;
+        // Some proxies may nest again under .data
+        const maybeNested = (candidate as any)?.data ?? candidate;
+        if (maybeNested && typeof maybeNested === 'object') {
+          mapping = maybeNested as Record<string, VortexQuote>;
+        }
+      }
+
+      const instrumentCount = mapping ? Object.keys(mapping).length : 0;
       logger.info(LogCategory.VORTEX_QUOTES, 'Quotes fetched successfully', {
-        instrumentCount: Object.keys(data).length
+        instrumentCount
       });
 
-      return data;
+      return mapping;
     } catch (error) {
       logger.error(LogCategory.VORTEX_QUOTES, 'Failed to fetch quotes', error as Error, {
         instruments,

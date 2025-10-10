@@ -1,3 +1,37 @@
+## Quotes Request Flow (HTTP)
+
+```
+Client -> /api/quotes?q=...&mode=ltp
+    │
+    ▼
+Validate env + parse params + session check
+    │
+    ▼
+requestQuotesBatched(instruments, mode)
+    │                          
+    ├─ ensureBatch(mode) ──┐
+    │                      │
+    ├─ add to union Set ◄──┘
+    │
+    ├─ flush: window elapsed | max union | manual
+    │
+    ▼
+vortexAPI.getQuotes(union, mode)
+    │
+    ├─ makeRequest GET /v2/data/quotes
+    ├─ normalize response to mapping {id: quote}
+    │
+    ▼
+Fan-out per-request subsets
+    │
+    ▼
+Response: { success: true, data: { [id]: quote }, meta }
+```
+
+Notes:
+- Micro-cache can serve union quickly if TTL active
+- Circuit breaker opens on repeated failures
+- Per-request timeout protects from hanging batches
 # 🔄 Complete System Flow Diagram
 
 ## 🎯 **END-TO-END USER JOURNEY**

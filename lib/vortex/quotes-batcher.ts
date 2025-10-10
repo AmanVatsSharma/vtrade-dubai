@@ -342,8 +342,8 @@ export function getQuotesBatcherState() {
       uniqueInstrumentCount: batch.instruments.size,
       requestCount: batch.requests.filter(r => !r.isSettled).length,
       ageMs: Date.now() - batch.startedAt,
-      windowMs: WINDOW_MS,
-      maxUnion: MAX_UNION
+      windowMs: readWindowMs(),
+      maxUnion: readMaxUnion()
     };
   }
   return { activeBatches: state, lastFlushMeta };
