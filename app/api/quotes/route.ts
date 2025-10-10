@@ -1,6 +1,7 @@
 // app/api/quotes/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { vortexAPI } from "@/lib/vortex/vortex-enhanced";
+import { requestQuotesBatched } from "@/lib/vortex/quotes-batcher";
 import { logger, LogCategory } from "@/lib/vortex/vortexLogger";
 
 export async function GET(request: NextRequest) {
@@ -62,14 +63,14 @@ export async function GET(request: NextRequest) {
     
     console.log('✅ [API/Quotes] Session is valid, proceeding to fetch quotes');
 
-    // 4. Fetch quotes using enhanced Vortex API
-    logger.info(LogCategory.VORTEX_QUOTES, 'Fetching quotes from Vortex API', {
+    // 4. Fetch quotes using batcher (coalesces within 1s, 1000 unique cap)
+    logger.info(LogCategory.VORTEX_QUOTES, 'Fetching quotes via batcher', {
       instruments,
       mode,
       clientId
     });
 
-    const quotes = await vortexAPI.getQuotes(instruments, mode);
+    const quotes = await requestQuotesBatched(instruments, mode, { clientId });
 
     const processingTime = Date.now() - startTime;
     logger.info(LogCategory.VORTEX_QUOTES, 'Quotes fetched successfully', {

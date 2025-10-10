@@ -27,6 +27,8 @@ import {
 import LiveTrading from "@/components/live-trading";
 // import WebSocketExample from "@/components/websocket-example";
 import QueueMonitor from "@/components/queue-monitor";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 interface SystemStatus {
   database: string;
@@ -52,6 +54,9 @@ export function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [batcherConfig, setBatcherConfig] = useState<any | null>(null);
+  const [batcherState, setBatcherState] = useState<any | null>(null);
+  const [batcherLoading, setBatcherLoading] = useState(false);
 
   // Check for success/error parameters from login
   useEffect(() => {
@@ -72,7 +77,57 @@ export function AdminDashboard() {
   // Fetch system status on component mount
   useEffect(() => {
     fetchSystemStatus();
+    fetchBatcherStatus();
   }, []);
+  const fetchBatcherStatus = async () => {
+    setBatcherLoading(true);
+    try {
+      const resp = await fetch('/api/admin/quotes-batcher-status');
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error || 'Failed to fetch batcher status');
+      setBatcherConfig(json.data?.config);
+      setBatcherState({ activeBatches: json.data?.activeBatches, lastFlushMeta: json.data?.lastFlushMeta });
+      console.log('[VORTEX_DASHBOARD] Batcher status loaded', json.data);
+    } catch (e) {
+      console.error('[VORTEX_DASHBOARD] Failed to fetch batcher status', e);
+      setError('Failed to fetch quotes batcher status');
+    } finally {
+      setBatcherLoading(false);
+    }
+  };
+
+  const updateBatcherConfig = async (next: any) => {
+    try {
+      const resp = await fetch('/api/admin/quotes-batcher-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setConfig', config: next })
+      });
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error || 'Failed to update config');
+      setBatcherConfig(json.data.config);
+      console.log('[VORTEX_DASHBOARD] Batcher config updated', json.data.config);
+    } catch (e) {
+      console.error('[VORTEX_DASHBOARD] Failed to update batcher config', e);
+      setError('Failed to update quotes batcher config');
+    }
+  };
+
+  const flushBatcher = async (mode: string) => {
+    try {
+      const resp = await fetch('/api/admin/quotes-batcher-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'flush', mode })
+      });
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error || 'Failed to flush');
+      await fetchBatcherStatus();
+    } catch (e) {
+      console.error('[VORTEX_DASHBOARD] Failed to flush batcher', e);
+      setError('Failed to flush quotes batcher');
+    }
+  };
 
   const fetchSystemStatus = async () => {
     setIsLoading(true);
@@ -305,6 +360,7 @@ export function AdminDashboard() {
             <TabsTrigger value="live">Live Trading</TabsTrigger>
             <TabsTrigger value="trading">Trading</TabsTrigger>
             <TabsTrigger value="logs">System Logs</TabsTrigger>
+            <TabsTrigger value="batcher">Quotes Batcher</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -506,6 +562,108 @@ export function AdminDashboard() {
                     {error && (
                       <div className="text-red-400">[{new Date().toISOString()}] [ERROR] [VORTEX_DASHBOARD] {error}</div>
                     )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="batcher" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Quotes Batcher</CardTitle>
+                <CardDescription>Configure batching window, caps, and observe state</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Window (ms)</label>
+                      <Input
+                        type="number"
+                        className="w-32"
+                        value={batcherConfig?.windowMs ?? ''}
+                        onChange={e => setBatcherConfig((c: any) => ({ ...c, windowMs: Number(e.target.value) }))}
+                        onBlur={() => updateBatcherConfig({ windowMs: Number(batcherConfig?.windowMs) })}
+                        disabled={batcherLoading}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Unique Cap</label>
+                      <Input
+                        type="number"
+                        className="w-32"
+                        value={batcherConfig?.maxUnion ?? ''}
+                        onChange={e => setBatcherConfig((c: any) => ({ ...c, maxUnion: Number(e.target.value) }))}
+                        onBlur={() => updateBatcherConfig({ maxUnion: Number(batcherConfig?.maxUnion) })}
+                        disabled={batcherLoading}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Req Timeout (ms)</label>
+                      <Input
+                        type="number"
+                        className="w-32"
+                        value={batcherConfig?.requestTimeoutMs ?? ''}
+                        onChange={e => setBatcherConfig((c: any) => ({ ...c, requestTimeoutMs: Number(e.target.value) }))}
+                        onBlur={() => updateBatcherConfig({ requestTimeoutMs: Number(batcherConfig?.requestTimeoutMs) })}
+                        disabled={batcherLoading}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Micro-cache TTL (ms)</label>
+                      <Input
+                        type="number"
+                        className="w-32"
+                        value={batcherConfig?.microCacheTtlMs ?? ''}
+                        onChange={e => setBatcherConfig((c: any) => ({ ...c, microCacheTtlMs: Number(e.target.value) }))}
+                        onBlur={() => updateBatcherConfig({ microCacheTtlMs: Number(batcherConfig?.microCacheTtlMs) })}
+                        disabled={batcherLoading}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">CB Failures</label>
+                      <Input
+                        type="number"
+                        className="w-32"
+                        value={batcherConfig?.circuitBreaker?.failureThreshold ?? ''}
+                        onChange={e => setBatcherConfig((c: any) => ({ ...c, circuitBreaker: { ...(c?.circuitBreaker||{}), failureThreshold: Number(e.target.value) } }))}
+                        onBlur={() => updateBatcherConfig({ circuitBreaker: { failureThreshold: Number(batcherConfig?.circuitBreaker?.failureThreshold) } })}
+                        disabled={batcherLoading}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">CB Half-Open (ms)</label>
+                      <Input
+                        type="number"
+                        className="w-32"
+                        value={batcherConfig?.circuitBreaker?.halfOpenAfterMs ?? ''}
+                        onChange={e => setBatcherConfig((c: any) => ({ ...c, circuitBreaker: { ...(c?.circuitBreaker||{}), halfOpenAfterMs: Number(e.target.value) } }))}
+                        onBlur={() => updateBatcherConfig({ circuitBreaker: { halfOpenAfterMs: Number(batcherConfig?.circuitBreaker?.halfOpenAfterMs) } })}
+                        disabled={batcherLoading}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Active Batches</span>
+                      <Badge variant="outline">{Object.keys(batcherState?.activeBatches || {}).length}</Badge>
+                    </div>
+                    <div className="text-xs bg-gray-100 p-3 rounded">
+                      <div className="font-semibold mb-1">Last Flush</div>
+                      <pre className="whitespace-pre-wrap break-words">
+                        {JSON.stringify(batcherState?.lastFlushMeta || {}, null, 2)}
+                      </pre>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => fetchBatcherStatus()} disabled={batcherLoading}>
+                        {batcherLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        Refresh
+                      </Button>
+                      <Button variant="outline" onClick={() => flushBatcher('ltp')} disabled={batcherLoading}>
+                        Flush LTP
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
