@@ -17,7 +17,6 @@ import { OrdersManagement } from "@/components/admin-console/orders-management"
 import { Sidebar } from "@/components/admin-console/sidebar"
 import { Header } from "@/components/admin-console/header"
 import { Settings } from "@/components/admin-console/settings"
-import { useEffect } from "react"
 import { FinancialOverview } from "@/components/admin-console/financial-overview"
 import { useRouter, useSearchParams } from "next/navigation"
 
