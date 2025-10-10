@@ -12,7 +12,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Provide one or more q parameters' }, { status: 400 });
     }
 
-    await vortexAPI.isSessionValid();
+    const valid = await vortexAPI.isSessionValid();
+    if (!valid) {
+      return NextResponse.json(
+        { success: false, error: 'No active Vortex session. Please login via /admin/auth/login' },
+        { status: 401 }
+      );
+    }
     const quotes = await vortexAPI.getQuotes(qs, mode);
     await logger.info(LogCategory.VORTEX_QUOTES, 'Fetched Vortex quotes', { count: Object.keys(quotes || {}).length, mode });
     return NextResponse.json({ success: true, data: quotes });

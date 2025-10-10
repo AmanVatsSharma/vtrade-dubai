@@ -80,9 +80,14 @@ export function AdminDashboard() {
       const response = await fetch('/admin/api/db-status');
       const data = await response.json();
 
+      // Normalize Vortex status for UI consumption
+      const vortexNormalized: string = data?.vortexStatus
+        || (data?.vortex === 'session_available' ? 'connected'
+          : (data?.vortex === 'not_configured' || data?.vortex === 'session_expired') ? 'error' : 'unknown');
+
       setSystemStatus({
         database: data.database,
-        vortex: data.vortex,
+        vortex: vortexNormalized,
         token: data.token,
         sessionId: data.sessionId,
         lastChecked: new Date()
@@ -90,7 +95,7 @@ export function AdminDashboard() {
 
       console.log('[VORTEX_DASHBOARD] System status updated', {
         database: data.database,
-        vortex: data.vortex,
+        vortex: vortexNormalized,
         hasToken: !!data.token,
         sessionId: data.sessionId
       });

@@ -5,6 +5,12 @@ import { logger, LogCategory } from '@/lib/vortex/vortexLogger';
 export async function GET() {
   try {
     const info = await vortexAPI.getSessionInfo();
+    if (!info?.isValid) {
+      return NextResponse.json(
+        { success: false, error: info?.error || 'No active Vortex session. Please login via /admin/auth/login' },
+        { status: 401 }
+      );
+    }
     return NextResponse.json({ success: true, data: info });
   } catch (error: any) {
     await logger.error(LogCategory.VORTEX_AUTH, 'Failed to get Vortex session info', error);

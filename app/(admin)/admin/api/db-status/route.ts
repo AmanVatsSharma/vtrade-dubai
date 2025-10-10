@@ -15,6 +15,11 @@ export async function GET() {
     
     console.log('✅ [DB-STATUS] Database connection successful');
 
+    // Vortex configuration flags
+    const hasAppId = !!(process.env.VORTEX_APPLICATION_ID || process.env.NEXT_PUBLIC_VORTEX_APPLICATION_ID);
+    const hasApiKey = !!process.env.VORTEX_X_API_KEY;
+    const configOk = hasAppId && hasApiKey;
+
     // Get latest Vortex session info (without calling Vortex API during build)
     const latestSession = await prisma.vortexSession.findFirst({
       orderBy: { createdAt: "desc" },
@@ -39,17 +44,27 @@ export async function GET() {
       console.log('⚠️ [DB-STATUS] No Vortex session found');
     }
 
+    // Normalize Vortex status for UI consumers
+    const vortexConnected = configOk && vortexStatus === 'session_available';
+    const vortexStatusNormalized = vortexConnected ? 'connected' : 'error';
+
     const processingTime = Date.now() - startTime;
     
     console.log('✅ [DB-STATUS] Status check completed:', {
       database: 'connected',
       vortex: vortexStatus,
+      vortexConnected,
+      vortexStatusNormalized,
+      config: { hasAppId, hasApiKey, configOk },
       processingTime: processingTime + 'ms'
     });
 
     return NextResponse.json({
       database: "connected",
-      vortex: vortexStatus,
+      vortex: vortexStatus, // legacy field
+      vortexStatus: vortexStatusNormalized, // normalized for UI: connected/error
+      vortexConnected, // boolean convenience
+      config: { hasAppId, hasApiKey, configOk },
       sessionId: latestSession?.id || null,
       sessionCreated: latestSession?.createdAt || null,
       lastChecked: new Date().toISOString(),
@@ -65,6 +80,8 @@ export async function GET() {
       { 
         database: "error", 
         vortex: "unknown",
+        vortexStatus: "error",
+        vortexConnected: false,
         error: error instanceof Error ? error.message : "Database connection failed",
         lastChecked: new Date().toISOString(),
         processingTime

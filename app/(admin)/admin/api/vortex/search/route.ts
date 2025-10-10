@@ -12,7 +12,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing q parameter' }, { status: 400 });
     }
 
-    await vortexAPI.isSessionValid();
+    const valid = await vortexAPI.isSessionValid();
+    if (!valid) {
+      return NextResponse.json(
+        { success: false, error: 'No active Vortex session. Please login via /admin/auth/login' },
+        { status: 401 }
+      );
+    }
     const results = await vortexAPI.searchInstruments(q, exchange);
     await logger.info(LogCategory.VORTEX_API, 'Searched Vortex instruments', { q, exchange });
     return NextResponse.json({ success: true, data: results });

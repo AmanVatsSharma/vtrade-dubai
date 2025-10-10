@@ -30,13 +30,20 @@ export default function AdminLoginPage() {
   const checkSystemStatus = async () => {
     setIsCheckingStatus(true);
     try {
-      const response = await fetch('/api/admin/db-status');
+      const response = await fetch('/admin/api/db-status');
       const data = await response.json();
-      
+      console.log('[VORTEX_AUTH] System status payload', data);
+
+      const vortexConfigured = Boolean(data?.config?.configOk ?? process.env.NEXT_PUBLIC_VORTEX_APPLICATION_ID);
+      // Prefer server-provided normalized flag; fallback to legacy mapping
+      const apiConnected = Boolean(
+        data?.vortexConnected ?? (data?.vortex === 'session_available')
+      );
+
       setSystemStatus({
-        vortexConfig: !!process.env.NEXT_PUBLIC_VORTEX_APPLICATION_ID,
+        vortexConfig: vortexConfigured,
         database: data.database === 'connected',
-        apiConnection: data.vortex === 'connected',
+        apiConnection: apiConnected,
         lastChecked: new Date()
       });
     } catch (error) {
@@ -58,6 +65,10 @@ export default function AdminLoginPage() {
 
     try {
       const appId = process.env.NEXT_PUBLIC_VORTEX_APPLICATION_ID;
+      // Block login if config missing per latest status
+      if (systemStatus && !systemStatus.vortexConfig) {
+        throw new Error('Vortex configuration incomplete on server. Please set VORTEX_APPLICATION_ID and VORTEX_X_API_KEY.');
+      }
       
       if (!appId) {
         throw new Error('Vortex Application ID is not configured. Please check environment variables.');
