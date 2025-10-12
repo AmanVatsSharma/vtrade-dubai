@@ -10,7 +10,11 @@ export async function GET() {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Quotes API – Developer Docs</title>
+  <meta name="application-name" content="Vedpragya Bharat Quotes API" />
+  <meta name="description" content="Fast, reliable market data API by Vedpragya Bharat Pvt Ltd" />
+  <meta property="og:title" content="Vedpragya Bharat Quotes API – Developer Docs" />
+  <meta property="og:site_name" content="Vedpragya Bharat Pvt Ltd" />
+  <title>Vedpragya Bharat Quotes API – Developer Docs</title>
   <style>
     :root {
       --bg: #0b0f17;
@@ -43,7 +47,9 @@ export async function GET() {
     .k { color: #93c5fd; font-weight: 600; }
     .v { color: #fca5a5; }
     pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    pre { background: #0b1220; border: 1px solid rgba(148,163,184,.2); padding: 14px; border-radius: 12px; overflow:auto; }
+    pre { background: #0b1220; border: 1px solid rgba(148,163,184,.2); padding: 14px; border-radius: 12px; overflow:auto; -webkit-overflow-scrolling: touch; }
+    code { overflow-wrap: anywhere; }
+    img, video { max-width: 100%; height: auto; }
     .hrow { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .section { margin: 26px 0 10px; }
     .title { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
@@ -57,14 +63,15 @@ export async function GET() {
     .kbd { display:inline-block; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(148,163,184,.3); background: #0b1220; font-size: 12px; color: #e2e8f0; }
     .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(148,163,184,.3), transparent); margin: 22px 0; }
     @media (max-width: 960px){ .hero{ grid-template-columns:1fr } .grid{ grid-template-columns:1fr } .hrow{ grid-template-columns:1fr } }
+    @media (max-width: 600px){ h1{ font-size:28px } .shell{ padding:32px 16px 56px } .badge{ font-size:11px } .pill{ font-size:11px } .sub{ font-size:14px } }
   </style>
 </head>
 <body>
   <div class="shell">
-    <span class="badge">API · Market Data · Quotes</span>
+    <span class="badge">Vedpragya Bharat Pvt Ltd · Quotes API</span>
     <div class="hero">
       <div>
-        <h1>Quotes API</h1>
+        <h1>Vedpragya Bharat Quotes API</h1>
         <p class="sub">Ultra-fast consolidated market quotes for NSE, BSE, and MCX. Query up to <strong>500 instruments per request</strong> with millisecond response times using our batching layer.</p>
       </div>
       <div class="card">
@@ -173,18 +180,18 @@ const { data } = await axios.get("/api/quotes", {
       <div class="grid" style="grid-template-columns: repeat(3, 1fr);">
         <div class="card">
           <strong>401 · NO_SESSION</strong>
-          <p class="ul">Login to Vortex first. Visit <code>/admin/vortex-dashboard</code> and create a session.</p>
+          <p class="ul">Authenticate first. Visit <code>/admin/dashboard</code> and create a session.</p>
           <pre><code>{ "error": "No active session found.", "code": "NO_SESSION" }</code></pre>
         </div>
         <div class="card">
           <strong>500 · MISSING_API_KEY</strong>
-          <p class="ul">Set <code>VORTEX_X_API_KEY</code> in environment.</p>
+          <p class="ul">Set the required market data API key in environment.</p>
           <pre><code>{ "error": "Server configuration error", "code": "MISSING_API_KEY" }</code></pre>
         </div>
         <div class="card">
           <strong>502 · API_ERROR</strong>
           <p class="ul">Upstream provider error. Retry with backoff.</p>
-          <pre><code>{ "error": "Failed to fetch data from Vortex API", "code": "API_ERROR" }</code></pre>
+          <pre><code>{ "error": "Failed to fetch data from upstream provider", "code": "API_ERROR" }</code></pre>
         </div>
       </div>
       <div class="card" style="margin-top:12px;">
@@ -214,7 +221,7 @@ const { data } = await axios.get("/api/quotes", {
 
     <div class="divider"></div>
     <div class="footer">
-      Built for speed • Docs route <code>/api/quotes/docs</code> • CSV <a href="/marketInstrumentsData.csv">/marketInstrumentsData.csv</a>
+      © Vedpragya Bharat Pvt Ltd • Built for speed • Docs route <code>/api/quotes/docs</code> • CSV <a href="/marketInstrumentsData.csv">/marketInstrumentsData.csv</a>
     </div>
   </div>
 </body>

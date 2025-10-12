@@ -9,8 +9,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   
   try {
-    // 1. Validate environment configuration
-    const apiKey = process.env.VORTEX_X_API_KEY;
+    // 1. Validate environment configuration (support Vedpragya and legacy env names)
+    const apiKey = process.env.VEDPRAGYA_X_API_KEY || process.env.VORTEX_X_API_KEY;
     if (!apiKey) {
       logger.error(LogCategory.VORTEX_QUOTES, 'VORTEX_X_API_KEY is not defined in environment variables');
       return NextResponse.json(
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
           code: "MISSING_API_KEY",
           timestamp: new Date().toISOString()
         },
-        { status: 500 }
+        { status: 500, headers: { "X-Powered-By": "Vedpragya Bharat", "X-API-Name": "Vedpragya Quotes API" } }
       );
     }
 
@@ -42,11 +42,11 @@ export async function GET(request: NextRequest) {
         error: "Query parameter 'q' is required",
         code: "MISSING_INSTRUMENTS",
         timestamp: new Date().toISOString()
-      }, { status: 400 });
+      }, { status: 400, headers: { "X-Powered-By": "Vedpragya Bharat", "X-API-Name": "Vedpragya Quotes API" } });
     }
 
     // 3. Validate session
-    console.log('🔐 [API/Quotes] Validating Vortex session...');
+    console.log('🔐 [API/Quotes] Validating session...');
     const isSessionValid = await vortexAPI.isSessionValid();
     
     if (!isSessionValid) {
@@ -54,11 +54,11 @@ export async function GET(request: NextRequest) {
       logger.error(LogCategory.VORTEX_QUOTES, 'No valid session found', undefined, { clientId });
       
       return NextResponse.json({ 
-        error: "No active session found. Please login to Vortex first.",
+        error: "No active session found. Please authenticate first.",
         code: "NO_SESSION",
-        hint: "Visit /admin/vortex-dashboard and click 'Login to Vortex' to create a session.",
+        hint: "Visit /admin/dashboard to create a session.",
         timestamp: new Date().toISOString()
-      }, { status: 401 });
+      }, { status: 401, headers: { "X-Powered-By": "Vedpragya Bharat", "X-API-Name": "Vedpragya Quotes API" } });
     }
     
     console.log('✅ [API/Quotes] Session is valid, proceeding to fetch quotes');
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
         processingTime,
         timestamp: new Date().toISOString()
       }
-    });
+    }, { headers: { "X-Powered-By": "Vedpragya Bharat", "X-API-Name": "Vedpragya Quotes API" } });
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
@@ -107,16 +107,16 @@ export async function GET(request: NextRequest) {
           error: "Session expired. Please login again.",
           code: "SESSION_EXPIRED",
           timestamp: new Date().toISOString()
-        }, { status: 401 });
+        }, { status: 401, headers: { "X-Powered-By": "Vedpragya Bharat", "X-API-Name": "Vedpragya Quotes API" } });
       }
       
       if (error.message.includes('API_REQUEST_FAILED')) {
         return NextResponse.json({
-          error: "Failed to fetch data from Vortex API",
+          error: "Failed to fetch data from market data provider",
           code: "API_ERROR",
           details: error.message,
           timestamp: new Date().toISOString()
-        }, { status: 502 });
+        }, { status: 502, headers: { "X-Powered-By": "Vedpragya Bharat", "X-API-Name": "Vedpragya Quotes API" } });
       }
     }
 
@@ -124,6 +124,6 @@ export async function GET(request: NextRequest) {
       error: "An unexpected error occurred while fetching quotes",
       code: "UNEXPECTED_ERROR",
       timestamp: new Date().toISOString()
-    }, { status: 500 });
+    }, { status: 500, headers: { "X-Powered-By": "Vedpragya Bharat", "X-API-Name": "Vedpragya Quotes API" } });
   }
 }
