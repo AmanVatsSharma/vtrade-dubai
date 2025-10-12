@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import SessionProvider from "@/components/providers/SessionProvider";
 import ApolloProviderWrapper from "@/components/apollo-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +35,7 @@ export default async function RootLayout({
             >
 
               {children}
+              <Toaster />
             </ThemeProvider>
           </ApolloProviderWrapper>
         </SessionProvider>

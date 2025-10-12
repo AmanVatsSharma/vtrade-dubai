@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
   title: "Trading Console - Premium Dashboard",
@@ -18,6 +19,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
             {children}
         </Suspense>
+        <Toaster />
       </body>
     </html>
   )
