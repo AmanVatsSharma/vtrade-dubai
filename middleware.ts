@@ -12,6 +12,7 @@ const publicRoutes = [
   "/auth/error",
   "/api/graphql",
   "/api/quotes",
+  "/api/quotes/docs",
   "/api/otp",
   "/api/mpin",
   "/api/health",
@@ -21,7 +22,9 @@ const publicRoutes = [
   "/api/console",
   // Public admin auth entry and OAuth callback for Vortex
   "/admin/auth/login",
-  "/admin/api/callback"
+  "/admin/api/callback",
+  // Static CSV for instruments master (served from /public)
+  "/marketInstrumentsData.csv"
 ];
 
 /**
