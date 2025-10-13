@@ -454,11 +454,11 @@ const TradingDashboardWrapper: React.FC = () => {
           steps: 50, 
           duration: 4500 
         },
-        deviation: {
-          enabled: true, 
-          percentage: 0.7, 
-          absolute: 0.5 
-        }
+        // deviation: {
+        //   enabled: true, 
+        //   percentage: 0.7, 
+        //   absolute: 0.5 
+        // }
       }}      
       userId={userId}
     >
