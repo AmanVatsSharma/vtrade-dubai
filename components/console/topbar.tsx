@@ -25,7 +25,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { ThemeToggle } from "./theme-toggle"
 import { useSession, signOut } from "next-auth/react"
 import { useConsoleData } from "@/lib/hooks/use-console-data"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { getMarketSession } from "@/lib/hooks/market-timing"
+import { formatTimeIST, getCurrentISTDate } from "@/lib/date-utils"
 
 import { useSidebar } from "@/components/ui/sidebar"
 
@@ -56,20 +58,24 @@ export function Topbar() {
     }
   }, [session, consoleData])
 
-  // Check market status (simplified - can be enhanced with real-time data)
-  const marketStatus = useMemo(() => {
-    const now = new Date()
-    const hours = now.getHours()
-    const day = now.getDay()
-    
-    // Market is open Monday-Friday 9:15 AM - 3:30 PM IST
-    const isWeekday = day >= 1 && day <= 5
-    const isMarketHours = hours >= 9 && hours < 16
-    
-    return {
-      isOpen: isWeekday && isMarketHours,
-      label: isWeekday && isMarketHours ? 'Market Open' : 'Market Closed'
-    }
+  // Centralized market status in IST (open/pre-open/closed) with periodic refresh
+  const [marketStatus, setMarketStatus] = useState<{isOpen: boolean; label: string}>(() => {
+    const session = getMarketSession()
+    return { isOpen: session === 'open', label: session === 'open' ? 'Market Open' : session === 'pre-open' ? 'Pre-Open' : 'Market Closed' }
+  })
+  useEffect(() => {
+    const t = setInterval(() => {
+      const session = getMarketSession()
+      setMarketStatus({ isOpen: session === 'open', label: session === 'open' ? 'Market Open' : session === 'pre-open' ? 'Pre-Open' : 'Market Closed' })
+    }, 15000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Keep a ticking IST clock (optional use)
+  const [currentTime, setCurrentTime] = useState<Date>(getCurrentISTDate())
+  useEffect(() => {
+    const t = setInterval(() => setCurrentTime(getCurrentISTDate()), 1000)
+    return () => clearInterval(t)
   }, [])
 
   console.log('📊 [TOPBAR] Market status:', marketStatus)

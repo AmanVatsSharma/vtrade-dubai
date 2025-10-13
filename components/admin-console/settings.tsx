@@ -37,6 +37,8 @@ import {
   Settings as SettingsIcon
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
+import { getMarketSession, setNSEHolidays } from "@/lib/hooks/market-timing"
 import Image from "next/image"
 
 interface SystemSetting {
@@ -67,6 +69,11 @@ export function Settings() {
   const [profileImagePreview, setProfileImagePreview] = useState<string>("")
   const [adminName, setAdminName] = useState<string>("")
   const [adminEmail, setAdminEmail] = useState<string>("")
+
+  // Market controls
+  const [forceClosed, setForceClosed] = useState<boolean>(false)
+  const [holidaysCsv, setHolidaysCsv] = useState<string>("")
+  const [marketControlsSaving, setMarketControlsSaving] = useState<boolean>(false)
   
   // File input refs
   const qrFileInputRef = useRef<HTMLInputElement>(null)
@@ -97,6 +104,19 @@ export function Settings() {
             setQrCodePreview(setting.value)
           } else if (setting.key === 'payment_upi_id') {
             setUpiId(setting.value)
+          } else if (setting.key === 'market_force_closed') {
+            setForceClosed(setting.value === 'true')
+          } else if (setting.key === 'market_holidays_csv') {
+            setHolidaysCsv(setting.value)
+            try {
+              const parsed = setting.value
+                .split(/[,\n\r]+/)
+                .map(s => s.trim())
+                .filter(Boolean)
+              setNSEHolidays(parsed)
+            } catch (e) {
+              console.warn('[SETTINGS] Failed to apply holidays from settings', e)
+            }
           }
         })
       }
@@ -288,6 +308,46 @@ export function Settings() {
     }
   }
 
+  /**
+   * Save market controls
+   */
+  const saveMarketControls = async () => {
+    console.log("💾 [SETTINGS] Saving market controls...", { forceClosed, holidaysCsv })
+    setMarketControlsSaving(true)
+    try {
+      // Persist force closed toggle
+      const r1 = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'market_force_closed', value: String(forceClosed), category: 'MARKET' })
+      })
+      if (!r1.ok) throw new Error('Failed to save market_force_closed')
+
+      // Persist holidays
+      const normalized = holidaysCsv
+        .split(/[\n,\r]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .join(',')
+      const r2 = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'market_holidays_csv', value: normalized, category: 'MARKET' })
+      })
+      if (!r2.ok) throw new Error('Failed to save market_holidays_csv')
+
+      // Apply to runtime helper immediately
+      try { setNSEHolidays(normalized.split(',').filter(Boolean)) } catch {}
+
+      toast({ title: '✅ Saved', description: 'Market controls updated successfully' })
+    } catch (e: any) {
+      console.error('❌ [SETTINGS] Save market controls failed', e)
+      toast({ title: '❌ Save Failed', description: e?.message || 'Unable to save market controls', variant: 'destructive' })
+    } finally {
+      setMarketControlsSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -331,6 +391,10 @@ export function Settings() {
             <TabsTrigger value="general">
               <SettingsIcon className="w-4 h-4 mr-2" />
               General
+            </TabsTrigger>
+            <TabsTrigger value="market">
+              <SettingsIcon className="w-4 h-4 mr-2" />
+              Market Controls
             </TabsTrigger>
           </TabsList>
 
@@ -451,6 +515,53 @@ export function Settings() {
                     Additional settings will be available in the next update
                   </AlertDescription>
                 </Alert>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Market Controls Tab */}
+          <TabsContent value="market">
+            <Card className="bg-card border-border shadow-sm neon-border">
+              <CardHeader>
+                <CardTitle className="text-xl font-bold text-primary">Market Controls (IST)</CardTitle>
+                <CardDescription>
+                  Manually toggle market closed and manage NSE holidays (YYYY-MM-DD). Affects order placement and live prices.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Current Session Indicator */}
+                <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                  <div className="text-sm">
+                    Current session: <span className="font-semibold">{getMarketSession()}</span>
+                  </div>
+                </div>
+
+                {/* Force Closed Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-foreground font-medium">Force Market Closed</Label>
+                    <p className="text-xs text-muted-foreground">Overrides normal hours; blocks orders and live polling.</p>
+                  </div>
+                  <Switch checked={forceClosed} onCheckedChange={setForceClosed} />
+                </div>
+
+                {/* Holidays textarea */}
+                <div className="space-y-2">
+                  <Label className="text-foreground font-medium">NSE Holidays (YYYY-MM-DD, comma or newline separated)</Label>
+                  <textarea
+                    value={holidaysCsv}
+                    onChange={(e) => setHolidaysCsv(e.target.value)}
+                    className="w-full min-h-[120px] text-sm p-3 rounded-md border bg-muted/50"
+                    placeholder="2025-01-26, 2025-03-14\n2025-08-15"
+                  />
+                  <p className="text-xs text-muted-foreground">Applied instantly to market session calculations.</p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={saveMarketControls} disabled={marketControlsSaving} className="bg-primary text-primary-foreground">
+                    {marketControlsSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>) : (<>Save Controls</>)}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

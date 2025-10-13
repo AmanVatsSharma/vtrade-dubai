@@ -14,6 +14,7 @@ import { useMarketData } from "@/lib/hooks/MarketDataProvider"
 import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { useRealtimeAccount } from "@/lib/hooks/use-realtime-account"
+import { getMarketSession } from "@/lib/hooks/market-timing"
 
 interface OrderDialogProps {
   isOpen: boolean
@@ -136,6 +137,9 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   const totalCharges = brokerage + additionalCharges
   const totalCost = marginRequired + totalCharges
+
+  const sessionStatus = getMarketSession()
+  const isMarketBlocked = sessionStatus !== 'open'
 
   const handleSubmit = async () => {
     if (!selectedStock || quantity <= 0) {
@@ -365,17 +369,28 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             </div>
           </div>
 
+          {/* Market session banner */}
+          {isMarketBlocked && (
+            <div className="p-2 rounded-md border text-xs bg-yellow-50 border-yellow-200 text-yellow-800">
+              {sessionStatus === 'pre-open'
+                ? 'Pre-Open (09:00–09:15 IST): Orders are temporarily blocked.'
+                : 'Market Closed: Orders are allowed only between 09:15–15:30 IST.'}
+            </div>
+          )}
+
           {/* Buy / Sell */}
           <div className="flex gap-2">
             <Button
               onClick={() => setOrderSide("BUY")}
               className={`flex-1 rounded-full ${orderSide === "BUY" ? "bg-green-600 text-white" : "bg-gray-200"}`}
+              disabled={isMarketBlocked}
             >
               Buy
             </Button>
             <Button
               onClick={() => setOrderSide("SELL")}
               className={`flex-1 rounded-full ${orderSide === "SELL" ? "bg-red-600 text-white" : "bg-gray-200"}`}
+              disabled={isMarketBlocked}
             >
               Sell
             </Button>
@@ -417,6 +432,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
                     setQuantity(lots * selectedStock.lot_size)
                   }
                 }}
+              disabled={isMarketBlocked}
               />
             </div>
             <div>
@@ -426,7 +442,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
                 value={isMarket ? "" : price ?? ""}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 placeholder="Market"
-                disabled={isMarket}
+                disabled={isMarket || isMarketBlocked}
                 step="0.05"
               />
               <Button
@@ -434,6 +450,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
                 variant="ghost"
                 className="mt-1 text-xs"
                 onClick={() => setIsMarket(!isMarket)}
+                disabled={isMarketBlocked}
               >
                 {isMarket ? "Switch to Limit" : "Switch to Market"}
               </Button>
@@ -505,7 +522,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t p-3 flex gap-2">
           <Button 
             onClick={handleSubmit} 
-            disabled={loading || totalCost > availableMargin} 
+            disabled={loading || totalCost > availableMargin || isMarketBlocked} 
             className={`flex-1 h-12 text-base font-semibold ${totalCost > availableMargin ? 'opacity-50' : ''}`}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : `Place ${orderSide} Order`}

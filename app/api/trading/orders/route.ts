@@ -4,6 +4,8 @@ import { createTradingLogger } from '@/lib/services/logging/TradingLogger'
 import { placeOrderSchema, modifyOrderSchema, cancelOrderSchema } from '@/lib/server/validation'
 import { checkRateLimit, getRateLimitKey, RateLimitPresets } from '@/lib/services/security/RateLimiter'
 import { trackOperation } from '@/lib/services/monitoring/PerformanceMonitor'
+import { getMarketSession } from '@/lib/hooks/market-timing'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ORDERS] POST request received")
@@ -11,6 +13,27 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     console.log("📝 [API-ORDERS] Request body:", body)
+    
+    // Enforce market hours (block during closed and pre-open), with admin override
+    // Check DB overrides first: market_force_closed = 'true'
+    let forceClosed = false
+    try {
+      const forceSetting = await prisma.systemSettings.findFirst({ where: { key: 'market_force_closed', isActive: true } })
+      forceClosed = forceSetting?.value === 'true'
+    } catch (e) {
+      console.warn('⚠️ [API-ORDERS] Unable to read market_force_closed setting; continuing with default')
+    }
+
+    const session = forceClosed ? 'closed' : getMarketSession()
+    if (session !== 'open') {
+      console.warn(`⛔ [API-ORDERS] Blocked by market session: ${session}`)
+      return NextResponse.json({
+        error: session === 'pre-open' 
+          ? 'Orders are blocked during pre-open (09:00–09:15 IST).'
+          : 'Market is closed. Orders are allowed only during trading hours (09:15–15:30 IST).',
+        marketSession: session
+      }, { status: 403 })
+    }
     
     // Rate limiting - 20 orders per minute per user
     const rateLimitKey = getRateLimitKey('orders', body.userId || 'anonymous')

@@ -41,6 +41,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getMarketSession } from "@/lib/hooks/market-timing"
+import { formatTimeIST, getCurrentISTDate } from "@/lib/date-utils"
 
 interface IndexData {
   name: string
@@ -90,36 +92,21 @@ export function EnhancedHeader({
     { name: "SENSEX", value: 72345.60, change: 234.80, changePercent: 0.33 },
   ])
 
-  // Check market status based on time (9:15 AM - 3:30 PM IST)
+  // Check market status centrally (pre-open/open/closed) using IST
   useEffect(() => {
-    const checkMarketStatus = () => {
-      const now = new Date()
-      const hours = now.getHours()
-      const minutes = now.getMinutes()
-      const time = hours * 60 + minutes
-
-      const marketOpen = 9 * 60 + 15 // 9:15 AM
-      const marketClose = 15 * 60 + 30 // 3:30 PM
-      const preOpen = 9 * 60 // 9:00 AM
-
-      if (time >= preOpen && time < marketOpen) {
-        setMarketStatus('pre-open')
-      } else if (time >= marketOpen && time < marketClose) {
-        setMarketStatus('open')
-      } else {
-        setMarketStatus('closed')
-      }
+    const update = () => {
+      const session = getMarketSession()
+      setMarketStatus(session)
     }
-
-    checkMarketStatus()
-    const interval = setInterval(checkMarketStatus, 60000) // Check every minute
+    update()
+    const interval = setInterval(update, 60000)
     return () => clearInterval(interval)
   }, [])
 
-  // Update time every second
+  // Update IST time every second
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentTime(new Date())
+      setCurrentTime(getCurrentISTDate())
     }, 1000)
     return () => clearInterval(timer)
   }, [])
@@ -161,14 +148,7 @@ export function EnhancedHeader({
     return () => clearInterval(interval)
   }, [marketStatus])
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true,
-    })
-  }
+  const formatTime = (date: Date) => formatTimeIST(date)
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-IN', {

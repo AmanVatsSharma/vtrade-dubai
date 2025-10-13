@@ -36,8 +36,9 @@ export function StatementsTable({ transactions }: StatementsTableProps) {
 
     switch (sortField) {
       case "date":
-        aValue = new Date(`${a.date} ${a.time}`)
-        bValue = new Date(`${b.date} ${b.time}`)
+        // Prefer raw timestamp if available for accurate sorting
+        aValue = a.timestamp ? new Date(a.timestamp) : new Date(`${a.date} ${a.time}`)
+        bValue = b.timestamp ? new Date(b.timestamp) : new Date(`${b.date} ${b.time}`)
         break
       case "amount":
         aValue = a.amount

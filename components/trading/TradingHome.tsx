@@ -53,20 +53,20 @@ interface TradingHomeProps {
 }
 
 // Market Status Component (centralized timing)
-import { isMarketOpen as checkMarketOpen } from "@/lib/hooks/market-timing"
+import { getMarketSession, isMarketOpen as checkMarketOpen } from "@/lib/hooks/market-timing"
 const MarketStatus = () => {
-  const [open, setOpen] = React.useState<boolean>(checkMarketOpen())
+  const [session, setSession] = React.useState<'open' | 'pre-open' | 'closed'>(getMarketSession())
   React.useEffect(() => {
-    const t = setInterval(() => setOpen(checkMarketOpen()), 15000)
+    const t = setInterval(() => setSession(getMarketSession()), 15000)
     return () => clearInterval(t)
   }, [])
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
-      open ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'
+      session === 'open' ? 'bg-green-500/20 text-green-600' : session === 'pre-open' ? 'bg-yellow-500/20 text-yellow-700' : 'bg-red-500/20 text-red-600'
     }`}>
-      <div className={`w-2 h-2 rounded-full ${open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+      <div className={`w-2 h-2 rounded-full ${session === 'open' ? 'bg-green-500 animate-pulse' : session === 'pre-open' ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
       <span className="text-xs font-semibold">
-        {open ? 'Market Open' : 'Market Closed'}
+        {session === 'open' ? 'Market Open' : session === 'pre-open' ? 'Pre-Open' : 'Market Closed'}
       </span>
     </div>
   )

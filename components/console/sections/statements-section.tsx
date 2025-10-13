@@ -21,11 +21,13 @@ import { ExportDialog } from "../statements/export-dialog"
 import { useSession } from "next-auth/react"
 import { usePortfolio, useTransactions } from "@/lib/hooks/use-trading-data"
 import { useConsoleData } from "@/lib/hooks/use-console-data"
+import { formatDateIST, formatTimeIST } from "@/lib/date-utils"
 
 export interface Transaction {
   id: string
   date: string
   time: string
+  timestamp?: string
   type: "credit" | "debit"
   amount: number
   description: string
@@ -52,8 +54,11 @@ export function StatementsSection() {
     try {
       const list = (transactions || []).map((t: any) => ({
         id: t.id,
-        date: new Date(t.createdAt).toISOString().split("T")[0],
-        time: new Date(t.createdAt).toLocaleTimeString(),
+        // Display in IST consistently
+        date: formatDateIST(t.createdAt),
+        time: formatTimeIST(t.createdAt),
+        // Preserve raw timestamp for sorting/filtering
+        timestamp: new Date(t.createdAt).toISOString(),
         type: (t.type || "CREDIT").toLowerCase() === "credit" ? "credit" : "debit",
         amount: Number(t.amount) || 0,
         description: t.description || "",
