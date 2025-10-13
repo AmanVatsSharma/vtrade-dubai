@@ -170,8 +170,11 @@ export const formatExpiryDateIST = (date: string | Date | null | undefined): str
  * Get current time in IST as Date object
  */
 export const getCurrentISTDate = (): Date => {
+  // Compute IST time reliably without string parsing (works in all environments)
   const now = new Date()
-  return new Date(now.toLocaleString(IST_LOCALE, { timeZone: IST_TIMEZONE }))
+  const utcMillis = now.getTime() + now.getTimezoneOffset() * 60000
+  const istMillis = utcMillis + (5.5 * 60 * 60000) // IST is UTC+5:30
+  return new Date(istMillis)
 }
 
 /**

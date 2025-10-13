@@ -7,19 +7,11 @@
 
 import React, { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import {
-  Wifi,
-  WifiOff,
-  TrendingUp,
-  TrendingDown,
-  Bell,
-  Menu,
-  Activity,
-  Search,
-} from "lucide-react"
+import { Wifi, WifiOff, TrendingUp, TrendingDown, Bell, Menu, Activity, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getMarketSession } from "@/lib/hooks/market-timing"
 
 interface CleanHeaderProps {
   user?: {
@@ -63,22 +55,14 @@ export function CleanHeader({
     }
   }, [])
 
-  // Check market status (9:15 AM - 3:30 PM IST)
+  // Check market status using centralized IST-aware helper
   useEffect(() => {
-    const checkMarketStatus = () => {
-      const now = new Date()
-      const hours = now.getHours()
-      const minutes = now.getMinutes()
-      const time = hours * 60 + minutes
-
-      const marketOpen = 9 * 60 + 15
-      const marketClose = 15 * 60 + 30
-
-      setMarketStatus(time >= marketOpen && time < marketClose ? 'open' : 'closed')
+    const update = () => {
+      const session = getMarketSession()
+      setMarketStatus(session === 'open' ? 'open' : 'closed')
     }
-
-    checkMarketStatus()
-    const interval = setInterval(checkMarketStatus, 60000)
+    update()
+    const interval = setInterval(update, 60000)
     return () => clearInterval(interval)
   }, [])
 
