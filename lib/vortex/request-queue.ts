@@ -1,5 +1,6 @@
 // lib/request-queue.ts
 import { logger, LogCategory } from './vortexLogger';
+import { config } from '@/lib/config/runtime';
 
 interface QueuedRequest {
   id: string;
@@ -14,9 +15,9 @@ class RequestQueue {
   private queue: QueuedRequest[] = [];
   private isProcessing = false;
   private lastRequestTime = 0;
-  private readonly minInterval = 1000; // 1 second between requests
+  private readonly minInterval = Math.max(100, config.queue.minIntervalMs); // enforce >=100ms
   private requestCount = 0;
-  private readonly maxRequestsPerMinute = 30; // Conservative limit
+  private readonly maxRequestsPerMinute = Math.min(600, Math.max(1, config.queue.maxRequestsPerMinute));
   private requestTimes: number[] = [];
 
   constructor() {

@@ -361,6 +361,8 @@ export function AdminDashboard() {
             <TabsTrigger value="trading">Trading</TabsTrigger>
             <TabsTrigger value="logs">System Logs</TabsTrigger>
             <TabsTrigger value="batcher">Quotes Batcher</TabsTrigger>
+            <TabsTrigger value="observability">Observability</TabsTrigger>
+            <TabsTrigger value="loadtest">Load Test</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -665,6 +667,61 @@ export function AdminDashboard() {
                       </Button>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="observability" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Metrics & Health</CardTitle>
+                <CardDescription>Prometheus endpoint and service status</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button asChild variant="outline">
+                    <a href="/api/metrics" target="_blank" rel="noreferrer">Open /api/metrics</a>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <a href="/api/health" target="_blank" rel="noreferrer">Check /api/health</a>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <a href="/api/ready" target="_blank" rel="noreferrer">Check /api/ready</a>
+                  </Button>
+                </div>
+                <div className="text-xs text-gray-500">
+                  Structured logs and metrics are now emitted for quotes requests: request_count, request_duration_seconds, cache_hits/miss.
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="loadtest" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>API Load Test</CardTitle>
+                <CardDescription>Run step loads against /api/quotes (admin-only, budget guarded)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[1,2,5,10,20,50,100,200].map(c => (
+                    <Button key={c} variant="outline" onClick={async ()=>{
+                      try {
+                        const r = await fetch(`/admin/api/loadtest?concurrency=${c}`)
+                        const j = await r.json()
+                        if (!j.success) throw new Error(j.error||'failed')
+                        alert(`Load test ${c} OK: p50=${j.data.p50}ms p95=${j.data.p95}ms p99=${j.data.p99}ms success=${j.data.successRate}%`)
+                      } catch(e:any){
+                        alert(`Load test ${c} failed: ${e?.message||e}`)
+                      }
+                    }}>
+                      {c} conc.
+                    </Button>
+                  ))}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Tests are gated to protect upstream and will stop if 5xx > 1% or latency budgets are exceeded.
                 </div>
               </CardContent>
             </Card>

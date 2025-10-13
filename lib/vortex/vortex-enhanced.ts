@@ -1,5 +1,7 @@
 // lib/vortex-enhanced.ts
 import axios, { AxiosError, AxiosResponse } from 'axios';
+import http from 'http'
+import https from 'https'
 import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { logger, LogCategory } from './vortexLogger';
@@ -268,6 +270,9 @@ export class VortexAPI {
     params?: Record<string, any>,
     priority: number = 0
   ): Promise<T> {
+    const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 50, maxFreeSockets: 10, timeout: 10_000 })
+    const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50, maxFreeSockets: 10, timeout: 10_000 })
+
     return requestQueue.addRequest(async () => {
       try {
         const headers = await this.getHeaders();
@@ -287,7 +292,9 @@ export class VortexAPI {
           headers,
           data,
           params,
-          timeout: 15000 // 15 second timeout
+          timeout: 3000,
+          httpAgent,
+          httpsAgent,
         });
 
         logger.info(LogCategory.VORTEX_API, 'API request successful', {
@@ -310,7 +317,7 @@ export class VortexAPI {
             });
             
             // Wait longer before retrying
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
             throw new VortexAPIError(
               'Rate limit exceeded, please try again later',
               'RATE_LIMIT_EXCEEDED',
@@ -330,6 +337,19 @@ export class VortexAPI {
             statusText: axiosError.response?.statusText,
             data: axiosError.response?.data
           });
+
+          // Budgeted retries (max 1) with exponential backoff + jitter
+          let lastErr: any = axiosError
+          for (let attempt = 1; attempt <= 1; attempt++) {
+            const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 1500) + Math.floor(Math.random() * 200)
+            await new Promise(r => setTimeout(r, backoff))
+            try {
+              const retryResp: AxiosResponse<T> = await axios({ method, url, headers, data, params, timeout: 3000, httpAgent, httpsAgent })
+              return retryResp.data
+            } catch (e: any) {
+              lastErr = e
+            }
+          }
 
           throw new VortexAPIError(
             `API request failed: ${axiosError.message}`,
