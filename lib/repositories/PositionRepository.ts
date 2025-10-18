@@ -421,15 +421,16 @@ export class PositionRepository {
     positionId: string,
     tx?: Prisma.TransactionClient
   ) {
-    console.log("🗑️ [POSITION-REPO] Deleting position:", positionId)
-
-    const client = tx || prisma
-
-    await client.position.delete({
-      where: { id: positionId }
-    })
-
-    console.log("✅ [POSITION-REPO] Position deleted")
+    console.log("🛡️ [POSITION-REPO] Delete requested but operation is disabled:", positionId)
+    // Hard guard to prevent destructive deletes in production/admin flows
+    // Allow only if explicitly enabled via env for maintenance scenarios
+    if (process.env.ALLOW_POSITION_DELETE === 'true') {
+      const client = tx || prisma
+      await client.position.delete({ where: { id: positionId } })
+      console.log("⚠️ [POSITION-REPO] Position deleted due to override flag")
+      return
+    }
+    throw new Error("Deletion of positions is disabled by policy")
   }
 
   /**

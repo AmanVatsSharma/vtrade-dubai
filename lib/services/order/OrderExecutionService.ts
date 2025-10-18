@@ -22,6 +22,7 @@ import { OrderType, OrderSide } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { PriceResolutionService } from "@/lib/services/order/PriceResolutionService"
 import { MarketRealismService } from "@/lib/services/order/MarketRealismService"
+import { TransactionRepository } from "@/lib/repositories/TransactionRepository"
 
 console.log("🚀 [ORDER-EXECUTION-SERVICE] Module loaded")
 
@@ -56,6 +57,7 @@ export class OrderExecutionService {
   private logger: TradingLogger
   private priceResolution: PriceResolutionService
   private marketRealism: MarketRealismService
+  private transactionRepo: TransactionRepository
 
   constructor(logger?: TradingLogger) {
     this.orderRepo = new OrderRepository()
@@ -65,6 +67,7 @@ export class OrderExecutionService {
     this.fundService = new FundManagementService(this.logger)
     this.priceResolution = new PriceResolutionService()
     this.marketRealism = new MarketRealismService()
+    this.transactionRepo = new TransactionRepository()
     
     console.log("🏗️ [ORDER-EXECUTION-SERVICE] Service instance created with enhanced price resolution")
   }
@@ -151,7 +154,7 @@ export class OrderExecutionService {
       const result = await executeInTransaction(async (tx) => {
         // Block margin
         console.log("🔒 [ORDER-EXECUTION-SERVICE] Blocking margin:", marginCalc.requiredMargin)
-        await this.fundService.blockMargin(
+        const blockResult = await this.fundService.blockMargin(
           input.tradingAccountId,
           marginCalc.requiredMargin,
           `Margin blocked for ${input.orderSide} ${input.symbol}`
@@ -159,7 +162,7 @@ export class OrderExecutionService {
 
         // Deduct charges
         console.log("💸 [ORDER-EXECUTION-SERVICE] Deducting charges:", marginCalc.totalCharges)
-        await this.fundService.debit(
+        const chargesResult = await this.fundService.debit(
           input.tradingAccountId,
           marginCalc.totalCharges,
           `Brokerage and charges for ${input.orderSide} ${input.symbol}`
@@ -196,6 +199,18 @@ export class OrderExecutionService {
 
         console.log("✅ [ORDER-EXECUTION-SERVICE] Order created:", order.id)
 
+        // Attach orderId to related fund transactions for full traceability
+        try {
+          if (blockResult?.transactionId) {
+            await this.transactionRepo.update(blockResult.transactionId, { orderId: order.id }, tx)
+          }
+          if (chargesResult?.transactionId) {
+            await this.transactionRepo.update(chargesResult.transactionId, { orderId: order.id }, tx)
+          }
+        } catch (linkError) {
+          console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to link transactions to order:", linkError)
+        }
+
         return {
           orderId: order.id,
           marginBlocked: marginCalc.requiredMargin,
@@ -230,7 +245,8 @@ export class OrderExecutionService {
             await this.fundService.releaseMargin(
               input.tradingAccountId,
               marginCalc.requiredMargin,
-              `Margin released for failed order ${result.orderId}`
+              `Margin released for failed order ${result.orderId}`,
+              { orderId: result.orderId }
             )
           })
         } catch (cleanupError) {
@@ -379,12 +395,9 @@ export class OrderExecutionService {
 
         // Mark order as executed
         console.log("✅ [ORDER-EXECUTION-SERVICE] Marking order as executed")
-        await this.orderRepo.markExecuted(
-          orderId,
-          input.quantity,
-          executionPrice,
-          tx
-        )
+        // Link order to position and mark executed
+        await this.orderRepo.update(orderId, { positionId: position.id }, tx)
+        await this.orderRepo.markExecuted(orderId, input.quantity, executionPrice, tx)
 
         await this.logger.logPosition("POSITION_UPDATED", `Position updated for ${input.symbol}`, {
           positionId: position.id,

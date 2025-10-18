@@ -4,6 +4,15 @@ const nextConfig = {
     // Enabling additional features may help with Tailwind compatibility
     optimizeCss: true,
   },
+  webpack: (config) => {
+    // Ensure generated files importing '.prisma/client' resolve at build time
+    config.resolve = config.resolve || {}
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '.prisma/client': '@prisma/client',
+    }
+    return config
+  },
   images: {
     remotePatterns: [
       {

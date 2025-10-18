@@ -46,7 +46,8 @@ export class FundManagementService {
   async blockMargin(
     tradingAccountId: string,
     amount: number,
-    description: string = "Margin blocked for order"
+    description: string = "Margin blocked for order",
+    context?: { orderId?: string; positionId?: string }
   ): Promise<FundOperationResult> {
     console.log("🔒 [FUND-MGMT-SERVICE] Blocking margin:", {
       tradingAccountId,
@@ -88,7 +89,9 @@ export class FundManagementService {
             tradingAccountId,
             amount,
             type: TransactionType.DEBIT,
-            description
+            description,
+            orderId: context?.orderId,
+            positionId: context?.positionId
           },
           tx
         )
@@ -130,7 +133,8 @@ export class FundManagementService {
   async releaseMargin(
     tradingAccountId: string,
     amount: number,
-    description: string = "Margin released"
+    description: string = "Margin released",
+    context?: { orderId?: string; positionId?: string }
   ): Promise<FundOperationResult> {
     console.log("🔓 [FUND-MGMT-SERVICE] Releasing margin:", {
       tradingAccountId,
@@ -154,7 +158,9 @@ export class FundManagementService {
             tradingAccountId,
             amount,
             type: TransactionType.CREDIT,
-            description
+            description,
+            orderId: context?.orderId,
+            positionId: context?.positionId
           },
           tx
         )
@@ -196,7 +202,8 @@ export class FundManagementService {
   async debit(
     tradingAccountId: string,
     amount: number,
-    description: string = "Debit"
+    description: string = "Debit",
+    context?: { orderId?: string; positionId?: string }
   ): Promise<FundOperationResult> {
     console.log("💸 [FUND-MGMT-SERVICE] Debiting account:", {
       tradingAccountId,
@@ -238,7 +245,9 @@ export class FundManagementService {
             tradingAccountId,
             amount,
             type: TransactionType.DEBIT,
-            description
+            description,
+            orderId: context?.orderId,
+            positionId: context?.positionId
           },
           tx
         )
@@ -280,7 +289,8 @@ export class FundManagementService {
   async credit(
     tradingAccountId: string,
     amount: number,
-    description: string = "Credit"
+    description: string = "Credit",
+    context?: { orderId?: string; positionId?: string }
   ): Promise<FundOperationResult> {
     console.log("💰 [FUND-MGMT-SERVICE] Crediting account:", {
       tradingAccountId,
@@ -304,7 +314,9 @@ export class FundManagementService {
             tradingAccountId,
             amount,
             type: TransactionType.CREDIT,
-            description
+            description,
+            orderId: context?.orderId,
+            positionId: context?.positionId
           },
           tx
         )

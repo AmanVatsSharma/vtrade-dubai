@@ -358,6 +358,8 @@ model Order {
   stockId        String?
   Position       Position?      @relation(fields: [positionId], references: [id])
   positionId     String?
+  // Reverse relation to transactions linked to this order
+  transactions   Transaction[]
 
   @@map("orders")
 }
@@ -371,8 +373,15 @@ model Transaction {
   createdAt        DateTime        @default(now())
 
   tradingAccount TradingAccount @relation(fields: [tradingAccountId], references: [id], onDelete: Cascade)
+  // Link transactions to specific orders/positions when applicable
+  orderId       String?
+  order         Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  positionId    String?
+  position      Position?      @relation(fields: [positionId], references: [id], onDelete: SetNull)
 
   @@map("transactions")
+  @@index([orderId])
+  @@index([positionId])
 }
 
 model Position {
@@ -391,6 +400,8 @@ model Position {
   Stock          Stock?         @relation(fields: [stockId], references: [id])
   stockId        String?
   orders         Order[]
+  // Reverse relation to transactions linked to this position
+  transactions   Transaction[]
 
   @@unique([tradingAccountId, symbol])
   @@map("positions")

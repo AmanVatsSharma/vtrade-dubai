@@ -17,6 +17,8 @@ export interface CreateTransactionData {
   amount: number
   type: TransactionType
   description: string
+  orderId?: string
+  positionId?: string
 }
 
 export class TransactionRepository {
@@ -43,11 +45,36 @@ export class TransactionRepository {
         amount: data.amount,
         type: data.type,
         description: data.description,
+        orderId: data.orderId,
+        positionId: data.positionId,
         createdAt: new Date()
       }
     })
 
     console.log("✅ [TRANSACTION-REPO] Transaction created:", transaction.id)
+    return transaction
+  }
+
+  /**
+   * Update a transaction (attach context like orderId/positionId or adjust fields)
+   */
+  async update(
+    id: string,
+    updates: Partial<Pick<CreateTransactionData, 'description' | 'orderId' | 'positionId' | 'amount'>>,
+    tx?: Prisma.TransactionClient
+  ) {
+    console.log("🔄 [TRANSACTION-REPO] Updating transaction:", { id, updates })
+
+    const client = tx || prisma
+
+    const transaction = await client.transaction.update({
+      where: { id },
+      data: {
+        ...updates
+      }
+    })
+
+    console.log("✅ [TRANSACTION-REPO] Transaction updated:", id)
     return transaction
   }
 

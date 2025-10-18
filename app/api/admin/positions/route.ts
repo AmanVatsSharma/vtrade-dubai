@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { createOrderExecutionService } from '@/lib/services/order/OrderExecutionService'
+import { createTradingLogger } from '@/lib/services/logging/TradingLogger'
 
 // GET /api/admin/positions
 export async function GET(req: Request) {
@@ -182,5 +184,71 @@ export async function PATCH(req: Request) {
   } catch (error: any) {
     console.error('❌ [API-ADMIN-POSITIONS] PATCH error', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// POST /api/admin/positions
+// Create a position by placing an opening order under admin control (auto-creates order and transactions)
+export async function POST(req: Request) {
+  try {
+    const session = await auth()
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error('❌ [API-ADMIN-POSITIONS] Unauthorized role attempting POST:', role)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    const {
+      tradingAccountId,
+      stockId,
+      instrumentId,
+      symbol,
+      quantity,
+      price,
+      orderType,
+      orderSide,
+      productType,
+      segment,
+      lotSize
+    } = body || {}
+
+    // Basic validations
+    if (!tradingAccountId || !stockId || !symbol || !quantity || !orderType || !orderSide || !productType || !segment) {
+      return NextResponse.json({
+        error: 'Missing required fields',
+        code: 'VALIDATION_ERROR'
+      }, { status: 400 })
+    }
+
+    if (orderType === 'LIMIT' && (price === undefined || price === null || Number(price) <= 0)) {
+      return NextResponse.json({ error: 'LIMIT orders must include positive price', code: 'VALIDATION_ERROR' }, { status: 400 })
+    }
+
+    const logger = createTradingLogger({
+      userId: session.user.id,
+      tradingAccountId,
+      symbol
+    })
+
+    const svc = createOrderExecutionService(logger)
+    const result = await svc.placeOrder({
+      tradingAccountId,
+      stockId,
+      instrumentId: instrumentId || '',
+      symbol,
+      quantity: Number(quantity),
+      price: price != null ? Number(price) : undefined,
+      orderType,
+      orderSide,
+      productType,
+      segment,
+      lotSize: lotSize ? Number(lotSize) : undefined
+    })
+
+    return NextResponse.json(result, { status: 200 })
+  } catch (error: any) {
+    console.error('❌ [API-ADMIN-POSITIONS] POST error', error)
+    return NextResponse.json({ error: error.message, code: 'SERVER_ERROR' }, { status: 500 })
   }
 }

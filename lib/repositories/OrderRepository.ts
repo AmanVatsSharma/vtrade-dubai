@@ -30,6 +30,7 @@ export interface UpdateOrderData {
   filledQuantity?: number
   averagePrice?: number
   executedAt?: Date
+  positionId?: string
 }
 
 export class OrderRepository {

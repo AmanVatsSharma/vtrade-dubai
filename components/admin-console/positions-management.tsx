@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -96,6 +97,56 @@ export function PositionsManagement() {
   const [editUPnL, setEditUPnL] = useState<string>("")
   const [editDayPnL, setEditDayPnL] = useState<string>("")
 
+  // Create Position dialog state
+  const [createOpen, setCreateOpen] = useState(false)
+  const [cpAccountId, setCpAccountId] = useState("")
+  const [cpStockId, setCpStockId] = useState("")
+  const [cpInstrumentId, setCpInstrumentId] = useState("")
+  const [cpSymbol, setCpSymbol] = useState("")
+  const [cpQty, setCpQty] = useState("")
+  const [cpPrice, setCpPrice] = useState("")
+  const [cpType, setCpType] = useState("MARKET")
+  const [cpSide, setCpSide] = useState("BUY")
+  const [cpProduct, setCpProduct] = useState("MIS")
+  const [cpSegment, setCpSegment] = useState("NSE")
+  const [cpLot, setCpLot] = useState("")
+  const [cpErr, setCpErr] = useState<string | null>(null)
+
+  const submitCreate = async () => {
+    setCpErr(null)
+    try {
+      const payload: any = {
+        tradingAccountId: cpAccountId.trim(),
+        stockId: cpStockId.trim(),
+        instrumentId: cpInstrumentId.trim() || undefined,
+        symbol: cpSymbol.trim().toUpperCase(),
+        quantity: Number(cpQty),
+        price: cpType === 'LIMIT' ? Number(cpPrice) : undefined,
+        orderType: cpType,
+        orderSide: cpSide,
+        productType: cpProduct,
+        segment: cpSegment,
+        lotSize: cpLot ? Number(cpLot) : undefined
+      }
+      const res = await fetch('/api/admin/positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e?.error || `Create failed: ${res.status}`)
+      }
+      setCreateOpen(false)
+      // reset fields
+      setCpAccountId(""); setCpStockId(""); setCpInstrumentId(""); setCpSymbol(""); setCpQty(""); setCpPrice(""); setCpType("MARKET"); setCpSide("BUY"); setCpProduct("MIS"); setCpSegment("NSE"); setCpLot("")
+      fetchData()
+    } catch (e: any) {
+      console.error('❌ [POSITIONS-MGMT] Create failed', e)
+      setCpErr(e.message || 'Create failed')
+    }
+  }
+
   const startEdit = (row: PositionRow) => {
     setEditingId(row.id)
     setEditQty(String(row.quantity))
@@ -171,6 +222,69 @@ export function PositionsManagement() {
             <Button variant="outline" onClick={fetchData} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </Button>
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary text-white">Create Position</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>Create Position (admin)</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-3 py-2">
+                  <div className="col-span-2">
+                    <label className="text-xs text-muted-foreground">Trading Account ID</label>
+                    <Input value={cpAccountId} onChange={(e) => setCpAccountId(e.target.value)} placeholder="account uuid" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Stock ID</label>
+                    <Input value={cpStockId} onChange={(e) => setCpStockId(e.target.value)} placeholder="stock uuid" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Instrument ID</label>
+                    <Input value={cpInstrumentId} onChange={(e) => setCpInstrumentId(e.target.value)} placeholder="optional" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Symbol</label>
+                    <Input value={cpSymbol} onChange={(e) => setCpSymbol(e.target.value.toUpperCase())} placeholder="RELIANCE" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Quantity</label>
+                    <Input value={cpQty} onChange={(e) => setCpQty(e.target.value)} placeholder="e.g. 100" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Order Type</label>
+                    <Input value={cpType} onChange={(e) => setCpType(e.target.value.toUpperCase())} placeholder="MARKET/LIMIT" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Side</label>
+                    <Input value={cpSide} onChange={(e) => setCpSide(e.target.value.toUpperCase())} placeholder="BUY/SELL" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Price (for LIMIT)</label>
+                    <Input value={cpPrice} onChange={(e) => setCpPrice(e.target.value)} placeholder="e.g. 2500" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Product</label>
+                    <Input value={cpProduct} onChange={(e) => setCpProduct(e.target.value.toUpperCase())} placeholder="MIS/NRML" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Segment</label>
+                    <Input value={cpSegment} onChange={(e) => setCpSegment(e.target.value.toUpperCase())} placeholder="NSE/NFO" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Lot Size</label>
+                    <Input value={cpLot} onChange={(e) => setCpLot(e.target.value)} placeholder="optional" />
+                  </div>
+                  {cpErr && (
+                    <div className="col-span-2 text-sm text-red-400">{cpErr}</div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                  <Button onClick={submitCreate} className="bg-primary text-white">Create</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </motion.div>
