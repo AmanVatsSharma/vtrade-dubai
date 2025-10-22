@@ -12,7 +12,7 @@ import { Button } from '../ui/button'
 import FormError from '../form-error'
 import FormSucess from '../form-sucess'
 import { registerWithMobile } from '@/actions/mobile-auth.actions'
-import { FaUser, FaEnvelope, FaMobile, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa'
+import { FaUser, FaEnvelope, FaMobile, FaLock, FaEye, FaEyeSlash, FaInfoCircle } from 'react-icons/fa'
 
 interface MobileRegistrationFormProps {
   onRegistrationSuccess: (data: any) => void;
@@ -67,6 +67,13 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
       backButtonHref='/auth/login'
       showSocial={false}
     >
+      {/* Guidance banner clarifying next steps */}
+      <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 flex">
+        <FaInfoCircle className="mt-0.5 mr-2" />
+        <div>
+          After creating your account, we'll send an OTP to verify your mobile. You'll also receive your Client ID for login.
+        </div>
+      </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <div className='space-y-4'>

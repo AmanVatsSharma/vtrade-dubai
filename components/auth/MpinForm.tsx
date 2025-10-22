@@ -135,6 +135,11 @@ const MpinForm: React.FC<MpinFormProps> = ({
       backButtonAction={onBack}
       showSocial={false}
     >
+      {userData?.clientId && (
+        <div className="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-3">
+          Your Client ID: <span className="font-mono font-bold">{userData.clientId}</span>
+        </div>
+      )}
       <div className="text-center mb-6">
         <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
           <FaKey className="text-emerald-600 text-2xl" />

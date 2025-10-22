@@ -12,7 +12,7 @@ import { Button } from '../ui/button'
 import FormError from '../form-error'
 import FormSucess from '../form-sucess'
 import { verifyOtp, resendOtp } from '@/actions/mobile-auth.actions'
-import { FaShieldAlt, FaClock } from 'react-icons/fa'
+import { FaShieldAlt, FaClock, FaCopy, FaCheckCircle } from 'react-icons/fa'
 
 interface OtpVerificationFormProps {
   sessionToken: string;
@@ -33,6 +33,7 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
   const [success, setSuccess] = useState<string | undefined>("")
   const [timeLeft, setTimeLeft] = useState(300) // 5 minutes
   const [canResend, setCanResend] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const form = useForm<z.infer<typeof otpVerificationSchema>>({
     resolver: zodResolver(otpVerificationSchema),
@@ -56,6 +57,26 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // Log presence of clientId for debugging and show confirmation banner
+  useEffect(() => {
+    try {
+      if (userData?.clientId) {
+        console.log('[OTP] Registration confirmed. Client ID:', userData.clientId)
+      }
+    } catch {}
+  }, [userData?.clientId])
+
+  const copyClientIdToClipboard = async () => {
+    try {
+      if (!userData?.clientId) return
+      await navigator.clipboard.writeText(userData.clientId)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch (e) {
+      console.error('Failed to copy Client ID:', e)
+    }
   }
 
   const onSubmit = (values: z.infer<typeof otpVerificationSchema>) => {
@@ -135,6 +156,36 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
       backButtonAction={onBack}
       showSocial={false}
     >
+      {/* Account creation confirmation banner with Client ID */}
+      {userData?.clientId && (
+        <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-md p-4">
+          <div className="flex items-start">
+            <div className="mr-3 mt-1 text-emerald-600">
+              <FaCheckCircle />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-emerald-700">Account created successfully</p>
+              <p className="text-sm text-emerald-800 mt-1">
+                Your Client ID:
+                <span className="font-mono font-bold ml-2 px-2 py-0.5 bg-white border border-emerald-200 rounded">
+                  {userData.clientId}
+                </span>
+              </p>
+              <p className="text-xs text-emerald-700 mt-2">
+                Save this Client ID. You'll use it for login along with your password.
+              </p>
+              <button
+                type="button"
+                onClick={copyClientIdToClipboard}
+                className="mt-3 inline-flex items-center text-xs text-emerald-700 hover:text-emerald-800"
+              >
+                <FaCopy className="mr-2" /> {copied ? 'Copied' : 'Copy Client ID'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="text-center mb-6">
         <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
           <FaShieldAlt className="text-emerald-600 text-2xl" />
@@ -177,7 +228,7 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
           />
 
           <div className="text-center">
-            <div className="flex items-center justify-center text-sm text-gray-500 mb-4">
+          <div className="flex items-center justify-center text-sm text-gray-500 mb-4">
               <FaClock className="mr-2" />
               {timeLeft > 0 ? (
                 <span>OTP expires in {formatTime(timeLeft)}</span>
@@ -186,7 +237,7 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
               )}
             </div>
 
-            {canResend && (
+          {canResend && (
               <Button
                 type="button"
                 variant="ghost"
@@ -219,6 +270,10 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
               "Verify OTP"
             )}
           </Button>
+
+          <div className="text-xs text-gray-600 mt-3 text-center">
+            Having trouble? Ensure network is stable. If OTP didn't arrive, tap Resend or check email if shown above.
+          </div>
 
           <div className="text-center text-xs text-gray-500 mt-4">
             <p>🔒 Your data is protected with end-to-end encryption</p>

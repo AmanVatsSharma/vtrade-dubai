@@ -13,7 +13,7 @@ import FormError from '../form-error'
 import FormSucess from '../form-sucess'
 import { mobileLogin } from '@/actions/mobile-auth.actions'
 import Link from 'next/link'
-import { FaMobile, FaLock, FaUser } from 'react-icons/fa'
+import { FaMobile, FaLock, FaUser, FaEye, FaEyeSlash, FaInfoCircle } from 'react-icons/fa'
 import { useRouter } from 'next/navigation'
 
 interface MobileLoginFormProps {
@@ -25,6 +25,7 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | undefined>("")
   const [success, setSuccess] = useState<string | undefined>("")
+  const [showPassword, setShowPassword] = useState(false)
 
   const form = useForm<z.infer<typeof mobileSignInSchema>>({
     resolver: zodResolver(mobileSignInSchema),
@@ -70,6 +71,13 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
       backButtonHref='/auth/register'
       showSocial={false}
     >
+      {/* Guidance banner */}
+      <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800 flex">
+        <FaInfoCircle className="mt-0.5 mr-2" />
+        <div>
+          Use your Mobile or Client ID and password. You may be asked for OTP and mPin.
+        </div>
+      </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <div className='space-y-4'>
@@ -115,9 +123,17 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
                         {...field}
                         disabled={isPending}
                         placeholder="••••••••"
-                        type='password'
-                        className="pl-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                        type={showPassword ? 'text' : 'password'}
+                        className="pl-10 pr-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
                       />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <FaEyeSlash /> : <FaEye />}
+                      </button>
                     </div>
                   </FormControl>
                   <FormMessage />

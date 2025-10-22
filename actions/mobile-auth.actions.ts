@@ -49,7 +49,7 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
       console.error('Failed to log security event:', logError);
     }
     const errors = validatedFields.error.issues.map((e: any) => e.message).join(", ");
-    return { error: `Invalid input: ${errors}` }
+    return { error: `Invalid input: ${errors}. Use your Mobile or Client ID and password.` }
   }
 
   const { identifier, password } = validatedFields.data
@@ -80,7 +80,7 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
       } catch (logError) {
         console.error('Failed to log security event:', logError);
       }
-      return { error: "Invalid credentials. Please check your mobile number/Client ID and password." }
+      return { error: "Invalid credentials. Check Mobile/Client ID and password. If you just registered, verify OTP and set mPin first." }
     }
 
     // Verify password
@@ -100,7 +100,7 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
       } catch (logError) {
         console.error('Failed to log security event:', logError);
       }
-      return { error: "Invalid credentials. Please check your mobile number/Client ID and password." }
+      return { error: "Incorrect password. If forgotten, use Forgot password to reset via email/OTP." }
     }
 
     // Check if phone is verified (required for mobile login)
@@ -254,10 +254,10 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
         console.error('Failed to log login success:', logError);
       }
       
-      return {
-        success: otpResult.data?.fallback
+        return {
+          success: otpResult.data?.fallback
           ? "OTP generated. SMS failed; check with support or console."
-          : `OTP sent to your mobile${otpResult.data?.emailEnqueued ? " and email" : ""} for verification`,
+          : `OTP sent to your mobile${otpResult.data?.emailEnqueued ? " and email" : ""}. Enter the 6-digit code to continue`,
         sessionToken,
         requiresOtp: true,
         userData: {
@@ -268,7 +268,7 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
         }
       }
     } else {
-      return { error: "Failed to send OTP. Please try again." }
+      return { error: "Failed to send OTP. Please tap Resend OTP or try again later." }
     }
 
   } catch (error) {
@@ -723,18 +723,18 @@ export const registerWithMobile = async (values: z.infer<typeof signUpSchema>, r
     }
     // Validate phone number format
     if (!validatePhoneNumber(phone)) {
-      return { error: "Please enter a valid Indian mobile number" }
+      return { error: "Please enter a valid Indian mobile number (starts 6-9, 10 digits)" }
     }
 
     // Check if user already exists
     const existingUserByEmail = await getUserByEmail(email)
     if (existingUserByEmail) {
-      return { error: "Email already in use!" }
+      return { error: "Email already in use! Try logging in or reset password." }
     }
 
     const existingUserByPhone = await getUserByPhone(phone)
     if (existingUserByPhone) {
-      return { error: "Mobile number already in use!" }
+      return { error: "Mobile number already in use! Use a different number or login." }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -761,6 +761,9 @@ export const registerWithMobile = async (values: z.infer<typeof signUpSchema>, r
     } catch (logError) {
       console.error('Failed to log registration success:', logError);
     }
+
+    // Also log to console with explicit clientId for post-registration UX debugging
+    console.log(`[REGISTRATION] ✅ User created. id=${newUser.id}, clientId=${clientId}, phone=${phone}`)
 
     // Send OTP for phone verification
     const otpResult = await OtpService.generateAndSendOtp(
@@ -793,9 +796,26 @@ export const registerWithMobile = async (values: z.infer<typeof signUpSchema>, r
       }
     } else {
       console.error("OTP sending failed during registration:", otpResult.error);
-      // Fallback: also log OTP if available via development mode is not active (handled inside service)
-      return { 
-        error: "Failed to send OTP. Please contact support to open your account." 
+      // Fallback improvement: still create a temporary session so user can Resend OTP
+      try {
+        const sessionToken = await MpinService.createSessionAuth(newUser.id);
+        return {
+          success: `🎉 Registration successful! Your Client ID is ${clientId}. We couldn't send the OTP right now. Tap \"Resend OTP\" to get a new code.`,
+          sessionToken,
+          requiresOtp: true,
+          userData: {
+            userId: newUser.id,
+            phone,
+            emailEnqueued: false,
+            purpose: "PHONE_VERIFICATION",
+            clientId
+          }
+        }
+      } catch (sessionError) {
+        console.error("Failed to create session after OTP failure:", sessionError);
+        return { 
+          error: `Registration completed, but OTP could not be sent. Your Client ID is ${clientId}. Please try again later or contact support.`
+        }
       }
     }
 
