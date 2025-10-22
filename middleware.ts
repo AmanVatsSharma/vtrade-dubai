@@ -1,5 +1,5 @@
 // middleware.ts
-import { auth } from "@/auth"
+import { authEdge } from "@/auth-edge"
 import { NextResponse } from "next/server"
 
 /**
@@ -79,7 +79,7 @@ const adminRoutes = [
   "/admin-console"  // ✅ Added admin-console route protection
 ];
 
-export default auth((req) => {
+export default authEdge((req) => {
   const { nextUrl } = req;
   const isLoggedIn = !!req.auth;
   
