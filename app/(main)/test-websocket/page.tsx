@@ -5,10 +5,6 @@
 
 "use client";
 
-// Disable static generation for this page (requires runtime data)
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocketMarketData } from '@/lib/market-data/hooks/useWebSocketMarketData';
 import type { ConnectionState, SubscriptionMode } from '@/lib/market-data/providers/types';
@@ -26,7 +22,7 @@ interface LogEntry {
 }
 
 export default function WebSocketTestPage() {
-  const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'http://marketdata.vedpragya.com:3000/market-data';
+  const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.vedpragya.com:3000/market-data';
   const apiKey = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_API_KEY || 'demo-key-1';
   const [tokenInput, setTokenInput] = useState('26000');
   const [subscriptionMode, setSubscriptionMode] = useState<SubscriptionMode>('ltp');

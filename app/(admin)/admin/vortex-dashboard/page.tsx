@@ -1,9 +1,6 @@
 // app/(admin)/admin/vortex-dashboard/page.tsx
 "use client";
 
-// Disable static generation for this page (requires runtime data)
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
