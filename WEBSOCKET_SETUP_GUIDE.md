@@ -9,7 +9,8 @@ Create or edit `.env.local` in the project root:
 ```bash
 # WebSocket Market Data Configuration
 # Note: Use base URL only, Socket.IO will automatically append the /market-data namespace
-NEXT_PUBLIC_LIVE_MARKET_WS_URL=ws://marketdata.vedpragya.com:3000
+# Use wss:// for HTTPS production, ws:// for local development
+NEXT_PUBLIC_LIVE_MARKET_WS_URL=wss://marketdata.vedpragya.com:3000
 LIVE_MARKET_WS_API_KEY=your-actual-api-key-here
 NEXT_PUBLIC_ENABLE_WS_MARKET_DATA=true
 

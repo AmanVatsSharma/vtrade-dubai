@@ -173,7 +173,11 @@ export class SocketIOClient {
       const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
       
       // Extract path (namespace) or use default '/market-data'
-      const path = urlObj.pathname || '/market-data';
+      // If pathname is '/' or empty, default to '/market-data'
+      let path = urlObj.pathname;
+      if (!path || path === '/') {
+        path = '/market-data';
+      }
       
       console.log('🔧 [SOCKET-IO-CLIENT] Parsed URL', {
         baseUrl,

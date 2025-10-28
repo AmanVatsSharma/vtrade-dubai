@@ -3,8 +3,10 @@
 ## Overview
 Fixed the Socket.IO WebSocket connection issue by properly separating the base URL from the namespace path, matching the working HTML test client implementation.
 
-## Problem
-The WebSocket connection was failing because Socket.IO was receiving the full URL including the namespace (`ws://marketdata.vedpragya.com:3000/market-data`) as a single string. Socket.IO then tried to append its own paths (`/socket.io`), causing connection failures.
+## Problems
+1. **Path Issue**: The WebSocket connection was failing because Socket.IO was receiving the full URL including the namespace (`ws://marketdata.vedpragya.com:3000/market-data`) as a single string. Socket.IO then tried to append its own paths (`/socket.io`), causing connection failures.
+
+2. **HTTPS/WSS Issue**: Production sites load over HTTPS, but attempted connections to `ws://` (insecure WebSocket) are blocked by browsers due to mixed content policy. Must use `wss://` for HTTPS sites.
 
 ## Solution
 Updated the Socket.IO client initialization to parse the URL and separate the base URL from the namespace path, similar to how Socket.IO handles it in the working HTML implementation.
@@ -17,7 +19,9 @@ Updated the Socket.IO client initialization to parse the URL and separate the ba
 **Changes:**
 - Added URL parsing logic to separate base URL from path/namespace
 - Extract base URL (protocol + host + port)
-- Extract path/namespace (defaults to `/market-data` if not specified)
+- Extract path/namespace with proper fallback logic:
+  - If path is empty or `/`, default to `/market-data`
+  - Otherwise use the specified path
 - Configure Socket.IO with proper `path` option: `${path}/socket.io`
 
 **Key Code:**
@@ -30,7 +34,11 @@ const urlObj = new URL(parsedUrl);
 const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
 
 // Extract path (namespace) or use default '/market-data'
-const path = urlObj.pathname || '/market-data';
+// If pathname is '/' or empty, default to '/market-data'
+let path = urlObj.pathname;
+if (!path || path === '/') {
+  path = '/market-data';
+}
 
 // Initialize Socket.IO connection with proper path configuration
 this.socket = io(baseUrl, {
@@ -47,6 +55,8 @@ this.socket = io(baseUrl, {
 
 **Changes:**
 - Updated fallback URL to use base URL only (without `/market-data` suffix)
+- Added auto-detection: uses `wss://` for HTTPS sites, `ws://` for HTTP
+- Fixes "Mixed Content" browser blocking on production
 
 **Before:**
 ```typescript
@@ -55,7 +65,12 @@ const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.ved
 
 **After:**
 ```typescript
-const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.vedpragya.com:3000';
+// Use wss:// for production (HTTPS sites require secure WebSocket)
+// Use ws:// for local development
+const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 
+  (typeof window !== 'undefined' && window.location.protocol === 'https:' 
+    ? 'wss://marketdata.vedpragya.com:3000' 
+    : 'ws://marketdata.vedpragya.com:3000');
 ```
 
 ### 3. `/app/(main)/test-websocket/page.tsx`
@@ -63,6 +78,7 @@ const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.ved
 
 **Changes:**
 - Updated fallback URL to use base URL only (without `/market-data` suffix)
+- Added auto-detection for HTTPS/WSS protocol
 
 **Before:**
 ```typescript
@@ -71,7 +87,11 @@ const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.ved
 
 **After:**
 ```typescript
-const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.vedpragya.com:3000';
+// Auto-detect protocol: wss:// for HTTPS, ws:// for HTTP
+const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 
+  (typeof window !== 'undefined' && window.location.protocol === 'https:' 
+    ? 'wss://marketdata.vedpragya.com:3000' 
+    : 'ws://marketdata.vedpragya.com:3000');
 ```
 
 ### 4. `/WEBSOCKET_SETUP_GUIDE.md`
