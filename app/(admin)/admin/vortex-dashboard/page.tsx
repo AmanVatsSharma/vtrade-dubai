@@ -1,7 +1,7 @@
 // app/(admin)/admin/vortex-dashboard/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +45,8 @@ interface VortexData {
   funds?: any;
 }
 
-export default function VortexDashboard() {
+// Inner component that uses useSearchParams() - must be wrapped in Suspense
+function VortexDashboardContent() {
   const searchParams = useSearchParams();
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [vortexData, setVortexData] = useState<VortexData>({});
