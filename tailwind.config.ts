@@ -43,6 +43,11 @@ const config: Config = {
         'sidebar-accent-foreground': 'oklch(var(--sidebar-accent-foreground) / <alpha-value>)',
         'sidebar-border': 'oklch(var(--sidebar-border) / <alpha-value>)',
         'sidebar-ring': 'oklch(var(--sidebar-ring) / <alpha-value>)',
+        // Cyberpunk color palette for 404 page
+        'cyber-blue': '#00D9FF',
+        'cyber-cyan': '#00FFF0',
+        'cyber-purple': '#8B5CF6',
+        'deep-black': '#000000',
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

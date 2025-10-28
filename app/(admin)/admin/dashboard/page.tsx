@@ -7,13 +7,13 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  LogOut, 
-  Users, 
-  FileText, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  LogOut,
+  Users,
+  FileText,
+  CheckCircle,
+  XCircle,
+  Clock,
   TrendingUp,
   Shield,
   Settings,
@@ -22,11 +22,6 @@ import {
 import dynamic from 'next/dynamic';
 import { WebSocketErrorBoundary } from '@/components/vortex/WebSocketErrorBoundary';
 
-// Dynamically import LiveMarketQuotes to avoid SSR issues with WebSocket
-const LiveMarketQuotes = dynamic(
-  () => import('@/components/vortex/LiveMarketQuotes'),
-  { ssr: false }
-);
 
 interface DashboardStats {
   totalUsers: number;
@@ -67,7 +62,7 @@ export default function AdminDashboard() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        
+
         // Fetch KYC stats
         const kycResponse = await fetch('/api/admin/kyc?limit=1');
         if (kycResponse.ok) {
@@ -84,7 +79,7 @@ export default function AdminDashboard() {
         // TODO: Add more API calls for other stats
         // const usersResponse = await fetch('/api/admin/users/stats');
         // const transactionsResponse = await fetch('/api/admin/transactions/stats');
-        
+
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
       } finally {
@@ -263,10 +258,7 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-semibold text-gray-900">Live Market Data</h2>
             <Badge variant="outline" className="ml-2">WebSocket</Badge>
           </div>
-          <WebSocketErrorBoundary>
-            <LiveMarketQuotes />
-          </WebSocketErrorBoundary>
-        </div>
+          Removed VOrtex Live Wbsocket Component        </div>
 
         {/* Recent Activity */}
         <Card>

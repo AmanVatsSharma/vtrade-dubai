@@ -24,7 +24,6 @@ import {
   DollarSign,
   Users
 } from "lucide-react";
-import LiveTrading from "@/components/live-trading";
 // import WebSocketExample from "@/components/websocket-example";
 import QueueMonitor from "@/components/queue-monitor";
 import { Input } from "@/components/ui/input";
@@ -498,7 +497,7 @@ export function AdminDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
                 <h3 className="text-lg font-semibold mb-4">Live Trading Controls</h3>
-                <LiveTrading />
+Removed Live Trading Controls
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-4">Live Price Monitor</h3>
