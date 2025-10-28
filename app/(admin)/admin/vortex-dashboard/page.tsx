@@ -254,3 +254,26 @@ function VortexDashboardContent() {
     </div>
   );
 }
+
+// Main exported component with Suspense boundary for useSearchParams()
+export default function VortexDashboard() {
+  return (
+    <Suspense 
+      fallback={
+        <div className="min-h-screen bg-gray-50 p-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-gray-900">Vortex Dashboard</h1>
+              <p className="text-gray-600">Loading...</p>
+            </div>
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <VortexDashboardContent />
+    </Suspense>
+  );
+}
