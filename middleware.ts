@@ -1,6 +1,7 @@
 // middleware.ts
 import { authEdge } from "@/auth-edge"
 import { NextResponse } from "next/server"
+import { isMaintenanceModeActive, canBypassMaintenance } from "@/lib/maintenance"
 
 /**
  * An array of routes that are accessible to the public.
@@ -85,6 +86,31 @@ export default authEdge((req) => {
   
   // Console logging for debugging
   console.log(`[MIDDLEWARE] 🔍 Request to: ${nextUrl.pathname}, Logged in: ${isLoggedIn}`);
+  
+  // 0. MAINTENANCE MODE CHECK - Highest priority
+  // Check if maintenance mode is active (currently hardcoded as enabled)
+  if (isMaintenanceModeActive()) {
+    console.log(`[MIDDLEWARE] 🔧 Maintenance mode is active (hardcoded)`);
+    
+    // Allow maintenance page and API endpoints
+    if (nextUrl.pathname === '/maintenance' || nextUrl.pathname.startsWith('/api/maintenance/')) {
+      console.log(`[MIDDLEWARE] ✅ Maintenance route - allowing`);
+      return NextResponse.next();
+    }
+    
+    // Get user role for bypass check
+    const user = (req.auth as any)?.user;
+    const userRole = user?.role as string | undefined;
+    
+    // Check if user can bypass maintenance mode (ADMIN or SUPER_ADMIN)
+    if (canBypassMaintenance(userRole)) {
+      console.log(`[MIDDLEWARE] ✅ Admin bypass granted for role: ${userRole}`);
+      // Continue with normal middleware flow
+    } else {
+      console.log(`[MIDDLEWARE] 🔒 Maintenance mode - redirecting to maintenance page (user role: ${userRole || 'none'})`);
+      return NextResponse.redirect(new URL('/maintenance', nextUrl));
+    }
+  }
   
   // CORS preflight handling: never redirect OPTIONS
   if (req.method === 'OPTIONS') {

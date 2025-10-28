@@ -46,6 +46,11 @@ const nextConfig = {
   env: {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || '*',
+    // Maintenance mode environment variables
+    MAINTENANCE_MODE: process.env.MAINTENANCE_MODE || 'false',
+    MAINTENANCE_MESSAGE: process.env.MAINTENANCE_MESSAGE,
+    MAINTENANCE_END_TIME: process.env.MAINTENANCE_END_TIME,
+    MAINTENANCE_ALLOW_ADMIN_BYPASS: process.env.MAINTENANCE_ALLOW_ADMIN_BYPASS || 'true',
   },
 };
 export default nextConfig;
