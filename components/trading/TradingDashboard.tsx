@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
 import { usePortfolio, useOrdersAndPositions } from "@/lib/hooks/use-trading-data"
-import { MarketDataProvider, useMarketData } from "@/lib/hooks/MarketDataProvider"
+import { useMarketData } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
+import { WebSocketMarketDataProvider } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
 import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { useRealtimeAccount } from "@/lib/hooks/use-realtime-account"
@@ -123,10 +124,13 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     mutate: refreshOrdersPositions,
     error: ordersPositionsError
   } = useOrdersAndPositions(userId)
-  const { quotes, isLoading: isQuotesLoading } = useMarketData()
+  const { quotes, isLoading: isQuotesLoading, isConnected: wsConnectionState } = useMarketData()
 
   // Realtime connection
   const { isConnected: isRealtimeConnected, lastMessage } = useRealtimeTest()
+  
+  // Check if WebSocket is connected
+  const isWebSocketConnected = wsConnectionState === 'connected'
 
   // Get trading account ID early to avoid hoisting issues
   const tradingAccountId = useMemo(() => {
@@ -349,15 +353,23 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
                 isLoading={isQuotesLoading}
               />
             ))}
-            {/* Realtime connection indicator */}
+            {/* WebSocket connection indicator */}
             <div className="flex items-center gap-1 text-xs">
-              {isRealtimeConnected ? (
-                <Wifi className="h-3 w-3 text-green-500" />
+              {isWebSocketConnected ? (
+                <>
+                  <Wifi className="h-3 w-3 text-green-500" />
+                  <span className="text-green-600 hidden sm:inline">Live</span>
+                </>
+              ) : wsConnectionState === 'connecting' ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+                  <span className="text-yellow-600 hidden sm:inline">Connecting</span>
+                </>
               ) : (
-                <WifiOff className="h-3 w-3 text-gray-400" />
-              )}
-              {anyRefreshing && (
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                <>
+                  <WifiOff className="h-3 w-3 text-red-500" />
+                  <span className="text-red-600 hidden sm:inline">Offline</span>
+                </>
               )}
             </div>
           </div>
@@ -440,9 +452,13 @@ const TradingDashboardWrapper: React.FC = () => {
     return <LoadingScreen />
   }
 
+  console.log('🚀 [TRADING-DASHBOARD] Using WebSocket Market Data Provider')
+
   return (
-    <MarketDataProvider
-      config={{ 
+    <WebSocketMarketDataProvider
+      userId={userId}
+      enableWebSocket={true}
+      config={{
         jitter: { 
           enabled: true, 
           interval: 450, 
@@ -454,16 +470,15 @@ const TradingDashboardWrapper: React.FC = () => {
           steps: 50, 
           duration: 4500 
         },
-        // deviation: {
-        //   enabled: true, 
-        //   percentage: 0.7, 
-        //   absolute: 0.5 
-        // }
-      }}      
-      userId={userId}
+        deviation: {
+          enabled: false, 
+          percentage: 0, 
+          absolute: 0
+        }
+      }}
     >
       <TradingDashboard userId={userId} session={session} />
-    </MarketDataProvider>
+    </WebSocketMarketDataProvider>
   )
 }
 
