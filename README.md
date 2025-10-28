@@ -509,3 +509,42 @@ npm run generate
 - [Pothos GraphQL](https://pothos-graphql.dev)
 - [GraphQL Yoga](https://the-guild.dev/graphql/yoga-server)
 - [Next.js API Routes](https://nextjs.org/docs/api-routes/introduction)
+
+---
+
+## 📖 Project Documentation
+
+### Core Documentation
+- [`TRADING_SYSTEM_ARCHITECTURE.md`](./TRADING_SYSTEM_ARCHITECTURE.md) - Complete system architecture and design
+- [`FEATURE_ROADMAP.md`](./FEATURE_ROADMAP.md) - Future enhancements and planned features
+- [`MIGRATION_GUIDE.md`](./MIGRATION_GUIDE.md) - Migration documentation
+- [`DEPLOYMENT_CHECKLIST.md`](./DEPLOYMENT_CHECKLIST.md) - Production deployment guide
+- [`CHANGELOG.md`](./CHANGELOG.md) - Project changelog and milestones
+
+### Setup & Configuration
+- [`CONSOLE_SETUP.md`](./CONSOLE_SETUP.md) - Console setup instructions
+- [`ADMIN_CONSOLE_SETUP.md`](./ADMIN_CONSOLE_SETUP.md) - Admin console setup
+- [`WEBSOCKET_SETUP_GUIDE.md`](./WEBSOCKET_SETUP_GUIDE.md) - WebSocket configuration
+- [`VORTEX_INTEGRATION.md`](./VORTEX_INTEGRATION.md) - Vortex API integration guide
+- [`SMS_SETUP_GUIDE.md`](./SMS_SETUP_GUIDE.md) - SMS setup guide
+- [`MOBILE_AUTH_SETUP.md`](./MOBILE_AUTH_SETUP.md) - Mobile authentication setup
+- [`LOGGING_GUIDE.md`](./LOGGING_GUIDE.md) - Logging configuration
+
+### Quick Reference
+- [`AUTH_QUICK_REFERENCE.md`](./AUTH_QUICK_REFERENCE.md) - Authentication quick reference
+- [`WATCHLIST_QUICK_REFERENCE.md`](./WATCHLIST_QUICK_REFERENCE.md) - Watchlist quick reference
+- [`IST_TIMEZONE_QUICK_GUIDE.md`](./IST_TIMEZONE_QUICK_GUIDE.md) - Timezone handling guide
+- [`QUICK_REFERENCE_REALTIME_HOOKS.md`](./QUICK_REFERENCE_REALTIME_HOOKS.md) - Realtime hooks reference
+
+### Integration Guides
+- [`WATCHLIST_INTEGRATION_GUIDE.md`](./WATCHLIST_INTEGRATION_GUIDE.md) - Watchlist integration
+- [`WEBSCKET_INTEGRATIONGUIDE.MD`](./WEBSCKET_INTEGRATIONGUIDE.MD) - WebSocket integration
+- [`MIGRATION_GUIDE_RPC_TO_SERVICES.md`](./MIGRATION_GUIDE_RPC_TO_SERVICES.md) - RPC to services migration
+
+### Module-Specific Documentation
+See the [`docs/`](./docs/) folder for detailed module-specific documentation:
+- Authentication flows
+- Console architecture
+- Order execution optimization
+- WebSocket architecture
+- And more...

@@ -112,7 +112,7 @@ export function WebSocketMarketDataProvider({
   });
 
   // Get environment variables
-  const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.vedpragya.com:3000/market-data';
+  const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 'ws://marketdata.vedpragya.com:3000';
   const apiKey = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_API_KEY || 'demo-key-1';
   const isEnabled = process.env.NEXT_PUBLIC_ENABLE_WS_MARKET_DATA === 'true' || enableWebSocket;
 

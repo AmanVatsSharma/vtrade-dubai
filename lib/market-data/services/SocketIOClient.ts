@@ -164,8 +164,26 @@ export class SocketIOClient {
     });
 
     try {
-      // Initialize Socket.IO connection
-      this.socket = io(this.config.url, {
+      // Parse URL to separate base from path for Socket.IO
+      // Convert ws:// or wss:// to http:// or https:// for URL parsing
+      const parsedUrl = this.config.url.replace('ws://', 'http://').replace('wss://', 'https://');
+      const urlObj = new URL(parsedUrl);
+      
+      // Extract base URL (protocol + host, including port if present)
+      const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+      
+      // Extract path (namespace) or use default '/market-data'
+      const path = urlObj.pathname || '/market-data';
+      
+      console.log('🔧 [SOCKET-IO-CLIENT] Parsed URL', {
+        baseUrl,
+        path,
+        fullUrl: this.config.url
+      });
+      
+      // Initialize Socket.IO connection with proper path configuration
+      this.socket = io(baseUrl, {
+        path: `${path}/socket.io`,
         extraHeaders: {
           'x-api-key': this.config.apiKey,
         },
