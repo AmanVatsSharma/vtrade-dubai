@@ -3,21 +3,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  // output   = "./generated/client"
-}
-
-generator pothos {
-  provider     = "prisma-pothos-types"
-  clientOutput = "./generated/client"
-  output       = "../generated/pothos-types.ts"
-}
-
-generator pothosCrud {
-  provider = "prisma-generator-pothos-codegen"
-  output   = "../generated"
-  inputs   = "../generated/inputs.ts"
-  objects  = "../generated/objects.ts"
-  autocrud = "../generated/autocrud.ts"
 }
 
 datasource db {

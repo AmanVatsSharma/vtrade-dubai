@@ -1,7 +1,7 @@
 {
   "name": "trading-app-platform",
   "version": "0.1.0",
-  "description": "trading app platform with nextjs, pothos, prisma, graphql, typescript, tailwindcss",
+  "description": "trading app platform with nextjs, prisma, typescript, tailwindcss",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -29,11 +29,6 @@
     "@aws-sdk/client-sns": "^3.888.0",
     "@aws-sdk/s3-request-presigner": "^3.901.0",
     "@hookform/resolvers": "^5.2.1",
-    "@pothos/core": "^4.2.0",
-    "@pothos/plugin-prisma": "^4.2.1",
-    "@pothos/plugin-relay": "^4.6.2",
-    "@pothos/plugin-scope-auth": "^4.1.5",
-    "@pothos/plugin-validation": "^3.10.2",
     "@prisma/client": "^6.17.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -63,14 +58,12 @@
     "framer-motion": "^12.23.14",
     "graphql": "^16.11.0",
     "graphql-scalars": "^1.24.2",
-    "graphql-yoga": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
     "lightweight-charts": "^5.0.8",
     "lucide-react": "^0.536.0",
     "next": "14.2.5",
     "next-auth": "^5.0.0-beta.21",
     "next-themes": "^0.4.6",
-    "prisma-generator-pothos-codegen": "^0.7.1",
     "protobufjs": "^7.5.4",
     "react": "^18",
     "react-day-picker": "^9.11.0",
@@ -116,11 +109,9 @@
   },
   "keywords": [
     "nextjs",
-    "graphql",
     "prisma",
-    "pothos",
-    "autocrud",
-    "typescript"
+    "typescript",
+    "tailwindcss"
   ],
   "jest": {
     "testEnvironment": "node",
