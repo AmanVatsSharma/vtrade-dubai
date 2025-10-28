@@ -1,10 +1,10 @@
 // app/api/admin/kyc/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-// Force this route to be dynamic; it uses auth() which depends on cookies/headers
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+
+// Force this route to be dynamic; it uses auth() which depends on cookies/headers
+export const dynamic = 'force-dynamic';
 
 // GET - Fetch all KYC applications with user details
 export async function GET(request: NextRequest) {

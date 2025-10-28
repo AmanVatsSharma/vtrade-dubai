@@ -1,10 +1,10 @@
 // app/api/kyc/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-// Force this route to be dynamic; it uses auth() which depends on cookies/headers
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+
+// Force this route to be dynamic; it uses auth() which depends on cookies/headers
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
