@@ -276,9 +276,15 @@ model Stock {
   optionType     OptionType? // CE/PE, only for options
   expiry         DateTime? // Only for F&O
   lot_size       Float?
+  
+  // Instrument token from market data API
+  token          Int?            @unique
+  
   watchlistItems WatchlistItem[]
   orders         Order[]
   positions      Position[]
+  
+  @@index([token])
 }
 
 model Watchlist {

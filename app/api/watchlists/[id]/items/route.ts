@@ -9,10 +9,13 @@ import { z } from 'zod'
 import { withAddWatchlistItemTransaction } from '@/lib/watchlist-transactions'
 
 const addItemSchema = z.object({
-  stockId: z.string().uuid(),
+  stockId: z.string().uuid().optional(),
+  token: z.number().optional(),
   notes: z.string().max(500).optional(),
   alertPrice: z.number().positive().optional(),
   alertType: z.enum(['ABOVE', 'BELOW', 'BOTH']).optional(),
+}).refine(data => data.stockId || data.token, {
+  message: "Either stockId or token is required"
 })
 
 // POST /api/watchlists/[id]/items - Add item to watchlist
@@ -31,10 +34,11 @@ export async function POST(
     const validatedData = addItemSchema.parse(body)
 
     // Add item to watchlist with atomic transaction
+    // If token is provided without stockId, we'll create/find the Stock record
     const item = await withAddWatchlistItemTransaction(
       params.id,
       session.user.id,
-      validatedData
+      validatedData as any // Type will be validated by the transaction function
     )
 
     return NextResponse.json({ item }, { status: 201 })

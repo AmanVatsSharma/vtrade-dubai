@@ -535,6 +535,7 @@ export function useUserWatchlist(userId?: string) {
       watchlistItemId: e.node.id,
       id: e.node.stock.id,
       instrumentId: e.node.stock.instrumentId,
+      token: e.node.stock.token, // Add token field from Stock model
       symbol: e.node.stock.ticker,
       name: e.node.stock.name,
       ltp: toNumber(e.node.stock.ltp),

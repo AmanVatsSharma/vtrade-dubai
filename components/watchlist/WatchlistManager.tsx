@@ -55,6 +55,7 @@ interface WatchlistManagerProps {
 }
 
 type SortBy = 'name' | 'change' | 'price' | 'added'
+type InstrumentTab = 'all' | 'equity' | 'futures' | 'options' | 'commodities'
 
 export function WatchlistManager({
   quotes,
@@ -68,6 +69,7 @@ export function WatchlistManager({
 
   // State
   const [activeTab, setActiveTab] = useState<string>("")
+  const [instrumentFilter, setInstrumentFilter] = useState<InstrumentTab>('all')
   const [sortBy, setSortBy] = useState<SortBy>('added')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -104,7 +106,28 @@ export function WatchlistManager({
   const sortedItems = useMemo(() => {
     if (!activeWatchlist) return []
     
-    const items = [...activeWatchlist.items]
+    let items = [...activeWatchlist.items]
+
+    // Filter by instrument type
+    items = items.filter((item) => {
+      const segment = item.segment?.toUpperCase() || ''
+      const optionType = item.optionType
+      
+      switch (instrumentFilter) {
+        case 'all':
+          return true
+        case 'equity':
+          return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
+        case 'futures':
+          return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !optionType
+        case 'options':
+          return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!optionType
+        case 'commodities':
+          return ['MCX', 'MCX_FO'].includes(segment)
+        default:
+          return true
+      }
+    })
 
     // Sort items
     items.sort((a, b) => {
@@ -126,7 +149,7 @@ export function WatchlistManager({
     })
 
     return items
-  }, [activeWatchlist, sortBy, quotes])
+  }, [activeWatchlist, sortBy, quotes, instrumentFilter])
 
   // Handlers
   const handleCreateWatchlist = useCallback(async (data: {
@@ -361,6 +384,32 @@ export function WatchlistManager({
                 </button>
               </div>
             </motion.div>
+
+            {/* Instrument Type Filter Tabs */}
+            <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
+              {(['all', 'equity', 'futures', 'options', 'commodities'] as InstrumentTab[]).map((tab) => {
+                const label = tab === 'all' ? 'All' : 
+                             tab === 'equity' ? 'Equity' :
+                             tab === 'futures' ? 'Futures' :
+                             tab === 'options' ? 'Options' :
+                             'MCX'
+                const isActive = instrumentFilter === tab
+                
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setInstrumentFilter(tab)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                      isActive 
+                        ? 'bg-blue-600 text-white shadow-md' 
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
 
             {/* Watchlist Items - Compact */}
             <div className="space-y-2">

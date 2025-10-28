@@ -243,20 +243,29 @@ export const withDeleteWatchlistTransaction = async (
 }
 
 /**
- * Transaction wrapper for adding an item to watchlist
+ * Transaction wrapper for adding an item to watchlist (with token support)
  */
 export const withAddWatchlistItemTransaction = async (
   watchlistId: string,
   userId: string,
   data: {
-    stockId: string
+    stockId?: string
+    token?: number
+    symbol?: string
+    name?: string
+    exchange?: string
+    segment?: string
+    strikePrice?: number
+    optionType?: string
+    expiry?: string
+    lotSize?: number
     notes?: string
     alertPrice?: number
     alertType?: string
   }
 ) => {
   return withTransaction(async (tx) => {
-    console.log("➕ Adding item to watchlist:", watchlistId)
+    console.log("➕ Adding item to watchlist:", watchlistId, { token: data.token, stockId: data.stockId })
 
     // Verify watchlist ownership
     const watchlist = await tx.watchlist.findFirst({
@@ -270,11 +279,63 @@ export const withAddWatchlistItemTransaction = async (
       throw new Error("Watchlist not found or access denied")
     }
 
+    let finalStockId = data.stockId
+
+    // If token is provided, find or create Stock record
+    if (data.token && !finalStockId) {
+      console.log("🔍 [WATCHLIST-TX] Looking up stock by token:", data.token)
+      
+      // First, try to find existing stock by token
+      const existingStock = await tx.stock.findFirst({
+        where: {
+          // @ts-expect-error: token column may not exist yet
+          token: data.token,
+        } as any,
+      })
+
+      if (existingStock) {
+        console.log("✅ [WATCHLIST-TX] Found existing stock:", existingStock.id)
+        finalStockId = existingStock.id
+      } else {
+        console.log("➕ [WATCHLIST-TX] Creating new stock record with token:", data.token)
+        
+        // Create new Stock record with token data (hybrid storage)
+        const newStock = await tx.stock.create({
+          data: {
+            instrumentId: `${data.exchange}-${data.token}`,
+            symbol: data.symbol || 'UNKNOWN',
+            exchange: data.exchange || 'NSE',
+            ticker: data.symbol || 'UNKNOWN',
+            name: data.name || data.symbol || 'Unknown',
+            segment: data.segment || 'NSE',
+            ltp: 0,
+            // @ts-expect-error: token column may not exist yet
+            token: data.token,
+            // @ts-expect-error: F&O fields may not exist yet
+            strikePrice: data.strikePrice,
+            // @ts-expect-error: F&O fields may not exist yet
+            optionType: data.optionType as any,
+            // @ts-expect-error: F&O fields may not exist yet
+            expiry: data.expiry,
+            // @ts-expect-error: F&O fields may not exist yet
+            lot_size: data.lotSize,
+          } as any,
+        })
+        
+        console.log("✅ [WATCHLIST-TX] Created new stock:", newStock.id)
+        finalStockId = newStock.id
+      }
+    }
+
+    if (!finalStockId) {
+      throw new Error("Could not determine stockId")
+    }
+
     // Check if stock already exists in watchlist
     const existingItem = await tx.watchlistItem.findFirst({
       where: {
         watchlistId,
-        stockId: data.stockId,
+        stockId: finalStockId,
       },
     })
 
@@ -284,7 +345,7 @@ export const withAddWatchlistItemTransaction = async (
 
     // Verify stock exists
     const stock = await tx.stock.findUnique({
-      where: { id: data.stockId },
+      where: { id: finalStockId },
     })
 
     if (!stock) {

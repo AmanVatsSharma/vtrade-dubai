@@ -461,7 +461,7 @@ export function useWatchlistItem(itemId?: string) {
 
 // Utility function for quick stock addition
 export async function addStockToWatchlist(
-  stockId: string,
+  stockIdOrToken: string, // Can be stockId or "token:123:SYMBOL:EXCHANGE"
   watchlistId?: string | null,
   options?: {
     notes?: string
@@ -513,18 +513,43 @@ export async function addStockToWatchlist(
       throw new Error("Could not find or create a watchlist.")
     }
 
+    // Parse stockIdOrToken to handle token format
+    let requestBody: any = {
+      notes: options?.notes,
+      alertPrice: options?.alertPrice,
+      alertType: options?.alertType || "ABOVE",
+    }
+
+    // Check if it's a token-based instrument
+    // Format: token:{token}:{symbol}:{exchange}:{segment}:{name}
+    if (stockIdOrToken.startsWith('token:')) {
+      const [, token, symbol, exchange, segment, encodedName] = stockIdOrToken.split(':')
+      const name = decodeURIComponent(encodedName || '')
+      
+      console.log('🔍 [ADD-STOCK] Token-based instrument detected', { 
+        token, symbol, exchange, segment, name 
+      })
+      
+      requestBody = {
+        ...requestBody,
+        token: parseInt(token),
+        symbol,
+        name,
+        exchange,
+        segment,
+      }
+    } else {
+      // Regular stockId (UUID)
+      requestBody.stockId = stockIdOrToken
+    }
+
     // Add item to watchlist
     const response = await fetch(`/api/watchlists/${finalWatchlistId}/items`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        stockId,
-        notes: options?.notes,
-        alertPrice: options?.alertPrice,
-        alertType: options?.alertType || "ABOVE",
-      }),
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
