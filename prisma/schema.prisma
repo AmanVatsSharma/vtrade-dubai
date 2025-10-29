@@ -307,10 +307,10 @@ model WatchlistItem {
   token          Int?            @unique
   
   // Instrument data stored directly in WatchlistItem (no Stock dependency)
-  symbol        String
-  exchange      String
-  segment       String
-  name          String
+  symbol        String?  @default("UNKNOWN") // Temporarily nullable for migration
+  exchange      String?  @default("NSE")     // Temporarily nullable for migration
+  segment       String?  @default("NSE")      // Temporarily nullable for migration
+  name          String?  @default("Unknown")  // Temporarily nullable for migration
   ltp           Float    @default(0)
   close         Float    @default(0)
   
