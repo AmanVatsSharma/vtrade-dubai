@@ -15,6 +15,7 @@
 
 import useSWR from 'swr'
 import { useCallback, useEffect, useRef } from 'react'
+import { useSharedSSE } from './use-shared-sse'
 
 // Types
 interface Order {
@@ -122,7 +123,6 @@ function validateOrder(order: any): order is Partial<Order> {
 export function useRealtimeOrders(userId: string | undefined | null): UseRealtimeOrdersReturn {
   const retryCountRef = useRef(0)
   const maxRetries = 3
-  const eventSourceRef = useRef<EventSource | null>(null)
   
   // Initial data fetch only (no polling)
   const { data, error, isLoading, mutate } = useSWR<OrdersResponse>(
@@ -149,60 +149,18 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
     }
   )
 
-  // SSE connection for real-time updates
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') return
-
-    console.log('📡 [REALTIME-ORDERS] Connecting to SSE stream')
-
-    const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
-    eventSourceRef.current = eventSource
-
-    eventSource.onopen = () => {
-      console.log('✅ [REALTIME-ORDERS] SSE connection established')
+  // Shared SSE connection for real-time updates
+  const { isConnected } = useSharedSSE(userId, useCallback((message) => {
+    // Handle order-related events
+    if (message.event === 'order_placed' || 
+        message.event === 'order_executed' || 
+        message.event === 'order_cancelled') {
+      console.log(`📨 [REALTIME-ORDERS] Received ${message.event} event, refreshing orders`)
+      mutate().catch(err => {
+        console.error('❌ [REALTIME-ORDERS] Refresh after event failed:', err)
+      })
     }
-
-    eventSource.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data)
-        
-        // Handle order-related events
-        if (message.event === 'order_placed' || 
-            message.event === 'order_executed' || 
-            message.event === 'order_cancelled') {
-          console.log(`📨 [REALTIME-ORDERS] Received ${message.event} event, refreshing orders`)
-          mutate().catch(err => {
-            console.error('❌ [REALTIME-ORDERS] Refresh after event failed:', err)
-          })
-        }
-      } catch (error) {
-        console.error('❌ [REALTIME-ORDERS] Error parsing SSE message:', error)
-      }
-    }
-
-    eventSource.onerror = (error) => {
-      console.error('❌ [REALTIME-ORDERS] SSE connection error:', error)
-      // EventSource will automatically reconnect
-    }
-
-    // Cleanup on unmount
-    return () => {
-      console.log('🧹 [REALTIME-ORDERS] Closing SSE connection')
-      eventSource.close()
-      eventSourceRef.current = null
-    }
-  }, [userId, mutate])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
-      }
-      console.log('🧹 [REALTIME-ORDERS] Cleaned up')
-    }
-  }, [])
+  }, [mutate]))
 
   // Refresh function to call after placing order
   const refresh = useCallback(async () => {

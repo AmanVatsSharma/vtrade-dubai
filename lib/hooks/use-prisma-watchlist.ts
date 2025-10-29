@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useMemo } from "react"
 import useSWR from 'swr'
 import { toast } from "@/hooks/use-toast"
+import { useSharedSSE } from './use-shared-sse'
 
 // Types
 export interface WatchlistItemData {
@@ -196,7 +197,6 @@ const fetcher = async (url: string): Promise<WatchlistsResponse> => {
 export function useEnhancedWatchlists(userId?: string) {
   const retryCountRef = useRef(0)
   const maxRetries = 3
-  const eventSourceRef = useRef<EventSource | null>(null)
   
   // Initial data fetch using SWR (fast, cached, deduplicated)
   const { data, error, isLoading, mutate } = useSWR<WatchlistsResponse>(
@@ -229,60 +229,18 @@ export function useEnhancedWatchlists(userId?: string) {
     return transformWatchlistData(data.watchlists)
   }, [data])
 
-  // SSE connection for real-time watchlist updates
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') return
-
-    console.log('📡 [REALTIME-WATCHLISTS] Connecting to SSE stream')
-
-    const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
-    eventSourceRef.current = eventSource
-
-    eventSource.onopen = () => {
-      console.log('✅ [REALTIME-WATCHLISTS] SSE connection established')
+  // Shared SSE connection for real-time watchlist updates
+  useSharedSSE(userId || undefined, useCallback((message) => {
+    // Handle watchlist-related events
+    if (message.event === 'watchlist_updated' || 
+        message.event === 'watchlist_item_added' || 
+        message.event === 'watchlist_item_removed') {
+      console.log(`📨 [REALTIME-WATCHLISTS] Received ${message.event} event, refreshing watchlists`)
+      mutate().catch(err => {
+        console.error('❌ [REALTIME-WATCHLISTS] Refresh after event failed:', err)
+      })
     }
-
-    eventSource.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data)
-        
-        // Handle watchlist-related events
-        if (message.event === 'watchlist_updated' || 
-            message.event === 'watchlist_item_added' || 
-            message.event === 'watchlist_item_removed') {
-          console.log(`📨 [REALTIME-WATCHLISTS] Received ${message.event} event, refreshing watchlists`)
-          mutate().catch(err => {
-            console.error('❌ [REALTIME-WATCHLISTS] Refresh after event failed:', err)
-          })
-        }
-      } catch (error) {
-        console.error('❌ [REALTIME-WATCHLISTS] Error parsing SSE message:', error)
-      }
-    }
-
-    eventSource.onerror = (error) => {
-      console.error('❌ [REALTIME-WATCHLISTS] SSE connection error:', error)
-      // EventSource will automatically reconnect
-    }
-
-    // Cleanup on unmount
-    return () => {
-      console.log('🧹 [REALTIME-WATCHLISTS] Closing SSE connection')
-      eventSource.close()
-      eventSourceRef.current = null
-    }
-  }, [userId, mutate])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
-      }
-      console.log('🧹 [REALTIME-WATCHLISTS] Cleaned up')
-    }
-  }, [])
+  }, [mutate]))
 
   // Refresh function
   const refetch = useCallback(async () => {

@@ -15,6 +15,7 @@
 
 import useSWR from 'swr'
 import { useCallback, useEffect, useRef } from 'react'
+import { useSharedSSE } from './use-shared-sse'
 
 // Types
 interface Position {
@@ -141,7 +142,6 @@ function validatePositionId(positionId: any): positionId is string {
 export function useRealtimePositions(userId: string | undefined | null): UseRealtimePositionsReturn {
   const retryCountRef = useRef(0)
   const maxRetries = 3
-  const eventSourceRef = useRef<EventSource | null>(null)
   
   // Initial data fetch only (no polling)
   const { data, error, isLoading, mutate } = useSWR<PositionsResponse>(
@@ -168,60 +168,18 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
     }
   )
 
-  // SSE connection for real-time updates
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') return
-
-    console.log('📡 [REALTIME-POSITIONS] Connecting to SSE stream')
-
-    const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
-    eventSourceRef.current = eventSource
-
-    eventSource.onopen = () => {
-      console.log('✅ [REALTIME-POSITIONS] SSE connection established')
+  // Shared SSE connection for real-time updates
+  useSharedSSE(userId, useCallback((message) => {
+    // Handle position-related events
+    if (message.event === 'position_opened' || 
+        message.event === 'position_closed' || 
+        message.event === 'position_updated') {
+      console.log(`📨 [REALTIME-POSITIONS] Received ${message.event} event, refreshing positions`)
+      mutate().catch(err => {
+        console.error('❌ [REALTIME-POSITIONS] Refresh after event failed:', err)
+      })
     }
-
-    eventSource.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data)
-        
-        // Handle position-related events
-        if (message.event === 'position_opened' || 
-            message.event === 'position_closed' || 
-            message.event === 'position_updated') {
-          console.log(`📨 [REALTIME-POSITIONS] Received ${message.event} event, refreshing positions`)
-          mutate().catch(err => {
-            console.error('❌ [REALTIME-POSITIONS] Refresh after event failed:', err)
-          })
-        }
-      } catch (error) {
-        console.error('❌ [REALTIME-POSITIONS] Error parsing SSE message:', error)
-      }
-    }
-
-    eventSource.onerror = (error) => {
-      console.error('❌ [REALTIME-POSITIONS] SSE connection error:', error)
-      // EventSource will automatically reconnect
-    }
-
-    // Cleanup on unmount
-    return () => {
-      console.log('🧹 [REALTIME-POSITIONS] Closing SSE connection')
-      eventSource.close()
-      eventSourceRef.current = null
-    }
-  }, [userId, mutate])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
-      }
-      console.log('🧹 [REALTIME-POSITIONS] Cleaned up')
-    }
-  }, [])
+  }, [mutate]))
 
   // Refresh function
   const refresh = useCallback(async () => {
