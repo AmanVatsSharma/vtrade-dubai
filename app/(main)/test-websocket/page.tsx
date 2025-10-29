@@ -178,25 +178,31 @@ export default function WebSocketTestPage() {
   });
   
   // Update ref when URL changes and handle disconnect if needed
+  // Only run when URL actually changes, not on every render
   useEffect(() => {
     const urlChanged = previousUrlRef.current !== socketIOUrl;
-    previousUrlRef.current = socketIOUrl;
-    urlRef.current = socketIOUrl;
     
     if (urlChanged) {
-      // Use console.log directly since addLog might not be ready yet
       console.log('🔧 [TEST-WEBSOCKET-PAGE] WebSocket URL updated to:', socketIOUrl);
+      previousUrlRef.current = socketIOUrl;
+      urlRef.current = socketIOUrl;
       
       // If connected when URL changes, disconnect to allow reconnection with new URL
-      // This ensures the hook will create a new service with the new URL
-      if (wsData.isConnected === 'connected' || wsData.isConnected === 'connecting') {
+      // Check connection state using a stable reference
+      const currentState = wsData.isConnected;
+      if (currentState === 'connected' || currentState === 'connecting') {
         console.warn('⚠️ [TEST-WEBSOCKET-PAGE] URL changed while connected. Disconnecting to allow reconnection with new URL...');
         wsData.disconnect();
         setSubscriptions(new Map());
         setTotalMessages(0);
       }
+    } else {
+      // URL hasn't changed, just update ref
+      urlRef.current = socketIOUrl;
     }
-  }, [socketIOUrl, wsData]);
+    // Only depend on socketIOUrl - check connection state inside the effect to avoid loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socketIOUrl]);
 
   // =====================================================================
   // LOGGING UTILITIES

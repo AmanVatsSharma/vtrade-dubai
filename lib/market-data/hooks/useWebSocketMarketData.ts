@@ -222,17 +222,15 @@ export function useWebSocketMarketData(
       console.log('🔌 [HOOK-WS-MARKET-DATA] Initializing service (new or stale)...');
       await initializeService();
     } else {
-      console.log('🔌 [HOOK-WS-MARKET-DATA] Service already initialized, connecting...');
-      // Service exists but might need to connect
-      if (serviceRef.current && !serviceRef.current.isConnected) {
-        // Service might be disconnected, ensure it connects
-        // The service's initialize() should handle this
-      }
+      console.log('🔌 [HOOK-WS-MARKET-DATA] Service already initialized, using existing connection');
+      // Service exists - if it's connected, we're good; if not, it should reconnect automatically
+      // But if we need to force connect, we could call service.connect() here if that method exists
     }
     
     setIsConnected('connecting');
     setIsLoading(true);
-  }, [initializeService, config]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initializeService]); // Only depend on initializeService, config is accessed via closure
 
   /**
    * Disconnect from WebSocket
@@ -319,16 +317,25 @@ export function useWebSocketMarketData(
 
   /**
    * Auto-connect on mount
+   * Only cleanup on unmount, not on config changes
    */
   useEffect(() => {
     if (config.autoConnect) {
       connect();
     }
 
+    // Only cleanup on unmount - don't disconnect when config/connect/disconnect change
     return () => {
-      disconnect();
+      if (serviceRef.current) {
+        console.log('🧹 [HOOK-WS-MARKET-DATA] Cleaning up on unmount...');
+        serviceRef.current.disconnect();
+        serviceRef.current = null;
+        isInitializedRef.current = false;
+      }
     };
-  }, [config.autoConnect, connect, disconnect]);
+    // Only depend on autoConnect flag - don't re-run when connect/disconnect functions change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.autoConnect]);
 
   return {
     quotes,
