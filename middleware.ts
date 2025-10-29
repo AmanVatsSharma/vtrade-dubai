@@ -88,9 +88,9 @@ export default authEdge((req) => {
   console.log(`[MIDDLEWARE] 🔍 Request to: ${nextUrl.pathname}, Logged in: ${isLoggedIn}`);
   
   // 0. MAINTENANCE MODE CHECK - Highest priority
-  // Check if maintenance mode is active (currently hardcoded as enabled)
+  // Check if maintenance mode is active (configured via MAINTENANCE_MODE environment variable)
   if (isMaintenanceModeActive()) {
-    console.log(`[MIDDLEWARE] 🔧 Maintenance mode is active (hardcoded)`);
+    console.log(`[MIDDLEWARE] 🔧 Maintenance mode is active (from environment configuration)`);
     
     // Allow maintenance page and API endpoints
     if (nextUrl.pathname === '/maintenance' || nextUrl.pathname.startsWith('/api/maintenance/')) {

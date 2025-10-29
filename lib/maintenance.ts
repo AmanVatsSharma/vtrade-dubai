@@ -21,18 +21,18 @@ export interface MaintenanceStatus {
 
 /**
  * Get current maintenance mode configuration
- * Currently hardcoded as enabled - will be moved to environment variables later
+ * Reads configuration from environment variables
  * 
  * @returns MaintenanceConfig - Current maintenance configuration
  */
 export function getMaintenanceConfig(): MaintenanceConfig {
-  console.log('[MaintenanceConfig] Reading maintenance configuration (hardcoded)');
+  console.log('[MaintenanceConfig] Reading maintenance configuration from environment variables');
   
-  // HARDCODED: Maintenance mode is always enabled for now
-  const isEnabled = true;
+  // Read maintenance mode from environment variable (defaults to false if not set)
+  const isEnabled = process.env.MAINTENANCE_MODE === 'true';
   const message = process.env.MAINTENANCE_MESSAGE || 
     "We're performing scheduled maintenance to improve your experience. We'll be back shortly!";
-  const endTime = process.env.MAINTENANCE_END_TIME;
+  const endTime = process.env.MAINTENANCE_END_TIME ?? '24Hrs';
   const allowAdminBypass = process.env.MAINTENANCE_ALLOW_ADMIN_BYPASS !== 'false';
 
   const config: MaintenanceConfig = {
@@ -42,7 +42,7 @@ export function getMaintenanceConfig(): MaintenanceConfig {
     allowAdminBypass
   };
 
-  console.log('[MaintenanceConfig] Configuration loaded (hardcoded enabled):', config);
+  console.log('[MaintenanceConfig] Configuration loaded from environment:', config);
   return config;
 }
 

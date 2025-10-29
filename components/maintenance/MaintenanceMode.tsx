@@ -40,8 +40,8 @@ export default function MaintenanceMode() {
     "We're performing scheduled maintenance to improve your experience. We'll be back shortly!";
   
   const maintenanceEndTime = process.env.MAINTENANCE_END_TIME;
-  // HARDCODED: Maintenance mode is always enabled for now
-  const isMaintenanceMode = true;
+  // Read maintenance mode from environment variable (defaults to false if not set)
+  const isMaintenanceMode = process.env.MAINTENANCE_MODE === 'true';
 
   console.log('[MaintenanceMode] Component mounted', {
     isMaintenanceMode,

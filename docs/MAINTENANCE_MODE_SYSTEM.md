@@ -126,7 +126,7 @@ env: {
 
 ### Admin Bypass
 
-Admins with roles `ADMIN`, `MODERATOR`, or `SUPER_ADMIN` can bypass maintenance mode:
+Admins with roles `ADMIN` or `SUPER_ADMIN` can bypass maintenance mode:
 
 1. **Login as Admin** - Navigate to `/auth/login`
 2. **Access System** - You'll be able to use the application normally
@@ -246,9 +246,10 @@ The system provides comprehensive console logging for debugging:
 
 ```bash
 [MaintenanceMode] Component mounted { isMaintenanceMode: true, ... }
-[MaintenanceConfig] Reading maintenance configuration
+[MaintenanceConfig] Reading maintenance configuration from environment variables
+[MaintenanceConfig] Configuration loaded from environment: { isEnabled: true, ... }
 [MaintenanceMode] Checking if maintenance mode is active: true
-[MIDDLEWARE] 🔧 Maintenance mode is active
+[MIDDLEWARE] 🔧 Maintenance mode is active (from environment configuration)
 [MIDDLEWARE] ✅ Admin bypass granted for role: ADMIN
 [MaintenanceAPI] Status check requested
 ```
