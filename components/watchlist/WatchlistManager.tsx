@@ -1,6 +1,17 @@
 /**
  * @file WatchlistManager.tsx
- * @description Premium watchlist manager with shadcn tabs and modern UI
+ * @module components/watchlist
+ * @description Premium watchlist manager with shadcn tabs and modern UI. 
+ * 
+ * CRITICAL: WebSocket Quotes Access Pattern
+ * - WebSocket stores quotes keyed by TOKEN (e.g., quotes["26000"])
+ * - Watchlist items must use item.token.toString() to access quotes
+ * - DO NOT use item.instrumentId for quote lookup (e.g., quotes["NSE_EQ-26000"])
+ * - Fallback to instrumentId only if token is unavailable
+ * 
+ * @author BharatERP
+ * @created 2025-01-27
+ * @updated 2025-01-27 - Fixed WebSocket quote key mismatch issue
  */
 
 "use client"
@@ -614,11 +625,32 @@ export function WatchlistManager({
                         return null
                       }
 
-                      if (!item.instrumentId) {
-                        console.warn(`⚠️ [WATCHLIST-MANAGER] Item ${itemIndex} missing instrumentId:`, item)
+                      // Debug: Log watchlist item structure and quote lookup attempt
+                      if (itemIndex === 0) {
+                        console.log('🔍 [WATCHLIST-MANAGER] First item debug:', {
+                          itemId: item.id,
+                          instrumentId: item.instrumentId,
+                          token: item.token,
+                          symbol: item.symbol,
+                          availableQuoteKeys: Object.keys(quotes || {}),
+                          hasToken: !!item.token,
+                          hasInstrumentId: !!item.instrumentId
+                        })
                       }
 
-                      const quote = quotes?.[item.instrumentId || '']
+                      // CRITICAL FIX: Use token instead of instrumentId for quote lookup
+                      // WebSocket stores quotes by token (e.g., "26000"), not instrumentId (e.g., "NSE_EQ-26000")
+                      const quoteKey = item.token ? item.token.toString() : (item.instrumentId || '')
+                      const quote = quotes?.[quoteKey]
+                      
+                      // Log if quote is missing to help debug
+                      if (!quote && item.token) {
+                        console.warn(`⚠️ [WATCHLIST-MANAGER] Quote not found for token ${item.token} (${item.symbol}):`, {
+                          searchKey: quoteKey,
+                          availableKeys: Object.keys(quotes || {}).slice(0, 5),
+                          totalQuotes: Object.keys(quotes || {}).length
+                        })
+                      }
                       
                       return (
                         <motion.div
@@ -636,22 +668,22 @@ export function WatchlistManager({
                           // Mock market depth data for demonstration
                           market_depth: {
                             bid: [
-                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 0.5, quantity: 1000 },
-                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 1.0, quantity: 2500 },
-                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 1.5, quantity: 5000 }
+                              { price: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) - 0.5, quantity: 1000 },
+                              { price: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) - 1.0, quantity: 2500 },
+                              { price: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) - 1.5, quantity: 5000 }
                             ],
                             ask: [
-                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 0.5, quantity: 1200 },
-                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 1.0, quantity: 1800 },
-                              { price: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 1.5, quantity: 3200 }
+                              { price: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) + 0.5, quantity: 1200 },
+                              { price: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) + 1.0, quantity: 1800 },
+                              { price: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) + 1.5, quantity: 3200 }
                             ]
                           },
                           // Mock OHLC data
                           ohlc: {
-                            open: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 2,
-                            high: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) + 5,
-                            low: (((((quotes[item.instrumentId] as any)?.display_price ?? quotes[item.instrumentId]?.last_trade_price) ?? item.ltp))) - 3,
-                            close: quotes[item.instrumentId]?.prev_close_price || item.close,
+                            open: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) - 2,
+                            high: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) + 5,
+                            low: (((((quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price) ?? item.ltp))) - 3,
+                            close: quotes[quoteKey]?.prev_close_price || item.close,
                             volume: Math.floor(Math.random() * 10000000) + 1000000,
                             turnover: Math.floor(Math.random() * 100000000) + 10000000
                           }

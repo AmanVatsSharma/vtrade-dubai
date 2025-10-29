@@ -600,10 +600,23 @@ export function useUserWatchlist(userId?: string) {
               lotSize: item.lotSize,
             }
 
+            // Warn if token is missing - this is required for WebSocket price updates
+            if (!transformedItem.token) {
+              console.warn(`⚠️ [TRADING-DATA] WatchlistItem missing token - will not receive WebSocket updates:`, {
+                itemId: transformedItem.id,
+                symbol: transformedItem.symbol,
+                exchange: transformedItem.exchange,
+                instrumentId: transformedItem.instrumentId,
+                warning: 'Token is required for real-time price subscriptions'
+              })
+            }
+
             console.log(`✅ [TRADING-DATA] Item ${index + 1} transformed:`, {
               id: transformedItem.id,
               symbol: transformedItem.symbol,
               instrumentId: transformedItem.instrumentId,
+              hasToken: !!transformedItem.token,
+              token: transformedItem.token
             })
 
             return transformedItem
