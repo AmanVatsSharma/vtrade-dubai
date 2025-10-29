@@ -1,11 +1,15 @@
 /**
  * @file use-prisma-watchlist.ts
- * @description Prisma-based watchlist management hooks using API routes with atomic transactions
+ * @module hooks
+ * @description Prisma-based watchlist management hooks using SWR for fast initial load and SSE for real-time updates
+ * @author BharatERP
+ * @created 2025-01-27
  */
 
 "use client"
 
-import { useState, useCallback, useMemo, useEffect } from "react"
+import { useCallback, useEffect, useRef, useMemo } from "react"
+import useSWR from 'swr'
 import { toast } from "@/hooks/use-toast"
 
 // Types
@@ -132,94 +136,110 @@ const transformWatchlistData = (watchlists: any[]): WatchlistData[] => {
   })
 }
 
-// Simple module-level cache to persist data across component unmounts
-let cachedWatchlistsGlobal: WatchlistData[] = []
-let hasLoadedOnceGlobal = false
+// Response type for watchlist API
+interface WatchlistsResponse {
+  watchlists: any[]
+}
+
+// Enhanced fetcher with better error handling (matches orders/positions pattern)
+const fetcher = async (url: string): Promise<WatchlistsResponse> => {
+  try {
+    const res = await fetch(url, { 
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    
+    if (!res.ok) {
+      // Handle specific HTTP errors
+      if (res.status === 401) {
+        throw new Error('Unauthorized: Please login again')
+      } else if (res.status === 403) {
+        throw new Error('Forbidden: Access denied')
+      } else if (res.status === 404) {
+        throw new Error('Watchlists endpoint not found')
+      } else if (res.status >= 500) {
+        throw new Error('Server error: Please try again later')
+      }
+      throw new Error(`Failed to fetch watchlists: ${res.status} ${res.statusText}`)
+    }
+    
+    const data = await res.json()
+    
+    // Validate response structure
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid response format')
+    }
+    
+    // Ensure watchlists array exists
+    if (!Array.isArray(data.watchlists)) {
+      console.warn('⚠️ [REALTIME-WATCHLISTS] Invalid watchlists array, defaulting to empty')
+      return { watchlists: [] }
+    }
+    
+    return data
+  } catch (error) {
+    // Enhanced error logging
+    if (error instanceof Error) {
+      console.error('❌ [REALTIME-WATCHLISTS] Fetch error:', {
+        message: error.message,
+        url,
+        timestamp: new Date().toISOString()
+      })
+    }
+    throw error
+  }
+}
 
 // Main Hook for All Watchlists
 export function useEnhancedWatchlists(userId?: string) {
-  const [watchlists, setWatchlists] = useState<WatchlistData[]>(cachedWatchlistsGlobal)
-  // Initial-only loading flag. Remains false after first successful load globally.
-  const [isLoading, setIsLoading] = useState<boolean>(!hasLoadedOnceGlobal)
-  // Refreshing flag used when we refetch while existing data is present
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-
-  const fetchWatchlists = useCallback(async () => {
-    if (!userId) return
-
-    // Distinguish initial load vs refresh using global flag
-    if (hasLoadedOnceGlobal) {
-      setIsRefreshing(true)
-    } else {
-      setIsLoading(true)
-    }
-    setError(null)
-
-    // Timeout + abort for robust error handling
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
-
-    try {
-      console.info('[useEnhancedWatchlists] Fetching watchlists', { userId, hasLoadedOnce: hasLoadedOnceGlobal })
-      const response = await fetch('/api/watchlists', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        cache: 'no-store',
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        console.warn('[useEnhancedWatchlists] Non-OK response from /api/watchlists', { status: response.status })
-        throw new Error('Failed to fetch watchlists')
+  const retryCountRef = useRef(0)
+  const maxRetries = 3
+  const eventSourceRef = useRef<EventSource | null>(null)
+  
+  // Initial data fetch using SWR (fast, cached, deduplicated)
+  const { data, error, isLoading, mutate } = useSWR<WatchlistsResponse>(
+    userId ? '/api/watchlists' : null,
+    fetcher,
+    {
+      refreshInterval: 0, // No polling - SSE will trigger updates
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      dedupingInterval: 1000,
+      shouldRetryOnError: true,
+      errorRetryCount: maxRetries,
+      errorRetryInterval: 5000,
+      onError: (err) => {
+        retryCountRef.current += 1
+        console.error(`❌ [REALTIME-WATCHLISTS] Error (attempt ${retryCountRef.current}/${maxRetries}):`, err.message)
+      },
+      onSuccess: () => {
+        if (retryCountRef.current > 0) {
+          console.log('✅ [REALTIME-WATCHLISTS] Recovered from error')
+          retryCountRef.current = 0
+        }
       }
-
-      const data = await response.json()
-      console.info('[useEnhancedWatchlists] Raw watchlists payload received', { count: Array.isArray(data?.watchlists) ? data.watchlists.length : 0 })
-      const transformed = transformWatchlistData(data.watchlists)
-      setWatchlists(transformed)
-      // Update global cache
-      cachedWatchlistsGlobal = transformed
-      if (!hasLoadedOnceGlobal) hasLoadedOnceGlobal = true
-      console.info('[useEnhancedWatchlists] Watchlists updated', { count: transformed.length })
-    } catch (err) {
-      if ((err as any)?.name === 'AbortError') {
-        console.error('⏱️ [useEnhancedWatchlists] Fetch aborted (timeout)')
-      } else {
-        console.error('❌ [useEnhancedWatchlists] Error fetching watchlists:', err)
-      }
-      setError(err instanceof Error ? err : new Error('Unknown error'))
-    } finally {
-      clearTimeout(timeoutId)
-      setIsLoading(false)
-      setIsRefreshing(false)
     }
-  }, [userId])
+  )
 
-  // Only fetch automatically the first time across the whole app
-  useEffect(() => {
-    if (!hasLoadedOnceGlobal) {
-      fetchWatchlists()
-    } else {
-      // Ensure loading flags are not shown on remount when we already have cache
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
-  }, [fetchWatchlists])
+  // Transform data
+  const watchlists = useMemo(() => {
+    if (!data?.watchlists) return []
+    return transformWatchlistData(data.watchlists)
+  }, [data])
 
   // SSE connection for real-time watchlist updates
   useEffect(() => {
     if (!userId || typeof window === 'undefined') return
 
-    console.log('📡 [useEnhancedWatchlists] Connecting to SSE stream for watchlist updates')
+    console.log('📡 [REALTIME-WATCHLISTS] Connecting to SSE stream')
 
     const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
+    eventSourceRef.current = eventSource
 
     eventSource.onopen = () => {
-      console.log('✅ [useEnhancedWatchlists] SSE connection established')
+      console.log('✅ [REALTIME-WATCHLISTS] SSE connection established')
     }
 
     eventSource.onmessage = (event) => {
@@ -230,27 +250,50 @@ export function useEnhancedWatchlists(userId?: string) {
         if (message.event === 'watchlist_updated' || 
             message.event === 'watchlist_item_added' || 
             message.event === 'watchlist_item_removed') {
-          console.log(`📨 [useEnhancedWatchlists] Received ${message.event} event, refreshing watchlists`)
-          fetchWatchlists().catch(err => {
-            console.error('❌ [useEnhancedWatchlists] Refresh after event failed:', err)
+          console.log(`📨 [REALTIME-WATCHLISTS] Received ${message.event} event, refreshing watchlists`)
+          mutate().catch(err => {
+            console.error('❌ [REALTIME-WATCHLISTS] Refresh after event failed:', err)
           })
         }
       } catch (error) {
-        console.error('❌ [useEnhancedWatchlists] Error parsing SSE message:', error)
+        console.error('❌ [REALTIME-WATCHLISTS] Error parsing SSE message:', error)
       }
     }
 
     eventSource.onerror = (error) => {
-      console.error('❌ [useEnhancedWatchlists] SSE connection error:', error)
+      console.error('❌ [REALTIME-WATCHLISTS] SSE connection error:', error)
       // EventSource will automatically reconnect
     }
 
     // Cleanup on unmount
     return () => {
-      console.log('🧹 [useEnhancedWatchlists] Closing SSE connection')
+      console.log('🧹 [REALTIME-WATCHLISTS] Closing SSE connection')
       eventSource.close()
+      eventSourceRef.current = null
     }
-  }, [userId, fetchWatchlists])
+  }, [userId, mutate])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+      console.log('🧹 [REALTIME-WATCHLISTS] Cleaned up')
+    }
+  }, [])
+
+  // Refresh function
+  const refetch = useCallback(async () => {
+    console.log("🔄 [REALTIME-WATCHLISTS] Manual refresh triggered")
+    try {
+      return await mutate()
+    } catch (error) {
+      console.error("❌ [REALTIME-WATCHLISTS] Manual refresh failed:", error)
+      throw error
+    }
+  }, [mutate])
 
   const createWatchlist = useCallback(async (input: CreateWatchlistInput) => {
     if (!userId) throw new Error("User ID required")
@@ -270,7 +313,9 @@ export function useEnhancedWatchlists(userId?: string) {
       }
 
       const data = await response.json()
-      await fetchWatchlists() // Refetch on structural change (create)
+      
+      // Refresh using SWR mutate (SSE will also trigger update)
+      await mutate()
       
       toast({ 
         title: "Watchlist Created", 
@@ -287,7 +332,7 @@ export function useEnhancedWatchlists(userId?: string) {
       })
       throw error
     }
-  }, [userId, fetchWatchlists])
+  }, [userId, mutate])
 
   const updateWatchlist = useCallback(async (id: string, input: UpdateWatchlistInput) => {
     try {
@@ -303,8 +348,10 @@ export function useEnhancedWatchlists(userId?: string) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to update watchlist')
       }
-      // Do not refetch for cosmetic updates; rely on next mutation or user-driven refresh
-      // We keep stale data visible to avoid tab flicker
+      
+      // Refresh using SWR mutate (SSE will also trigger update)
+      await mutate()
+      
       toast({ title: "Watchlist Updated", description: "Watchlist has been updated successfully." })
     } catch (error) {
       console.error("Error updating watchlist:", error)
@@ -315,7 +362,7 @@ export function useEnhancedWatchlists(userId?: string) {
       })
       throw error
     }
-  }, [fetchWatchlists])
+  }, [mutate])
 
   const deleteWatchlist = useCallback(async (id: string) => {
     try {
@@ -330,7 +377,10 @@ export function useEnhancedWatchlists(userId?: string) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to delete watchlist')
       }
-      await fetchWatchlists() // Refetch on structural change (delete)
+      
+      // Refresh using SWR mutate (SSE will also trigger update)
+      await mutate()
+      
       toast({ title: "Watchlist Deleted", description: "Watchlist has been deleted successfully." })
     } catch (error) {
       console.error("Error deleting watchlist:", error)
@@ -341,16 +391,15 @@ export function useEnhancedWatchlists(userId?: string) {
       })
       throw error
     }
-  }, [fetchWatchlists])
+  }, [mutate])
 
   return {
     watchlists,
-    // Keep previous data during refetches; only block UI on first global load
     isLoading,
-    isRefreshing,
+    isRefreshing: false, // SWR handles this internally
     isError: !!error,
-    error,
-    refetch: fetchWatchlists,
+    error: error || null,
+    refetch,
     createWatchlist,
     updateWatchlist,
     deleteWatchlist,
