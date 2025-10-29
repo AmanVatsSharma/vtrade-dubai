@@ -120,16 +120,16 @@ function validateOrder(order: any): order is Partial<Order> {
 }
 
 export function useRealtimeOrders(userId: string | undefined | null): UseRealtimeOrdersReturn {
-  const shouldPoll = useRef(true)
   const retryCountRef = useRef(0)
   const maxRetries = 3
+  const eventSourceRef = useRef<EventSource | null>(null)
   
-  // Smart polling - poll every 10 seconds when active
+  // Initial data fetch only (no polling)
   const { data, error, isLoading, mutate } = useSWR<OrdersResponse>(
     userId ? `/api/trading/orders/list?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: shouldPoll.current ? 10000 : 0,
+      refreshInterval: 0, // No polling - SSE will trigger updates
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,
@@ -141,7 +141,6 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
         console.error(`❌ [REALTIME-ORDERS] Error (attempt ${retryCountRef.current}/${maxRetries}):`, err.message)
       },
       onSuccess: () => {
-        // Reset retry count on successful fetch
         if (retryCountRef.current > 0) {
           console.log('✅ [REALTIME-ORDERS] Recovered from error')
           retryCountRef.current = 0
@@ -150,29 +149,58 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
     }
   )
 
-  // Stop polling when tab is hidden (performance optimization)
+  // SSE connection for real-time updates
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      shouldPoll.current = !document.hidden
-      if (!document.hidden) {
-        console.log('👁️ [REALTIME-ORDERS] Tab visible, refreshing data')
-        mutate().catch(err => {
-          console.error('❌ [REALTIME-ORDERS] Refresh on visibility failed:', err)
-        })
-      } else {
-        console.log('💤 [REALTIME-ORDERS] Tab hidden, pausing polling')
+    if (!userId || typeof window === 'undefined') return
+
+    console.log('📡 [REALTIME-ORDERS] Connecting to SSE stream')
+
+    const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
+    eventSourceRef.current = eventSource
+
+    eventSource.onopen = () => {
+      console.log('✅ [REALTIME-ORDERS] SSE connection established')
+    }
+
+    eventSource.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        
+        // Handle order-related events
+        if (message.event === 'order_placed' || 
+            message.event === 'order_executed' || 
+            message.event === 'order_cancelled') {
+          console.log(`📨 [REALTIME-ORDERS] Received ${message.event} event, refreshing orders`)
+          mutate().catch(err => {
+            console.error('❌ [REALTIME-ORDERS] Refresh after event failed:', err)
+          })
+        }
+      } catch (error) {
+        console.error('❌ [REALTIME-ORDERS] Error parsing SSE message:', error)
       }
     }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [mutate])
+    eventSource.onerror = (error) => {
+      console.error('❌ [REALTIME-ORDERS] SSE connection error:', error)
+      // EventSource will automatically reconnect
+    }
 
-  // Cleanup timeouts on unmount
+    // Cleanup on unmount
+    return () => {
+      console.log('🧹 [REALTIME-ORDERS] Closing SSE connection')
+      eventSource.close()
+      eventSourceRef.current = null
+    }
+  }, [userId, mutate])
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Any cleanup needed
-      console.log('🧹 [REALTIME-ORDERS] Cleaning up')
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+      console.log('🧹 [REALTIME-ORDERS] Cleaned up')
     }
   }, [])
 
