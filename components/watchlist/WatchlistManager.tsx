@@ -104,6 +104,38 @@ export function WatchlistManager({
     return current || watchlists[0] || null
   }, [watchlists, activeTab])
 
+  // Calculate tab counts in a separate useMemo (outside of map)
+  const tabCounts = useMemo(() => {
+    if (!activeWatchlist || !activeWatchlist.items || !Array.isArray(activeWatchlist.items)) {
+      return { all: 0, equity: 0, futures: 0, options: 0, commodities: 0 }
+    }
+    
+    const items = [...(activeWatchlist.items || [])]
+    
+    const counts = {
+      all: items.length,
+      equity: items.filter(item => {
+        const segment = item?.segment?.toUpperCase() || ''
+        return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
+      }).length,
+      futures: items.filter(item => {
+        const segment = item?.segment?.toUpperCase() || ''
+        return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !item.optionType
+      }).length,
+      options: items.filter(item => {
+        const segment = item?.segment?.toUpperCase() || ''
+        return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!item.optionType
+      }).length,
+      commodities: items.filter(item => {
+        const segment = item?.segment?.toUpperCase() || ''
+        const exchange = item?.exchange?.toUpperCase() || ''
+        return ['MCX', 'MCX_FO'].includes(segment) || exchange.includes('MCX')
+      }).length,
+    }
+    
+    return counts
+  }, [activeWatchlist])
+
   const sortedItems = useMemo(() => {
     try {
       console.log('🔄 [WATCHLIST-MANAGER] sortedItems useMemo triggered', {
@@ -504,99 +536,39 @@ export function WatchlistManager({
             <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
               {(['all', 'equity', 'futures', 'options', 'commodities'] as InstrumentTab[]).map((tab, tabIndex) => {
                 try {
-                const label = tab === 'all' ? 'All' : 
-                             tab === 'equity' ? 'Equity' :
-                             tab === 'futures' ? 'Futures' :
-                             tab === 'options' ? 'Options' :
-                             'MCX'
-                const isActive = instrumentFilter === tab
-                
-                // Calculate count for each filter
-                const count = useMemo(() => {
-                  try {
-                    if (!activeWatchlist || !activeWatchlist.items || !Array.isArray(activeWatchlist.items)) return 0
-                    
-                    let items = [...(activeWatchlist.items || [])]
-                    
-                    switch (tab) {
-                      case 'all':
-                        return items.length
-                      case 'equity':
-                        return items.filter(item => {
-                          try {
-                            const segment = item?.segment?.toUpperCase() || ''
-                            return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
-                          } catch (err: any) {
-                            console.error('❌ [WATCHLIST-MANAGER] Error filtering equity item:', err)
-                            return false
-                          }
-                        }).length
-                      case 'futures':
-                        return items.filter(item => {
-                          try {
-                            const segment = item?.segment?.toUpperCase() || ''
-                            return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !item.optionType
-                          } catch (err: any) {
-                            console.error('❌ [WATCHLIST-MANAGER] Error filtering futures item:', err)
-                            return false
-                          }
-                        }).length
-                      case 'options':
-                        return items.filter(item => {
-                          try {
-                            const segment = item?.segment?.toUpperCase() || ''
-                            return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!item.optionType
-                          } catch (err: any) {
-                            console.error('❌ [WATCHLIST-MANAGER] Error filtering options item:', err)
-                            return false
-                          }
-                        }).length
-                      case 'commodities':
-                        return items.filter(item => {
-                          try {
-                            const segment = item?.segment?.toUpperCase() || ''
-                            const exchange = item?.exchange?.toUpperCase() || ''
-                            return ['MCX', 'MCX_FO'].includes(segment) || exchange.includes('MCX')
-                          } catch (err: any) {
-                            console.error('❌ [WATCHLIST-MANAGER] Error filtering commodities item:', err)
-                            return false
-                          }
-                        }).length
-                      default:
-                        return 0
-                    }
-                  } catch (error: any) {
-                    console.error(`❌ [WATCHLIST-MANAGER] Error calculating count for tab ${tab}:`, {
-                      error: error.message,
-                      stack: error.stack,
-                    })
-                    return 0
-                  }
-                }, [activeWatchlist, tab])
-                
-                return (
-                  <button
-                    key={tab}
-                    onClick={() => setInstrumentFilter(tab)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300' 
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    <span>{label}</span>
-                    <Badge 
-                      variant={isActive ? "secondary" : "outline"}
-                      className={`text-xs px-1.5 py-0.5 font-semibold ${
+                  const label = tab === 'all' ? 'All' : 
+                               tab === 'equity' ? 'Equity' :
+                               tab === 'futures' ? 'Futures' :
+                               tab === 'options' ? 'Options' :
+                               'MCX'
+                  const isActive = instrumentFilter === tab
+                  
+                  // Get count from pre-computed tabCounts
+                  const count = tabCounts[tab] || 0
+                  
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setInstrumentFilter(tab)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
                         isActive 
-                          ? 'bg-white/20 text-white border-white/30' 
-                          : 'bg-white/60 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300' 
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
-                      {count}
-                    </Badge>
-                  </button>
-                )
+                      <span>{label}</span>
+                      <Badge 
+                        variant={isActive ? "secondary" : "outline"}
+                        className={`text-xs px-1.5 py-0.5 font-semibold ${
+                          isActive 
+                            ? 'bg-white/20 text-white border-white/30' 
+                            : 'bg-white/60 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {count}
+                      </Badge>
+                    </button>
+                  )
                 } catch (tabError: any) {
                   console.error(`❌ [WATCHLIST-MANAGER] Error rendering tab ${tabIndex} (${tab}):`, {
                     error: tabError.message,
