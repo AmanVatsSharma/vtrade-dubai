@@ -536,52 +536,98 @@ export function useUserWatchlist(userId?: string) {
   });
 
   const watchlist = useMemo(() => {
-    const wlNode = data?.watchlistCollection?.edges?.[0]?.node;
-    if (!wlNode) return { id: null, name: 'My Watchlist', items: [] };
-
-    // Filter out null/undefined items before mapping to prevent React Error #310
-    const items = (wlNode.watchlistItemCollection?.edges || [])
-      .filter((e: any) => e?.node != null) // Filter null nodes
-      .map((e: any) => {
-        // Read all fields directly from WatchlistItem (no Stock dependency)
-        const item = e.node
-        if (!item || !item.id) {
-          console.warn('⚠️ [TRADING-DATA] Skipping invalid WatchlistItem node:', e)
-          return null // Will be filtered out
-        }
-        
-        // Generate instrumentId from exchange and token
-        const instrumentId = item.token && item.exchange 
-          ? `${item.exchange}-${item.token}` 
-          : `unknown-${item.id}`
-        
-        console.log('🔑 [TRADING-DATA] WatchlistItem data extraction', {
-          watchlistItemId: item.id,
-          token: item.token,
-          symbol: item.symbol,
-          exchange: item.exchange,
-        })
-        
-        return {
-          watchlistItemId: item.id,
-          id: item.id, // Use WatchlistItem.id as item identifier
-          instrumentId,
-          token: item.token ? Number(item.token) : undefined,
-          symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
-          name: item.name || 'Unknown', // Fallback for null/undefined
-          ltp: toNumber(item.ltp),
-          close: toNumber(item.close),
-          exchange: item.exchange || 'NSE', // Fallback for null/undefined
-          segment: item.segment || 'NSE', // Fallback for null/undefined
-          strikePrice: item.strikePrice != null ? toNumber(item.strikePrice) : undefined,
-          optionType: item.optionType,
-          expiry: item.expiry,
-          lotSize: item.lotSize,
-        }
+    try {
+      console.log('🔄 [TRADING-DATA] useUserWatchlist useMemo triggered', {
+        hasData: !!data,
+        edgesCount: data?.watchlistCollection?.edges?.length || 0,
       })
-      .filter(Boolean) // Remove any null entries from map
 
-    return { id: wlNode.id, name: wlNode.name || 'My Watchlist', items: items || [] };
+      const wlNode = data?.watchlistCollection?.edges?.[0]?.node;
+      if (!wlNode) {
+        console.log('⚠️ [TRADING-DATA] No watchlist node found, returning empty watchlist')
+        return { id: null, name: 'My Watchlist', items: [] };
+      }
+
+      const itemEdges = wlNode.watchlistItemCollection?.edges || []
+      console.log(`📋 [TRADING-DATA] Processing ${itemEdges.length} items for watchlist ${wlNode.id}`)
+
+      // Filter out null/undefined items before mapping to prevent React Error #310
+      const items = itemEdges
+        .filter((e: any, index: number) => {
+          if (!e?.node) {
+            console.warn(`⚠️ [TRADING-DATA] Item edge ${index + 1} has null node, filtering out`)
+            return false
+          }
+          return true
+        })
+        .map((e: any, index: number) => {
+          try {
+            // Read all fields directly from WatchlistItem (no Stock dependency)
+            const item = e.node
+            if (!item || !item.id) {
+              console.warn(`⚠️ [TRADING-DATA] Skipping invalid WatchlistItem node ${index + 1}:`, {
+                item,
+                hasId: !!item?.id,
+              })
+              return null // Will be filtered out
+            }
+            
+            // Generate instrumentId from exchange and token
+            let instrumentId: string
+            try {
+              instrumentId = item.token && item.exchange 
+                ? `${item.exchange}-${item.token}` 
+                : `unknown-${item.id}`
+            } catch (err: any) {
+              console.error(`❌ [TRADING-DATA] Error generating instrumentId for item ${index + 1}:`, err)
+              instrumentId = `unknown-${item.id}`
+            }
+            
+            const transformedItem = {
+              watchlistItemId: item.id,
+              id: item.id, // Use WatchlistItem.id as item identifier
+              instrumentId,
+              token: item.token ? Number(item.token) : undefined,
+              symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
+              name: item.name || 'Unknown', // Fallback for null/undefined
+              ltp: toNumber(item.ltp),
+              close: toNumber(item.close),
+              exchange: item.exchange || 'NSE', // Fallback for null/undefined
+              segment: item.segment || 'NSE', // Fallback for null/undefined
+              strikePrice: item.strikePrice != null ? toNumber(item.strikePrice) : undefined,
+              optionType: item.optionType,
+              expiry: item.expiry,
+              lotSize: item.lotSize,
+            }
+
+            console.log(`✅ [TRADING-DATA] Item ${index + 1} transformed:`, {
+              id: transformedItem.id,
+              symbol: transformedItem.symbol,
+              instrumentId: transformedItem.instrumentId,
+            })
+
+            return transformedItem
+          } catch (itemError: any) {
+            console.error(`❌ [TRADING-DATA] Error transforming item ${index + 1}:`, {
+              error: itemError.message,
+              stack: itemError.stack,
+              edge: e,
+            })
+            return null
+          }
+        })
+        .filter((item: any) => item != null) // Remove any null entries from map
+
+      console.log(`✅ [TRADING-DATA] Watchlist ${wlNode.id} transformed with ${items.length} items`)
+      return { id: wlNode.id, name: wlNode.name || 'My Watchlist', items: items || [] };
+    } catch (error: any) {
+      console.error('❌ [TRADING-DATA] Fatal error in useUserWatchlist useMemo:', {
+        error: error.message,
+        stack: error.stack,
+        data,
+      })
+      return { id: null, name: 'My Watchlist', items: [] }; // Return safe default on error
+    }
   }, [data]);
 
   const isInitialLoading = loading && !data

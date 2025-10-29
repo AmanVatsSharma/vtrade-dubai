@@ -243,73 +243,154 @@ const toNumber = (v: any): number => {
 }
 
 const transformWatchlistData = (data: any): WatchlistData[] => {
-  if (!data?.watchlistCollection?.edges) return []
-  
-  return data.watchlistCollection.edges.map((edge: any) => {
-    const node = edge.node
-    if (!node) return null // Safety check for null node
-    
-    // Filter out null/undefined items before mapping to prevent React Error #310
-    const items = (node.watchlistItemCollection?.edges || [])
-      .filter((itemEdge: any) => itemEdge?.node != null) // Filter null nodes
-      .map((itemEdge: any) => {
-        // Read all fields directly from WatchlistItem (no Stock dependency)
-        const item = itemEdge.node
-        if (!item || !item.id) {
-          console.warn('⚠️ [GRAPHQL-TRANSFORM] Skipping invalid WatchlistItem node:', itemEdge)
-          return null // Will be filtered out
-        }
-        
-        // Generate instrumentId from exchange and token
-        const instrumentId = item.token && item.exchange 
-          ? `${item.exchange}-${item.token}` 
-          : `unknown-${item.id}`
-        
-        console.log('🔑 [GRAPHQL-TRANSFORM] WatchlistItem data extraction', {
-          watchlistItemId: item.id,
-          token: item.token,
-          symbol: item.symbol,
-          exchange: item.exchange,
-        })
-        
-        return {
-          id: item.id, // Use WatchlistItem.id as item identifier
-          watchlistItemId: item.id,
-          instrumentId,
-          symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
-          name: item.name || 'Unknown', // Fallback for null/undefined
-          exchange: item.exchange || 'NSE', // Fallback for null/undefined
-          ltp: toNumber(item.ltp),
-          close: toNumber(item.close),
-          segment: item.segment || 'NSE', // Fallback for null/undefined
-          strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
-          optionType: item.optionType,
-          expiry: item.expiry,
-          lotSize: item.lotSize,
-          notes: item.notes,
-          alertPrice: item.alertPrice ? toNumber(item.alertPrice) : undefined,
-          alertType: item.alertType,
-          sortOrder: item.sortOrder || 0,
-          createdAt: item.createdAt,
-          token: item.token ? Number(item.token) : undefined,
+  try {
+    console.log('🔄 [GRAPHQL-TRANSFORM] Starting transformWatchlistData', {
+      hasData: !!data,
+      hasCollection: !!data?.watchlistCollection,
+      edgesCount: data?.watchlistCollection?.edges?.length || 0,
+    })
+
+    if (!data?.watchlistCollection?.edges) {
+      console.log('⚠️ [GRAPHQL-TRANSFORM] No watchlistCollection.edges, returning empty array')
+      return []
+    }
+
+    if (!Array.isArray(data.watchlistCollection.edges)) {
+      console.error('❌ [GRAPHQL-TRANSFORM] edges is not an array:', typeof data.watchlistCollection.edges)
+      return []
+    }
+
+    const transformed = data.watchlistCollection.edges
+      .map((edge: any, index: number) => {
+        try {
+          console.log(`📦 [GRAPHQL-TRANSFORM] Processing edge ${index + 1}/${data.watchlistCollection.edges.length}`)
+          
+          const node = edge?.node
+          if (!node) {
+            console.warn(`⚠️ [GRAPHQL-TRANSFORM] Edge ${index + 1} has null/undefined node, skipping`)
+            return null
+          }
+
+          if (!node.id) {
+            console.warn(`⚠️ [GRAPHQL-TRANSFORM] Edge ${index + 1} node missing id, skipping`, { node })
+            return null
+          }
+
+          // Filter out null/undefined items before mapping to prevent React Error #310
+          const itemEdges = node.watchlistItemCollection?.edges || []
+          console.log(`📋 [GRAPHQL-TRANSFORM] Processing ${itemEdges.length} items for watchlist ${node.id}`)
+
+          const items = itemEdges
+            .filter((itemEdge: any, itemIndex: number) => {
+              if (!itemEdge?.node) {
+                console.warn(`⚠️ [GRAPHQL-TRANSFORM] Item ${itemIndex + 1} has null node, filtering out`)
+                return false
+              }
+              return true
+            })
+            .map((itemEdge: any, itemIndex: number) => {
+              try {
+                // Read all fields directly from WatchlistItem (no Stock dependency)
+                const item = itemEdge.node
+                if (!item) {
+                  console.error(`❌ [GRAPHQL-TRANSFORM] Item ${itemIndex + 1} node is null after filter check`)
+                  return null
+                }
+
+                if (!item.id) {
+                  console.warn(`⚠️ [GRAPHQL-TRANSFORM] Item ${itemIndex + 1} missing id, skipping:`, {
+                    item,
+                    watchlistId: node.id,
+                  })
+                  return null
+                }
+
+                // Generate instrumentId from exchange and token
+                let instrumentId: string
+                try {
+                  instrumentId = item.token && item.exchange
+                    ? `${item.exchange}-${item.token}`
+                    : `unknown-${item.id}`
+                } catch (err) {
+                  console.error(`❌ [GRAPHQL-TRANSFORM] Error generating instrumentId for item ${itemIndex + 1}:`, err)
+                  instrumentId = `unknown-${item.id}`
+                }
+
+                const transformedItem = {
+                  id: item.id,
+                  watchlistItemId: item.id,
+                  instrumentId,
+                  symbol: item.symbol || 'UNKNOWN',
+                  name: item.name || 'Unknown',
+                  exchange: item.exchange || 'NSE',
+                  ltp: toNumber(item.ltp),
+                  close: toNumber(item.close),
+                  segment: item.segment || 'NSE',
+                  strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
+                  optionType: item.optionType,
+                  expiry: item.expiry,
+                  lotSize: item.lotSize,
+                  notes: item.notes,
+                  alertPrice: item.alertPrice ? toNumber(item.alertPrice) : undefined,
+                  alertType: item.alertType,
+                  sortOrder: item.sortOrder || 0,
+                  createdAt: item.createdAt,
+                  token: item.token ? Number(item.token) : undefined,
+                }
+
+                console.log(`✅ [GRAPHQL-TRANSFORM] Item ${itemIndex + 1} transformed:`, {
+                  id: transformedItem.id,
+                  symbol: transformedItem.symbol,
+                  instrumentId: transformedItem.instrumentId,
+                })
+
+                return transformedItem
+              } catch (itemError: any) {
+                console.error(`❌ [GRAPHQL-TRANSFORM] Error transforming item ${itemIndex + 1}:`, {
+                  error: itemError.message,
+                  stack: itemError.stack,
+                  itemEdge,
+                })
+                return null
+              }
+            })
+            .filter((item: any) => item != null) // Remove any null entries from map
+
+          console.log(`✅ [GRAPHQL-TRANSFORM] Watchlist ${node.id} transformed with ${items.length} items`)
+
+          return {
+            id: node.id,
+            name: node.name || 'Unnamed Watchlist',
+            description: node.description || undefined,
+            color: node.color || "#3B82F6",
+            isDefault: node.isDefault || false,
+            isPrivate: node.isPrivate || false,
+            sortOrder: node.sortOrder || 0,
+            items: items || [], // Ensure items is always an array
+            createdAt: node.createdAt,
+            updatedAt: node.updatedAt,
+          }
+        } catch (edgeError: any) {
+          console.error(`❌ [GRAPHQL-TRANSFORM] Error processing edge ${index + 1}:`, {
+            error: edgeError.message,
+            stack: edgeError.stack,
+            edge,
+          })
+          return null
         }
       })
-      .filter(Boolean) // Remove any null entries from map
-    
-    return {
-      id: node.id,
-      name: node.name || 'Unnamed Watchlist',
-      description: node.description,
-      color: node.color || "#3B82F6",
-      isDefault: node.isDefault || false,
-      isPrivate: node.isPrivate || false,
-      sortOrder: node.sortOrder || 0,
-      items: items || [], // Ensure items is always an array
-      createdAt: node.createdAt,
-      updatedAt: node.updatedAt,
-    }
-  })
-  .filter(Boolean) // Remove any null entries from edges map
+      .filter((watchlist: any) => watchlist != null) // Remove any null entries from edges map
+
+    console.log(`✅ [GRAPHQL-TRANSFORM] Transform complete: ${transformed.length} watchlists`)
+    return transformed
+  } catch (error: any) {
+    console.error('❌ [GRAPHQL-TRANSFORM] Fatal error in transformWatchlistData:', {
+      error: error.message,
+      stack: error.stack,
+      data,
+    })
+    return [] // Return empty array on error to prevent crash
+  }
 }
 
 // Main Hook for All Watchlists
@@ -320,7 +401,26 @@ export function useEnhancedWatchlists(userId?: string) {
     errorPolicy: "all"
   })
 
-  const watchlists = useMemo(() => transformWatchlistData(data), [data])
+  const watchlists = useMemo(() => {
+    try {
+      console.log('🔄 [HOOK] useEnhancedWatchlists useMemo triggered', {
+        hasData: !!data,
+        userId,
+      })
+      const result = transformWatchlistData(data)
+      console.log('✅ [HOOK] useEnhancedWatchlists transformed:', {
+        watchlistsCount: result.length,
+      })
+      return result
+    } catch (error: any) {
+      console.error('❌ [HOOK] useEnhancedWatchlists useMemo error:', {
+        error: error.message,
+        stack: error.stack,
+        data,
+      })
+      return [] // Return empty array on error to prevent crash
+    }
+  }, [data, userId])
 
   const [createWatchlistMutation] = useMutation(CREATE_WATCHLIST)
   const [updateWatchlistMutation] = useMutation(UPDATE_WATCHLIST)

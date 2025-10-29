@@ -105,53 +105,138 @@ export function WatchlistManager({
   }, [watchlists, activeTab])
 
   const sortedItems = useMemo(() => {
-    if (!activeWatchlist || !activeWatchlist.items) return []
-    
-    let items = [...(activeWatchlist.items || [])]
+    try {
+      console.log('🔄 [WATCHLIST-MANAGER] sortedItems useMemo triggered', {
+        hasActiveWatchlist: !!activeWatchlist,
+        itemsCount: activeWatchlist?.items?.length || 0,
+        sortBy,
+        instrumentFilter,
+      })
 
-    // Filter by instrument type
-    items = items.filter((item) => {
-      const segment = item.segment?.toUpperCase() || ''
-      const optionType = item.optionType
-      
-      switch (instrumentFilter) {
-        case 'all':
-          return true
-        case 'equity':
-          return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
-        case 'futures':
-          return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !optionType
-        case 'options':
-          return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!optionType
-        case 'commodities':
-          return ['MCX', 'MCX_FO'].includes(segment)
-        default:
-          return true
+      if (!activeWatchlist || !activeWatchlist.items) {
+        console.log('⚠️ [WATCHLIST-MANAGER] No active watchlist or items, returning empty array')
+        return []
       }
-    })
 
-    // Sort items
-    items.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return (a.symbol || 'UNKNOWN').localeCompare(b.symbol || 'UNKNOWN')
-        case 'change':
-          const changeA = ((((quotes[a.instrumentId] as any)?.display_price ?? quotes[a.instrumentId]?.last_trade_price) ?? a.ltp)) - a.close
-          const changeB = ((((quotes[b.instrumentId] as any)?.display_price ?? quotes[b.instrumentId]?.last_trade_price) ?? b.ltp)) - b.close
-          return changeB - changeA
-        case 'price':
-          const priceA = (((quotes[a.instrumentId] as any)?.display_price ?? quotes[a.instrumentId]?.last_trade_price) ?? a.ltp)
-          const priceB = (((quotes[b.instrumentId] as any)?.display_price ?? quotes[b.instrumentId]?.last_trade_price) ?? b.ltp)
-          return priceB - priceA
-        case 'added':
-        default:
-          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-          return timeB - timeA
+      if (!Array.isArray(activeWatchlist.items)) {
+        console.error('❌ [WATCHLIST-MANAGER] activeWatchlist.items is not an array:', typeof activeWatchlist.items)
+        return []
       }
-    })
 
-    return items
+      let items = [...(activeWatchlist.items || [])]
+      console.log(`📋 [WATCHLIST-MANAGER] Starting with ${items.length} items`)
+
+      // Filter by instrument type
+      try {
+        items = items.filter((item, index) => {
+          try {
+            const segment = item?.segment?.toUpperCase() || ''
+            const optionType = item?.optionType
+            
+            switch (instrumentFilter) {
+              case 'all':
+                return true
+              case 'equity':
+                return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
+              case 'futures':
+                return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !optionType
+              case 'options':
+                return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!optionType
+              case 'commodities':
+                return ['MCX', 'MCX_FO'].includes(segment)
+              default:
+                return true
+            }
+          } catch (filterError: any) {
+            console.error(`❌ [WATCHLIST-MANAGER] Error filtering item ${index}:`, {
+              error: filterError.message,
+              item,
+            })
+            return true // Include item on error to prevent data loss
+          }
+        })
+        console.log(`✅ [WATCHLIST-MANAGER] Filtered to ${items.length} items`)
+      } catch (filterError: any) {
+        console.error('❌ [WATCHLIST-MANAGER] Error during filter:', {
+          error: filterError.message,
+          stack: filterError.stack,
+        })
+        // Continue with original items on filter error
+      }
+
+      // Sort items
+      try {
+        items.sort((a, b) => {
+          try {
+            switch (sortBy) {
+              case 'name':
+                return (a?.symbol || 'UNKNOWN').localeCompare(b?.symbol || 'UNKNOWN')
+              case 'change':
+                try {
+                  const quoteA = quotes?.[a?.instrumentId || '']
+                  const quoteB = quotes?.[b?.instrumentId || '']
+                  const priceA = (quoteA as any)?.display_price ?? quoteA?.last_trade_price ?? a?.ltp ?? 0
+                  const priceB = (quoteB as any)?.display_price ?? quoteB?.last_trade_price ?? b?.ltp ?? 0
+                  const changeA = priceA - (a?.close || 0)
+                  const changeB = priceB - (b?.close || 0)
+                  return changeB - changeA
+                } catch (err: any) {
+                  console.error('❌ [WATCHLIST-MANAGER] Error calculating change:', err)
+                  return 0
+                }
+              case 'price':
+                try {
+                  const quoteA = quotes?.[a?.instrumentId || '']
+                  const quoteB = quotes?.[b?.instrumentId || '']
+                  const priceA = (quoteA as any)?.display_price ?? quoteA?.last_trade_price ?? a?.ltp ?? 0
+                  const priceB = (quoteB as any)?.display_price ?? quoteB?.last_trade_price ?? b?.ltp ?? 0
+                  return priceB - priceA
+                } catch (err: any) {
+                  console.error('❌ [WATCHLIST-MANAGER] Error calculating price:', err)
+                  return 0
+                }
+              case 'added':
+              default:
+                try {
+                  const timeA = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+                  const timeB = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+                  if (isNaN(timeA) || isNaN(timeB)) return 0
+                  return timeB - timeA
+                } catch (err: any) {
+                  console.error('❌ [WATCHLIST-MANAGER] Error parsing dates:', err)
+                  return 0
+                }
+            }
+          } catch (sortError: any) {
+            console.error('❌ [WATCHLIST-MANAGER] Error in sort comparison:', {
+              error: sortError.message,
+              a,
+              b,
+            })
+            return 0 // Return 0 to maintain order on error
+          }
+        })
+        console.log(`✅ [WATCHLIST-MANAGER] Sorted ${items.length} items`)
+      } catch (sortError: any) {
+        console.error('❌ [WATCHLIST-MANAGER] Error during sort:', {
+          error: sortError.message,
+          stack: sortError.stack,
+        })
+        // Return unsorted items on sort error
+      }
+
+      console.log(`✅ [WATCHLIST-MANAGER] sortedItems complete: ${items.length} items`)
+      return items
+    } catch (error: any) {
+      console.error('❌ [WATCHLIST-MANAGER] Fatal error in sortedItems useMemo:', {
+        error: error.message,
+        stack: error.stack,
+        activeWatchlist,
+        sortBy,
+        instrumentFilter,
+      })
+      return [] // Return empty array on error to prevent crash
+    }
   }, [activeWatchlist, sortBy, quotes, instrumentFilter])
 
   // Handlers
@@ -417,7 +502,8 @@ export function WatchlistManager({
 
             {/* Instrument Type Filter Tabs - Enhanced with Counts */}
             <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
-              {(['all', 'equity', 'futures', 'options', 'commodities'] as InstrumentTab[]).map((tab) => {
+              {(['all', 'equity', 'futures', 'options', 'commodities'] as InstrumentTab[]).map((tab, tabIndex) => {
+                try {
                 const label = tab === 'all' ? 'All' : 
                              tab === 'equity' ? 'Equity' :
                              tab === 'futures' ? 'Futures' :
@@ -427,36 +513,64 @@ export function WatchlistManager({
                 
                 // Calculate count for each filter
                 const count = useMemo(() => {
-                  if (!activeWatchlist || !activeWatchlist.items) return 0
-                  
-                  let items = [...(activeWatchlist.items || [])]
-                  
-                  switch (tab) {
-                    case 'all':
-                      return items.length
-                    case 'equity':
-                      return items.filter(item => {
-                        const segment = item.segment?.toUpperCase() || ''
-                        return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
-                      }).length
-                    case 'futures':
-                      return items.filter(item => {
-                        const segment = item.segment?.toUpperCase() || ''
-                        return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !item.optionType
-                      }).length
-                    case 'options':
-                      return items.filter(item => {
-                        const segment = item.segment?.toUpperCase() || ''
-                        return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!item.optionType
-                      }).length
-                    case 'commodities':
-                      return items.filter(item => {
-                        const segment = item.segment?.toUpperCase() || ''
-                        const exchange = item.exchange?.toUpperCase() || ''
-                        return ['MCX', 'MCX_FO'].includes(segment) || exchange.includes('MCX')
-                      }).length
-                    default:
-                      return 0
+                  try {
+                    if (!activeWatchlist || !activeWatchlist.items || !Array.isArray(activeWatchlist.items)) return 0
+                    
+                    let items = [...(activeWatchlist.items || [])]
+                    
+                    switch (tab) {
+                      case 'all':
+                        return items.length
+                      case 'equity':
+                        return items.filter(item => {
+                          try {
+                            const segment = item?.segment?.toUpperCase() || ''
+                            return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
+                          } catch (err: any) {
+                            console.error('❌ [WATCHLIST-MANAGER] Error filtering equity item:', err)
+                            return false
+                          }
+                        }).length
+                      case 'futures':
+                        return items.filter(item => {
+                          try {
+                            const segment = item?.segment?.toUpperCase() || ''
+                            return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !item.optionType
+                          } catch (err: any) {
+                            console.error('❌ [WATCHLIST-MANAGER] Error filtering futures item:', err)
+                            return false
+                          }
+                        }).length
+                      case 'options':
+                        return items.filter(item => {
+                          try {
+                            const segment = item?.segment?.toUpperCase() || ''
+                            return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!item.optionType
+                          } catch (err: any) {
+                            console.error('❌ [WATCHLIST-MANAGER] Error filtering options item:', err)
+                            return false
+                          }
+                        }).length
+                      case 'commodities':
+                        return items.filter(item => {
+                          try {
+                            const segment = item?.segment?.toUpperCase() || ''
+                            const exchange = item?.exchange?.toUpperCase() || ''
+                            return ['MCX', 'MCX_FO'].includes(segment) || exchange.includes('MCX')
+                          } catch (err: any) {
+                            console.error('❌ [WATCHLIST-MANAGER] Error filtering commodities item:', err)
+                            return false
+                          }
+                        }).length
+                      default:
+                        return 0
+                    }
+                  } catch (error: any) {
+                    console.error(`❌ [WATCHLIST-MANAGER] Error calculating count for tab ${tab}:`, {
+                      error: error.message,
+                      stack: error.stack,
+                    })
+                    return 0
                   }
                 }, [activeWatchlist, tab])
                 
@@ -514,19 +628,32 @@ export function WatchlistManager({
                     </p>
                   </motion.div>
                 ) : (
-                  sortedItems.map((item) => (
-                    <motion.div
-                      key={item.watchlistItemId}
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <WatchlistItemCard
-                        item={item}
-                        quote={{
-                          ...quotes[item.instrumentId],
+                  sortedItems.map((item, itemIndex) => {
+                    try {
+                      if (!item || !item.id) {
+                        console.error(`❌ [WATCHLIST-MANAGER] Invalid item at index ${itemIndex}:`, item)
+                        return null
+                      }
+
+                      if (!item.instrumentId) {
+                        console.warn(`⚠️ [WATCHLIST-MANAGER] Item ${itemIndex} missing instrumentId:`, item)
+                      }
+
+                      const quote = quotes?.[item.instrumentId || '']
+                      
+                      return (
+                        <motion.div
+                          key={item.watchlistItemId || item.id || `item-${itemIndex}`}
+                          layout
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <WatchlistItemCard
+                            item={item}
+                            quote={{
+                              ...quote,
                           // Mock market depth data for demonstration
                           market_depth: {
                             bid: [
