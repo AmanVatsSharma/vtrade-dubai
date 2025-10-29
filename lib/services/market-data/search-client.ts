@@ -4,9 +4,14 @@
  * 
  * PURPOSE:
  * - Search for equities, futures, options, and MCX commodities
- * - Call external market data API directly from frontend
+ * - Calls internal Next.js API proxy (server-side handles external API with secure key)
  * - Handle authentication, errors, and response parsing
  * - Support all instrument types with proper typing
+ * 
+ * SECURITY:
+ * - API keys are NEVER exposed to client
+ * - All requests go through /api/market-data/search proxy
+ * - Server-side proxy adds API key header
  * 
  * USAGE:
  * import { searchEquities, searchFutures } from '@/lib/services/market-data/search-client';
@@ -14,14 +19,11 @@
  * const results = await searchEquities('RELIANCE');
  * 
  * @author Trading Platform Team
- * @date 2025-01-28
+ * @date 2025-01-29
  */
 
-import { config } from '@/lib/config/runtime';
-
-// Base API URL
-const BASE_URL = process.env.NEXT_PUBLIC_MARKET_DATA_API_URL || 'https://marketdata.vedpragya.com';
-const API_KEY = process.env.NEXT_PUBLIC_MARKET_DATA_API_KEY || 'demo-key-1';
+// Use internal API proxy (never call external API directly from client)
+const PROXY_URL = '/api/market-data/search';
 
 // Search result types
 export interface Instrument {
@@ -64,28 +66,37 @@ export class SearchAPIError extends Error {
 }
 
 /**
- * Make authenticated request to market data API
+ * Make authenticated request through internal API proxy
+ * API key is handled server-side - never exposed to client
  */
 async function apiRequest<T>(
-  endpoint: string,
+  type: 'equities' | 'futures' | 'options' | 'commodities' | 'universal',
   params: Record<string, string | number> = {}
 ): Promise<T> {
-  console.log('🔍 [SEARCH-CLIENT] Making request', { endpoint, params });
+  console.log('🔍 [SEARCH-CLIENT] Making request through proxy', { type, params });
   
   try {
-    // Build URL with query parameters
-    const url = new URL(`${BASE_URL}${endpoint}`);
+    // Build URL with query parameters (use internal proxy)
+    // Handle both client-side and SSR contexts
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000');
+    
+    const url = new URL(PROXY_URL, baseUrl);
+    url.searchParams.append('type', type);
     Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.append(key, String(value));
+      if (value !== undefined && value !== null) {
+        url.searchParams.append(key, String(value));
+      }
     });
     
-    // Make request with API key
+    // Make request to internal proxy (no API key needed - proxy handles it)
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'x-api-key': API_KEY || '',
         'Content-Type': 'application/json',
       },
+      credentials: 'include', // Include cookies for session
     });
     
     console.log('📡 [SEARCH-CLIENT] Response status', response.status);
@@ -101,6 +112,7 @@ async function apiRequest<T>(
     
     const data = await response.json();
     console.log('✅ [SEARCH-CLIENT] Request successful', {
+      type,
       count: data.data?.instruments?.length || 0,
     });
     
@@ -110,6 +122,15 @@ async function apiRequest<T>(
     
     if (error instanceof SearchAPIError) {
       throw error;
+    }
+    
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new SearchAPIError(
+        'Network error - please check your connection',
+        0,
+        { originalError: error }
+      );
     }
     
     throw new SearchAPIError(
@@ -135,7 +156,7 @@ export async function searchEquities(
     console.log('📊 [SEARCH-CLIENT] Searching equities', { query, limit });
     
     const response = await apiRequest<SearchResponse>(
-      '/api/stock/vayu/equities',
+      'equities',
       { q: query, limit }
     );
     
@@ -161,7 +182,7 @@ export async function searchFutures(
     console.log('📊 [SEARCH-CLIENT] Searching futures', { query, limit });
     
     const response = await apiRequest<SearchResponse>(
-      '/api/stock/vayu/futures',
+      'futures',
       { q: query, limit }
     );
     
@@ -194,7 +215,7 @@ export async function searchOptions(
     }
     
     const response = await apiRequest<SearchResponse>(
-      '/api/stock/vayu/options',
+      'options',
       params
     );
     
@@ -220,7 +241,7 @@ export async function searchCommodities(
     console.log('📊 [SEARCH-CLIENT] Searching commodities', { query, limit });
     
     const response = await apiRequest<SearchResponse>(
-      '/api/stock/vayu/commodities',
+      'commodities',
       { q: query, limit }
     );
     
