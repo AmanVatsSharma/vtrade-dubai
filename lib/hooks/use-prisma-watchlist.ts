@@ -210,6 +210,49 @@ export function useEnhancedWatchlists(userId?: string) {
     }
   }, [fetchWatchlists])
 
+  // SSE connection for real-time watchlist updates
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return
+
+    console.log('📡 [useEnhancedWatchlists] Connecting to SSE stream for watchlist updates')
+
+    const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
+    const eventSourceRef = { current: eventSource }
+
+    eventSource.onopen = () => {
+      console.log('✅ [useEnhancedWatchlists] SSE connection established')
+    }
+
+    eventSource.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        
+        // Handle watchlist-related events
+        if (message.event === 'watchlist_updated' || 
+            message.event === 'watchlist_item_added' || 
+            message.event === 'watchlist_item_removed') {
+          console.log(`📨 [useEnhancedWatchlists] Received ${message.event} event, refreshing watchlists`)
+          fetchWatchlists().catch(err => {
+            console.error('❌ [useEnhancedWatchlists] Refresh after event failed:', err)
+          })
+        }
+      } catch (error) {
+        console.error('❌ [useEnhancedWatchlists] Error parsing SSE message:', error)
+      }
+    }
+
+    eventSource.onerror = (error) => {
+      console.error('❌ [useEnhancedWatchlists] SSE connection error:', error)
+      // EventSource will automatically reconnect
+    }
+
+    // Cleanup on unmount
+    return () => {
+      console.log('🧹 [useEnhancedWatchlists] Closing SSE connection')
+      eventSource.close()
+    }
+  }, [userId, fetchWatchlists])
+
   const createWatchlist = useCallback(async (input: CreateWatchlistInput) => {
     if (!userId) throw new Error("User ID required")
 
