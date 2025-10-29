@@ -202,6 +202,66 @@ export function setupRealtimeMiddleware(prisma: any) {
       }
     }
 
+    // WatchlistItem events
+    if (params.model === 'WatchlistItem') {
+      if (params.action === 'create') {
+        // Get userId from watchlist relation
+        try {
+          const watchlist = await prisma.watchlist.findUnique({
+            where: { id: result.watchlistId },
+            select: { userId: true }
+          })
+
+          if (watchlist?.userId) {
+            const eventData: WatchlistEventData = {
+              watchlistId: result.watchlistId,
+              action: 'item_added',
+              itemId: result.id,
+              userId: watchlist.userId
+            }
+
+            console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_added for user ${watchlist.userId}`)
+            eventEmitter.emit(watchlist.userId, 'watchlist_item_added', eventData)
+          }
+        } catch (error) {
+          console.error(`❌ [PRISMA-MIDDLEWARE] Error fetching watchlist userId:`, error)
+        }
+      } else if (params.action === 'delete') {
+        // For delete, we need to get userId before the item is deleted
+        // This is tricky because result might be the deleted item or just metadata
+        // We'll need to get the watchlistId from params and fetch userId
+        try {
+          const watchlistId = params.args?.where?.id 
+            ? (await prisma.watchlistItem.findUnique({ 
+                where: { id: params.args.where.id }, 
+                select: { watchlistId: true } 
+              }))?.watchlistId
+            : result.watchlistId
+
+          if (watchlistId) {
+            const watchlist = await prisma.watchlist.findUnique({
+              where: { id: watchlistId },
+              select: { userId: true }
+            })
+
+            if (watchlist?.userId) {
+              const eventData: WatchlistEventData = {
+                watchlistId: watchlistId,
+                action: 'item_removed',
+                itemId: params.args?.where?.id || result.id,
+                userId: watchlist.userId
+              }
+
+              console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_removed for user ${watchlist.userId}`)
+              eventEmitter.emit(watchlist.userId, 'watchlist_item_removed', eventData)
+            }
+          }
+        } catch (error) {
+          console.error(`❌ [PRISMA-MIDDLEWARE] Error emitting watchlist_item_removed:`, error)
+        }
+      }
+    }
+
     return result
   })
 }
