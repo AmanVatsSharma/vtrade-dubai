@@ -7,8 +7,7 @@
  */
 
 import { NextRequest } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth.ts]/route'
+import { auth } from '@/auth'
 import { getRealtimeEventEmitter } from '@/lib/services/realtime/RealtimeEventEmitter'
 
 /**
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
     const userIdParam = searchParams.get('userId')
 
     // Authenticate user
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     const userId = userIdParam || (session?.user?.id as string | undefined)
 
     if (!userId) {

@@ -55,6 +55,13 @@ async function getUserIdFromTradingAccountId(
  * Note: We need a reference to the base prisma client, not the extended one
  */
 export function setupRealtimeMiddleware(prisma: any) {
+  // Check if $use is available
+  if (typeof prisma.$use !== 'function') {
+    console.error('❌ [PRISMA-MIDDLEWARE] $use is not available on Prisma client instance')
+    console.error('❌ [PRISMA-MIDDLEWARE] Prisma client type:', typeof prisma, 'Has $use:', '$use' in prisma)
+    return // Exit early if $use is not available
+  }
+
   prisma.$use(async (params: any, next: any) => {
     // For WatchlistItem delete, we need to fetch watchlistId BEFORE deletion
     if (params.model === 'WatchlistItem' && params.action === 'delete') {
