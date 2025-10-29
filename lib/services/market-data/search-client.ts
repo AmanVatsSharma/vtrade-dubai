@@ -20,8 +20,8 @@
 import { config } from '@/lib/config/runtime';
 
 // Base API URL
-const BASE_URL = process.env.NEXT_PUBLIC_MARKET_DATA_API_URL || 'http://marketdata.vedpragya.com:3000';
-const API_KEY = process.env.NEXT_PUBLIC_MARKET_DATA_API_KEY || process.env.VEDPRAGYA_X_API_KEY;
+const BASE_URL = process.env.NEXT_PUBLIC_MARKET_DATA_API_URL || 'https://marketdata.vedpragya.com';
+const API_KEY = process.env.NEXT_PUBLIC_MARKET_DATA_API_KEY || 'demo-key-1';
 
 // Search result types
 export interface Instrument {
