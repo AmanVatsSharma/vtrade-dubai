@@ -104,23 +104,34 @@ const transformWatchlistData = (watchlists: any[]): WatchlistData[] => {
         ? `${item.exchange}-${item.token}` 
         : item.stockId || `unknown-${item.id}`
       
+      // Warn if critical fields are missing
+      if (!item.token || !item.exchange) {
+        console.warn('⚠️ [TRANSFORM] WatchlistItem missing token or exchange:', {
+          itemId: item.id,
+          token: item.token,
+          exchange: item.exchange,
+          symbol: item.symbol,
+          warning: 'Instrument may not receive real-time updates'
+        })
+      }
+      
       console.log('🔑 [TRANSFORM] WatchlistItem data extraction', {
         watchlistItemId: item.id,
         token: item.token,
-        symbol: item.symbol,
-        exchange: item.exchange,
+        symbol: item.symbol || 'UNKNOWN',
+        exchange: item.exchange || 'NSE',
       })
       
       return {
         id: item.stockId || item.id, // Use stockId if exists (backward compat), else item.id
         watchlistItemId: item.id,
         instrumentId,
-        symbol: item.symbol,
-        name: item.name,
-        exchange: item.exchange,
+        symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
+        name: item.name || 'Unknown', // Fallback for null/undefined
+        exchange: item.exchange || 'NSE', // Fallback for null/undefined
         ltp: toNumber(item.ltp),
         close: toNumber(item.close),
-        segment: item.segment,
+        segment: item.segment || 'NSE', // Fallback for null/undefined
         strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
         optionType: item.optionType,
         expiry: item.expiry,

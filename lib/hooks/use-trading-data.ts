@@ -559,12 +559,12 @@ export function useUserWatchlist(userId?: string) {
         id: item.id, // Use WatchlistItem.id as item identifier
         instrumentId,
         token: item.token ? Number(item.token) : undefined,
-        symbol: item.symbol,
-        name: item.name,
+        symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
+        name: item.name || 'Unknown', // Fallback for null/undefined
         ltp: toNumber(item.ltp),
         close: toNumber(item.close),
-        exchange: item.exchange,
-        segment: item.segment,
+        exchange: item.exchange || 'NSE', // Fallback for null/undefined
+        segment: item.segment || 'NSE', // Fallback for null/undefined
         strikePrice: item.strikePrice != null ? toNumber(item.strikePrice) : undefined,
         optionType: item.optionType,
         expiry: item.expiry,
