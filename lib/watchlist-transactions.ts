@@ -343,14 +343,28 @@ export const withAddWatchlistItemTransaction = async (
       throw new Error("Stock already exists in watchlist")
     }
 
-    // Verify stock exists
+    // Verify stock exists and get token
     const stock = await tx.stock.findUnique({
       where: { id: finalStockId },
+      select: {
+        id: true,
+        // @ts-expect-error: token column may not exist yet
+        token: true,
+      } as any,
     })
 
     if (!stock) {
       throw new Error("Stock not found")
     }
+
+    // Determine final token: prefer data.token, fallback to stock.token
+    const finalToken = data.token ?? (stock as any).token
+    
+    console.log("🔑 [WATCHLIST-TX] Token for WatchlistItem:", {
+      providedToken: data.token,
+      stockToken: (stock as any).token,
+      finalToken,
+    })
 
     // Add item to watchlist (attempt enhanced fields; fall back to minimal)
     let item
@@ -358,7 +372,9 @@ export const withAddWatchlistItemTransaction = async (
       item = await tx.watchlistItem.create({
         data: {
           watchlistId,
-          stockId: data.stockId,
+          stockId: finalStockId, // Fix: use finalStockId instead of data.stockId
+          // @ts-expect-error: token column may not exist yet
+          token: finalToken, // Store token directly in WatchlistItem
           // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
           notes: data.notes,
           // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
@@ -372,28 +388,34 @@ export const withAddWatchlistItemTransaction = async (
           id: true,
           watchlistId: true,
           stockId: true,
+          // @ts-expect-error: token column may not exist yet
+          token: true,
           createdAt: true,
           stock: true,
-        },
+        } as any,
       })
     } catch (err) {
       console.warn("⚠️ Enhanced item create failed; falling back to minimal create", err)
       item = await tx.watchlistItem.create({
         data: {
           watchlistId,
-          stockId: data.stockId,
-        },
+          stockId: finalStockId, // Fix: use finalStockId
+          // @ts-expect-error: token column may not exist yet
+          token: finalToken, // Still try to store token even in fallback
+        } as any,
         select: {
           id: true,
           watchlistId: true,
           stockId: true,
+          // @ts-expect-error: token column may not exist yet
+          token: true,
           createdAt: true,
           stock: true,
-        },
+        } as any,
       })
     }
 
-    console.log("✅ Item added to watchlist:", item.id)
+    console.log("✅ Item added to watchlist:", item.id, { token: (item as any).token })
     return item
   })
 }
@@ -444,9 +466,11 @@ export const withUpdateWatchlistItemTransaction = async (
           id: true,
           watchlistId: true,
           stockId: true,
+          // @ts-expect-error: token column may not exist yet
+          token: true,
           createdAt: true,
           stock: true,
-        },
+        } as any,
       })
     } catch (err) {
       console.warn("⚠️ Enhanced item update failed; falling back to minimal update", err)
@@ -457,9 +481,11 @@ export const withUpdateWatchlistItemTransaction = async (
           id: true,
           watchlistId: true,
           stockId: true,
+          // @ts-expect-error: token column may not exist yet
+          token: true,
           createdAt: true,
           stock: true,
-        },
+        } as any,
       })
     }
 
@@ -520,9 +546,11 @@ export const getAllWatchlists = async (userId: string) => {
           id: true,
           watchlistId: true,
           stockId: true,
+          // @ts-expect-error: token column may not exist yet
+          token: true,
           createdAt: true,
           stock: true,
-        },
+        } as any,
         orderBy: { createdAt: 'desc' },
       },
     },
@@ -549,9 +577,11 @@ export const getWatchlistById = async (watchlistId: string, userId: string) => {
           id: true,
           watchlistId: true,
           stockId: true,
+          // @ts-expect-error: token column may not exist yet
+          token: true,
           createdAt: true,
           stock: true,
-        },
+        } as any,
         orderBy: { createdAt: 'desc' },
       },
     },

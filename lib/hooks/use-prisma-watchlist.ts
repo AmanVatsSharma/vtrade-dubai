@@ -27,6 +27,7 @@ export interface WatchlistItemData {
   alertType?: string
   sortOrder: number
   createdAt: string
+  token?: number // Instrument token from Vayu API (prefer WatchlistItem.token, fallback to Stock.token)
 }
 
 export interface WatchlistData {
@@ -84,6 +85,16 @@ const transformWatchlistData = (watchlists: any[]): WatchlistData[] => {
   return watchlists.map((watchlist) => {
     const items = watchlist.items?.map((item: any) => {
       const stock = item.stock
+      // Prefer token from WatchlistItem, fallback to Stock.token
+      const token = item.token ?? stock?.token
+      
+      console.log('🔑 [TRANSFORM] WatchlistItem token extraction', {
+        watchlistItemId: item.id,
+        itemToken: item.token,
+        stockToken: stock?.token,
+        finalToken: token,
+      })
+      
       return {
         id: stock.id,
         watchlistItemId: item.id,
@@ -102,6 +113,7 @@ const transformWatchlistData = (watchlists: any[]): WatchlistData[] => {
         alertType: item.alertType,
         sortOrder: item.sortOrder || 0,
         createdAt: item.createdAt,
+        token: token ? Number(token) : undefined, // Ensure it's a number or undefined
       }
     }) || []
 

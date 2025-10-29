@@ -156,16 +156,35 @@ export function WebSocketMarketDataProvider({
     // Add watchlist instruments
     if (watchlist?.items) {
       watchlist.items.forEach((item: any) => {
-        // First, try to use the token field directly (new API)
+        // Prefer WatchlistItem.token (stored directly), fallback to Stock.token or instrumentId parsing
         if (item.token) {
           tokens.add(item.token);
-          console.log('🔑 [WS-PROVIDER] Using token from Stock.token field:', item.token);
+          console.log('🔑 [WS-PROVIDER] Using token from WatchlistItem.token field:', {
+            token: item.token,
+            symbol: item.symbol,
+            watchlistItemId: item.watchlistItemId || item.id,
+            source: 'WatchlistItem.token'
+          });
         }
-        // Fallback to parsing instrumentId
+        // Fallback to parsing instrumentId (legacy support)
         else if (item.instrumentId) {
           const token = parseInstrumentId(item.instrumentId);
-          if (token) tokens.add(token);
-          console.log('📋 [WS-PROVIDER] Parsed token from instrumentId:', token);
+          if (token) {
+            tokens.add(token);
+            console.log('📋 [WS-PROVIDER] Parsed token from instrumentId (fallback):', {
+              token,
+              instrumentId: item.instrumentId,
+              symbol: item.symbol,
+              warning: 'Token not found in WatchlistItem, using parsed instrumentId'
+            });
+          } else {
+            console.warn('⚠️ [WS-PROVIDER] Could not extract token from watchlist item:', {
+              itemId: item.watchlistItemId || item.id,
+              instrumentId: item.instrumentId,
+              symbol: item.symbol,
+              warning: 'No token available - item will not receive real-time updates'
+            });
+          }
         }
       });
     }
@@ -183,6 +202,11 @@ export function WebSocketMarketDataProvider({
     console.log('📋 [WS-PROVIDER] Collected instrument tokens', {
       count: tokens.size,
       instruments: Array.from(tokens),
+      sources: {
+        indexInstruments: Object.values(INDEX_INSTRUMENTS).filter(Boolean).length,
+        watchlistItems: watchlist?.items?.length || 0,
+        positions: positions?.length || 0,
+      }
     });
 
     return Array.from(tokens);

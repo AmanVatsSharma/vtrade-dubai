@@ -301,6 +301,8 @@ model WatchlistItem {
   sortOrder   Int      @default(0) // Custom sort order within watchlist
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
+  // Instrument token from market data API
+  token          Int?            @unique
 
   watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
   stock     Stock     @relation(fields: [stockId], references: [id], onDelete: Cascade)

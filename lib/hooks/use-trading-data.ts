@@ -259,8 +259,9 @@ const GET_USER_WATCHLIST = gql`
             edges {
               node {
                 id # This is the watchlistItemId
+                token
                 stock {
-                  id, instrumentId, exchange, ticker, name, ltp, close, segment, strikePrice, optionType, expiry, lot_size
+                  id, instrumentId, exchange, ticker, name, ltp, close, segment, strikePrice, optionType, expiry, lot_size, token
                 }
               }
             }
@@ -531,22 +532,34 @@ export function useUserWatchlist(userId?: string) {
     const wlNode = data?.watchlistCollection?.edges?.[0]?.node;
     if (!wlNode) return { id: null, name: 'My Watchlist', items: [] };
 
-    const items = wlNode.watchlistItemCollection.edges.map((e: any) => ({
-      watchlistItemId: e.node.id,
-      id: e.node.stock.id,
-      instrumentId: e.node.stock.instrumentId,
-      token: e.node.stock.token, // Add token field from Stock model
-      symbol: e.node.stock.ticker,
-      name: e.node.stock.name,
-      ltp: toNumber(e.node.stock.ltp),
-      close: toNumber(e.node.stock.close),
-      exchange: e.node.stock.exchange,
-      segment: e.node.stock.segment,
-      strikePrice: e.node.stock.strikePrice != null ? toNumber(e.node.stock.strikePrice) : undefined,
-      optionType: e.node.stock.optionType,
-      expiry: e.node.stock.expiry,
-      lotSize: e.node.stock.lot_size,
-    }));
+    const items = wlNode.watchlistItemCollection.edges.map((e: any) => {
+      // Prefer token from WatchlistItem, fallback to Stock.token
+      const token = e.node.token ?? e.node.stock?.token
+      
+      console.log('🔑 [TRADING-DATA] WatchlistItem token extraction', {
+        watchlistItemId: e.node.id,
+        itemToken: e.node.token,
+        stockToken: e.node.stock?.token,
+        finalToken: token,
+      })
+      
+      return {
+        watchlistItemId: e.node.id,
+        id: e.node.stock.id,
+        instrumentId: e.node.stock.instrumentId,
+        token: token ? Number(token) : undefined, // Prefer WatchlistItem.token, fallback to Stock.token
+        symbol: e.node.stock.ticker,
+        name: e.node.stock.name,
+        ltp: toNumber(e.node.stock.ltp),
+        close: toNumber(e.node.stock.close),
+        exchange: e.node.stock.exchange,
+        segment: e.node.stock.segment,
+        strikePrice: e.node.stock.strikePrice != null ? toNumber(e.node.stock.strikePrice) : undefined,
+        optionType: e.node.stock.optionType,
+        expiry: e.node.stock.expiry,
+        lotSize: e.node.stock.lot_size,
+      }
+    });
 
     return { id: wlNode.id, name: wlNode.name, items };
   }, [data]);

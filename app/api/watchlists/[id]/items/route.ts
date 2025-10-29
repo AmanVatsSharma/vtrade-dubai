@@ -11,6 +11,16 @@ import { withAddWatchlistItemTransaction } from '@/lib/watchlist-transactions'
 const addItemSchema = z.object({
   stockId: z.string().uuid().optional(),
   token: z.number().optional(),
+  // Additional fields for token-based instrument creation
+  symbol: z.string().optional(),
+  name: z.string().optional(),
+  exchange: z.string().optional(),
+  segment: z.string().optional(),
+  strikePrice: z.number().optional(),
+  optionType: z.enum(['CE', 'PE']).optional(),
+  expiry: z.string().optional(), // ISO date string
+  lotSize: z.number().optional(),
+  // Watchlist item specific fields
   notes: z.string().max(500).optional(),
   alertPrice: z.number().positive().optional(),
   alertType: z.enum(['ABOVE', 'BELOW', 'BOTH']).optional(),

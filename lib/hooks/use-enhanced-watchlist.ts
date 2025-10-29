@@ -33,6 +33,7 @@ const GET_ALL_WATCHLISTS = gql`
             edges {
               node {
                 id
+                token
                 notes
                 alertPrice
                 alertType
@@ -51,6 +52,7 @@ const GET_ALL_WATCHLISTS = gql`
                   optionType
                   expiry
                   lot_size
+                  token
                 }
               }
             }
@@ -79,6 +81,7 @@ const GET_WATCHLIST_BY_ID = gql`
             edges {
               node {
                 id
+                token
                 notes
                 alertPrice
                 alertType
@@ -97,6 +100,7 @@ const GET_WATCHLIST_BY_ID = gql`
                   optionType
                   expiry
                   lot_size
+                  token
                 }
               }
             }
@@ -196,6 +200,7 @@ interface WatchlistItemData {
   alertType?: string
   sortOrder: number
   createdAt: string
+  token?: number // Instrument token from Vayu API (prefer WatchlistItem.token, fallback to Stock.token)
 }
 
 interface WatchlistData {
@@ -255,6 +260,16 @@ const transformWatchlistData = (data: any): WatchlistData[] => {
     const items = node.watchlistItemCollection.edges.map((itemEdge: any) => {
       const item = itemEdge.node
       const stock = item.stock
+      // Prefer token from WatchlistItem, fallback to Stock.token
+      const token = item.token ?? stock?.token
+      
+      console.log('🔑 [GRAPHQL-TRANSFORM] WatchlistItem token extraction', {
+        watchlistItemId: item.id,
+        itemToken: item.token,
+        stockToken: stock?.token,
+        finalToken: token,
+      })
+      
       return {
         id: stock.id,
         watchlistItemId: item.id,
@@ -273,6 +288,7 @@ const transformWatchlistData = (data: any): WatchlistData[] => {
         alertType: item.alertType,
         sortOrder: item.sortOrder || 0,
         createdAt: item.createdAt,
+        token: token ? Number(token) : undefined, // Ensure it's a number or undefined
       }
     })
     
