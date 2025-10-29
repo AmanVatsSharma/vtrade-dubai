@@ -164,42 +164,66 @@ export class SocketIOClient {
     });
 
     try {
-      // Convert WebSocket URLs to HTTP/HTTPS for Socket.IO
-      // Socket.IO expects HTTP/HTTPS URLs and handles SSL internally
-      let socketUrl = this.config.url;
+      // Process URL exactly like the working HTML test client
+      // HTML does: wsUrl = `${serverUrl}/market-data` then passes to io(wsUrl, ...)
+      let socketUrl = this.config.url.trim();
       
-      // Convert ws:// to http:// and wss:// to https://
-      if (socketUrl.startsWith('ws://')) {
-        socketUrl = socketUrl.replace('ws://', 'http://');
-      } else if (socketUrl.startsWith('wss://')) {
-        socketUrl = socketUrl.replace('wss://', 'https://');
-      }
-      
-      // Ensure URL ends with /market-data if it doesn't have a path
-      const urlObj = new URL(socketUrl);
-      if (!urlObj.pathname || urlObj.pathname === '/') {
-        socketUrl = `${socketUrl.endsWith('/') ? socketUrl.slice(0, -1) : socketUrl}/market-data`;
-      }
-      
-      console.log('🔧 [SOCKET-IO-CLIENT] Connecting to Socket.IO server', {
-        originalUrl: this.config.url,
-        socketUrl,
-        apiKey: this.config.apiKey ? '***' : 'missing'
+      console.log('🔧 [SOCKET-IO-CLIENT] Processing URL:', {
+        original: this.config.url,
+        trimmed: socketUrl
       });
       
-      // Initialize Socket.IO connection
-      // Pass the full URL directly to io() - Socket.IO will handle namespace automatically
-      // This matches the working HTML test client approach
+      // Convert ws:// to http:// and wss:// to https:// (Socket.IO expects HTTP/HTTPS)
+      if (socketUrl.startsWith('ws://')) {
+        socketUrl = socketUrl.replace('ws://', 'http://');
+        console.log('🔧 [SOCKET-IO-CLIENT] Converted ws:// to http://');
+      } else if (socketUrl.startsWith('wss://')) {
+        socketUrl = socketUrl.replace('wss://', 'https://');
+        console.log('🔧 [SOCKET-IO-CLIENT] Converted wss:// to https://');
+      }
+      
+      // Parse URL to check if /market-data is already present
+      let urlObj: URL;
+      try {
+        urlObj = new URL(socketUrl);
+      } catch (e) {
+        console.error('❌ [SOCKET-IO-CLIENT] Invalid URL format:', socketUrl);
+        throw new Error(`Invalid URL format: ${socketUrl}`);
+      }
+      
+      // If URL doesn't end with /market-data, add it (like HTML test client)
+      // HTML does: `${serverUrl}/market-data` where serverUrl = "https://marketdata.vedpragya.com"
+      if (!urlObj.pathname || urlObj.pathname === '/') {
+        // Base URL without path - add /market-data
+        socketUrl = `${socketUrl.endsWith('/') ? socketUrl.slice(0, -1) : socketUrl}/market-data`;
+        console.log('🔧 [SOCKET-IO-CLIENT] Added /market-data path');
+      } else if (!urlObj.pathname.endsWith('/market-data')) {
+        // Has a path but not /market-data - might be wrong, log warning but use as-is
+        console.warn('⚠️ [SOCKET-IO-CLIENT] URL has path but not /market-data:', urlObj.pathname);
+        console.warn('⚠️ [SOCKET-IO-CLIENT] Expected path: /market-data');
+      } else {
+        // Already has /market-data - perfect!
+        console.log('✅ [SOCKET-IO-CLIENT] URL already includes /market-data path');
+      }
+      
+      console.log('🔧 [SOCKET-IO-CLIENT] Final connection URL:', socketUrl);
+      console.log('🔧 [SOCKET-IO-CLIENT] API Key present:', !!this.config.apiKey);
+      console.log('🔧 [SOCKET-IO-CLIENT] API Key preview:', this.config.apiKey ? `${this.config.apiKey.substring(0, 8)}...` : 'missing');
+      
+      // Initialize Socket.IO connection - EXACT SAME AS WORKING HTML FILE
+      // HTML: socket = io(wsUrl, { query: { 'api_key': apiKey }, transports: ['websocket', 'polling'] })
+      console.log('🔌 [SOCKET-IO-CLIENT] Creating Socket.IO connection (matching HTML test client approach)...');
+      
       this.socket = io(socketUrl, {
         query: {
           'api_key': this.config.apiKey,
         },
         transports: ['websocket', 'polling'],
-        reconnection: false, // Manual reconnection handling (we do our own)
+        reconnection: false, // We handle reconnection manually
         timeout: 10000,
-        // Note: We don't specify 'path' - Socket.IO automatically handles /socket.io path
-        // Passing full URL with /market-data namespace is the correct approach per guide
       });
+      
+      console.log('✅ [SOCKET-IO-CLIENT] Socket.IO instance created');
 
       // Setup event handlers
       this.socket.on('connect', () => {

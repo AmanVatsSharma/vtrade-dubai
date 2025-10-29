@@ -375,20 +375,31 @@ export default function WebSocketTestPage() {
       return;
     }
     
+    // Log detailed connection info
+    console.log('🔌 [TEST-PAGE] Connect button clicked', {
+      currentUrl,
+      hookUrl: socketIOUrl,
+      apiKey: apiKey ? `${apiKey.substring(0, 8)}...` : 'missing',
+      isConnected: wsData.isConnected,
+    });
+    
     try {
       // The hook's connect will initialize service with current socketIOUrl from hook config
       // If URL changed, the useEffect above should have already disconnected to clear old service
+      console.log('🔌 [TEST-PAGE] Calling wsData.connect()...');
       await wsData.connect();
       addLog('info', '🔄 Connection request sent, waiting for server response...', {
         connectingTo: currentUrl
       });
+      console.log('✅ [TEST-PAGE] wsData.connect() called successfully');
     } catch (error) {
+      console.error('❌ [TEST-PAGE] Connection error:', error);
       addLog('error', '❌ Failed to initiate connection', {
         error: error instanceof Error ? error.message : String(error),
       });
       setErrorMessage('Failed to connect. Check console for details.');
     }
-  }, [wsData, apiKey, addLog]);
+  }, [wsData, apiKey, addLog, socketIOUrl]);
 
   /**
    * Handle disconnect button click

@@ -121,18 +121,24 @@ export function useWebSocketMarketData(
    * Initialize service
    */
   const initializeService = useCallback(async () => {
-    if (isInitializedRef.current) {
-      console.warn('⚠️ [HOOK-WS-MARKET-DATA] Service already initialized');
-      return;
+    // Clear existing service if URL/config changed
+    if (serviceRef.current) {
+      console.log('🔄 [HOOK-WS-MARKET-DATA] Clearing existing service before reinitializing...');
+      serviceRef.current.disconnect();
+      serviceRef.current = null;
+      isInitializedRef.current = false;
     }
 
-    console.log('🚀 [HOOK-WS-MARKET-DATA] Initializing service...');
+    console.log('🚀 [HOOK-WS-MARKET-DATA] Initializing service...', {
+      url: config.url,
+      apiKey: config.apiKey ? `${config.apiKey.substring(0, 8)}...` : 'missing',
+    });
     
     try {
       setIsLoading(true);
       setError(null);
       
-      // Create service instance
+      // Create service instance with current config
       const service = new WebSocketMarketDataService({
         url: config.url,
         apiKey: config.apiKey,
@@ -203,15 +209,30 @@ export function useWebSocketMarketData(
    * Connect to WebSocket
    */
   const connect = useCallback(async () => {
-    console.log('🔌 [HOOK-WS-MARKET-DATA] Connecting...');
+    console.log('🔌 [HOOK-WS-MARKET-DATA] Connecting...', {
+      url: config.url,
+      apiKey: config.apiKey ? `${config.apiKey.substring(0, 8)}...` : 'missing',
+      hasService: !!serviceRef.current,
+      isInitialized: isInitializedRef.current,
+    });
     
-    if (!serviceRef.current) {
+    // Always reinitialize service to ensure we use latest URL/config
+    // This is important if URL changed after hook initialization
+    if (!serviceRef.current || !isInitializedRef.current) {
+      console.log('🔌 [HOOK-WS-MARKET-DATA] Initializing service (new or stale)...');
       await initializeService();
+    } else {
+      console.log('🔌 [HOOK-WS-MARKET-DATA] Service already initialized, connecting...');
+      // Service exists but might need to connect
+      if (serviceRef.current && !serviceRef.current.isConnected) {
+        // Service might be disconnected, ensure it connects
+        // The service's initialize() should handle this
+      }
     }
     
     setIsConnected('connecting');
     setIsLoading(true);
-  }, [initializeService]);
+  }, [initializeService, config]);
 
   /**
    * Disconnect from WebSocket
