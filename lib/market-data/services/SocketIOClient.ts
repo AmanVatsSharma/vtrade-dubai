@@ -164,43 +164,41 @@ export class SocketIOClient {
     });
 
     try {
-      // Parse URL to separate base from path for Socket.IO
-      // Convert ws:// or wss:// to http:// or https:// for URL parsing
-      const parsedUrl = this.config.url.replace('ws://', 'http://').replace('wss://', 'https://');
-      const urlObj = new URL(parsedUrl);
+      // Convert WebSocket URLs to HTTP/HTTPS for Socket.IO
+      // Socket.IO expects HTTP/HTTPS URLs and handles SSL internally
+      let socketUrl = this.config.url;
       
-      // Extract base URL (protocol + host, including port if present)
-      const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
-      
-      // Extract path (namespace) or use default '/market-data'
-      // If pathname is '/' or empty, default to '/market-data'
-      let path = urlObj.pathname;
-      if (!path || path === '/') {
-        path = '/market-data';
+      // Convert ws:// to http:// and wss:// to https://
+      if (socketUrl.startsWith('ws://')) {
+        socketUrl = socketUrl.replace('ws://', 'http://');
+      } else if (socketUrl.startsWith('wss://')) {
+        socketUrl = socketUrl.replace('wss://', 'https://');
       }
       
-      console.log('🔧 [SOCKET-IO-CLIENT] Parsed URL', {
-        baseUrl,
-        path,
-        fullUrl: this.config.url,
+      // Ensure URL ends with /market-data if it doesn't have a path
+      const urlObj = new URL(socketUrl);
+      if (!urlObj.pathname || urlObj.pathname === '/') {
+        socketUrl = `${socketUrl.endsWith('/') ? socketUrl.slice(0, -1) : socketUrl}/market-data`;
+      }
+      
+      console.log('🔧 [SOCKET-IO-CLIENT] Connecting to Socket.IO server', {
+        originalUrl: this.config.url,
+        socketUrl,
         apiKey: this.config.apiKey ? '***' : 'missing'
       });
       
-      // Initialize Socket.IO connection with proper path configuration
-      // Use query parameter authentication (api_key) as per CLIENT_API_GUIDE.md
-      // This is the recommended method per the guide
-      this.socket = io(baseUrl, {
-        path: `${path}/socket.io`,
+      // Initialize Socket.IO connection
+      // Pass the full URL directly to io() - Socket.IO will handle namespace automatically
+      // This matches the working HTML test client approach
+      this.socket = io(socketUrl, {
         query: {
           'api_key': this.config.apiKey,
         },
-        // Alternative: Can also use extraHeaders method
-        // extraHeaders: {
-        //   'x-api-key': this.config.apiKey,
-        // },
-        reconnection: false, // Manual reconnection handling
-        timeout: 10000,
         transports: ['websocket', 'polling'],
+        reconnection: false, // Manual reconnection handling (we do our own)
+        timeout: 10000,
+        // Note: We don't specify 'path' - Socket.IO automatically handles /socket.io path
+        // Passing full URL with /market-data namespace is the correct approach per guide
       });
 
       // Setup event handlers
