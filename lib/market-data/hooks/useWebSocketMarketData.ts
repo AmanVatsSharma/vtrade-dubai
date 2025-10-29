@@ -169,9 +169,17 @@ export function useWebSocketMarketData(
         setIsLoading(false);
       });
 
+      service.on('subscriptionConfirmed', (data) => {
+        console.log('✅ [HOOK-WS-MARKET-DATA] Subscription confirmed', {
+          instruments: data?.instruments || 'unknown',
+          mode: data?.mode || 'unknown',
+        });
+      });
+
       service.on('priceUpdate', (data: { quotes: EnhancedQuote[] }) => {
         console.log('📊 [HOOK-WS-MARKET-DATA] Price update', {
           count: data.quotes.length,
+          tokens: data.quotes.map(q => q.instrumentToken),
         });
         
         // Update quotes state

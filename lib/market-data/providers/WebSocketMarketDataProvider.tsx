@@ -103,7 +103,8 @@ export function WebSocketMarketDataProvider({
   enableWebSocket = true,
 }: MarketDataProviderProps) {
   const [config, setConfig] = useState<MarketDataConfig>({ ...DEFAULT_CONFIG, ...userConfig });
-  const isConfiguredRef = useRef(false);
+  // Track previous subscriptions for dynamic updates
+  const previousTokensRef = useRef<Set<number>>(new Set());
 
   console.log('🚀 [WS-PROVIDER] Initializing WebSocket Market Data Provider', {
     userId,
@@ -112,12 +113,12 @@ export function WebSocketMarketDataProvider({
   });
 
   // Get environment variables
-  // Use wss:// for production (HTTPS sites require secure WebSocket)
-  // Use ws:// for local development
+  // Match test-websocket page URL format: https://marketdata.vedpragya.com/market-data
+  // SocketIOClient will handle ws:// to http:// and wss:// to https:// conversion
   const wsUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 
     (typeof window !== 'undefined' && window.location.protocol === 'https:' 
-      ? 'wss://marketdata.vedpragya.com:3000' 
-      : 'ws://marketdata.vedpragya.com:3000');
+      ? 'https://marketdata.vedpragya.com/market-data'
+      : 'https://marketdata.vedpragya.com/market-data');
   const apiKey = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_API_KEY || 'demo-key-1';
   const isEnabled = process.env.NEXT_PUBLIC_ENABLE_WS_MARKET_DATA === 'true' || enableWebSocket;
 
@@ -187,18 +188,73 @@ export function WebSocketMarketDataProvider({
     return Array.from(tokens);
   }, [watchlist, positions]);
 
-  // Auto-subscribe when connected
+  // Dynamic subscription management: update subscriptions when instruments change
   useEffect(() => {
-    if (wsData.isConnected === 'connected' && instrumentTokens.length > 0 && !isConfiguredRef.current) {
-      console.log('📡 [WS-PROVIDER] Auto-subscribing to instruments', {
-        count: instrumentTokens.length,
-        instruments: instrumentTokens,
+    if (wsData.isConnected !== 'connected') {
+      console.log('⏳ [WS-PROVIDER] Waiting for connection before subscribing', {
+        connectionState: wsData.isConnected,
       });
-
-      wsData.subscribe(instrumentTokens, 'ltp');
-      isConfiguredRef.current = true;
+      return;
     }
+
+    if (instrumentTokens.length === 0) {
+      console.log('⚠️ [WS-PROVIDER] No instruments to subscribe to');
+      return;
+    }
+
+    // Convert to Set for easier comparison
+    const currentTokens = new Set(instrumentTokens);
+    const previousTokens = previousTokensRef.current;
+
+    // Find added and removed tokens
+    const addedTokens = instrumentTokens.filter(token => !previousTokens.has(token));
+    const removedTokens = Array.from(previousTokens).filter(token => !currentTokens.has(token));
+
+    // Log subscription changes
+    console.log('🔄 [WS-PROVIDER] Subscription update check', {
+      previousCount: previousTokens.size,
+      currentCount: currentTokens.size,
+      added: addedTokens.length > 0 ? addedTokens : 'none',
+      removed: removedTokens.length > 0 ? removedTokens : 'none',
+      allInstruments: Array.from(currentTokens),
+    });
+
+    // Unsubscribe from removed instruments
+    if (removedTokens.length > 0) {
+      console.log('🚫 [WS-PROVIDER] Unsubscribing from removed instruments', {
+        tokens: removedTokens,
+        count: removedTokens.length,
+      });
+      wsData.unsubscribe(removedTokens, 'ltp');
+    }
+
+    // Subscribe to new instruments (including initial subscription)
+    if (addedTokens.length > 0 || previousTokens.size === 0) {
+      // If first time (previousTokens is empty), subscribe to all
+      // Otherwise, only subscribe to newly added
+      const tokensToSubscribe = previousTokens.size === 0 ? instrumentTokens : addedTokens;
+      
+      console.log('📡 [WS-PROVIDER] Subscribing to instruments', {
+        tokens: tokensToSubscribe,
+        count: tokensToSubscribe.length,
+        mode: 'ltp',
+        isInitial: previousTokens.size === 0,
+      });
+      
+      wsData.subscribe(tokensToSubscribe, 'ltp');
+    }
+
+    // Update previous tokens reference
+    previousTokensRef.current = new Set(currentTokens);
   }, [wsData.isConnected, instrumentTokens, wsData]);
+
+  // Reset subscription tracking on disconnection
+  useEffect(() => {
+    if (wsData.isConnected === 'disconnected') {
+      console.log('🔌 [WS-PROVIDER] Connection lost - resetting subscription tracking');
+      previousTokensRef.current = new Set();
+    }
+  }, [wsData.isConnected]);
 
   // Update configuration
   const updateConfig = useCallback((newConfig: Partial<MarketDataConfig>) => {
@@ -214,7 +270,8 @@ export function WebSocketMarketDataProvider({
   // Reconnect handler
   const reconnect = useCallback(() => {
     console.log('🔄 [WS-PROVIDER] Reconnecting...');
-    isConfiguredRef.current = false;
+    // Reset subscription tracking on reconnect to allow resubscription
+    previousTokensRef.current = new Set();
     wsData.reconnect();
   }, [wsData]);
 
@@ -262,15 +319,26 @@ export function WebSocketMarketDataProvider({
     reconnect,
   };
 
-  // Log connection status
+  // Log connection status and subscription updates
   useEffect(() => {
-    console.log('📊 [WS-PROVIDER] Connection status', {
+    console.log('📊 [WS-PROVIDER] Connection status update', {
       isConnected: wsData.isConnected,
       isLoading: wsData.isLoading,
-      subscriptions: wsData.getSubscriptionCount(),
-      quotes: Object.keys(quotes).length,
+      activeSubscriptions: wsData.getSubscriptionCount(),
+      quotesReceived: Object.keys(quotes).length,
+      trackedTokens: previousTokensRef.current.size,
     });
   }, [wsData.isConnected, wsData.isLoading, wsData.getSubscriptionCount, quotes]);
+
+  // Log watchlist/position changes that trigger subscription updates
+  useEffect(() => {
+    console.log('📋 [WS-PROVIDER] User data update', {
+      watchlistItems: watchlist?.items?.length || 0,
+      positionsCount: positions?.length || 0,
+      totalInstruments: instrumentTokens.length,
+      instruments: instrumentTokens,
+    });
+  }, [watchlist, positions, instrumentTokens]);
 
   return (
     <MarketDataContext.Provider value={contextValue}>

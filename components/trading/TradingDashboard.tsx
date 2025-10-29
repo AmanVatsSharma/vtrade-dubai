@@ -83,7 +83,26 @@ const ErrorScreen: React.FC<ErrorScreenProps> = ({ error, onRetry }) => (
 
 // Index Component - Use display_price for live animated updates
 const IndexDisplay: React.FC<IndexDisplayProps> = React.memo(({ name, instrumentId, quotes, isLoading }) => {
-  const quote = quotes?.[instrumentId]
+  // Parse token from instrumentId (format: "NSE_EQ-26000")
+  const token = useMemo(() => {
+    const parts = instrumentId.split('-');
+    return parts.length === 2 ? parseInt(parts[1], 10) : null;
+  }, [instrumentId]);
+  
+  // Quotes are keyed by token (as string), not instrumentId
+  const quote = token ? quotes?.[token.toString()] : null;
+  
+  // Debug logging for index quotes
+  useEffect(() => {
+    if (quote && token) {
+      console.log(`📊 [INDEX-DISPLAY] ${name} quote update`, {
+        instrumentId,
+        token,
+        price: quote.last_trade_price,
+        displayPrice: (quote as any)?.display_price,
+      });
+    }
+  }, [quote, name, instrumentId, token]);
   
   if (isLoading || !quote) {
     return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
