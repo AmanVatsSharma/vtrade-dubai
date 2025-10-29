@@ -227,28 +227,47 @@ export function setupRealtimeMiddleware(prisma: any) {
           console.error(`❌ [PRISMA-MIDDLEWARE] Error fetching watchlist userId:`, error)
         }
       } else if (params.action === 'delete') {
-        // For delete, we need to get userId before the item is deleted
-        // This is tricky because result might be the deleted item or just metadata
-        // We'll need to get the watchlistId from params and fetch userId
+        // For delete, we need to fetch watchlistId before the item is deleted
+        // Get the itemId from params and fetch watchlist info
         try {
-          const watchlistId = params.args?.where?.id 
-            ? (await prisma.watchlistItem.findUnique({ 
-                where: { id: params.args.where.id }, 
-                select: { watchlistId: true } 
-              }))?.watchlistId
-            : result.watchlistId
+          const itemId = params.args?.where?.id || params.args?.where?.watchlistItemId?.id
+          
+          if (itemId) {
+            const watchlistItem = await prisma.watchlistItem.findUnique({
+              where: { id: itemId },
+              select: { watchlistId: true }
+            })
 
-          if (watchlistId) {
+            if (watchlistItem?.watchlistId) {
+              const watchlist = await prisma.watchlist.findUnique({
+                where: { id: watchlistItem.watchlistId },
+                select: { userId: true }
+              })
+
+              if (watchlist?.userId) {
+                const eventData: WatchlistEventData = {
+                  watchlistId: watchlistItem.watchlistId,
+                  action: 'item_removed',
+                  itemId: itemId,
+                  userId: watchlist.userId
+                }
+
+                console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_removed for user ${watchlist.userId}`)
+                eventEmitter.emit(watchlist.userId, 'watchlist_item_removed', eventData)
+              }
+            }
+          } else if (result?.watchlistId) {
+            // Fallback: if result has watchlistId (some delete operations return this)
             const watchlist = await prisma.watchlist.findUnique({
-              where: { id: watchlistId },
+              where: { id: result.watchlistId },
               select: { userId: true }
             })
 
             if (watchlist?.userId) {
               const eventData: WatchlistEventData = {
-                watchlistId: watchlistId,
+                watchlistId: result.watchlistId,
                 action: 'item_removed',
-                itemId: params.args?.where?.id || result.id,
+                itemId: result.id,
                 userId: watchlist.userId
               }
 
