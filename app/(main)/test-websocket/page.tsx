@@ -126,26 +126,19 @@ const ERROR_DESCRIPTIONS: Record<string, string> = {
  */
 export default function WebSocketTestPage() {
   // =====================================================================
-  // CONFIGURATION - Per CLIENT_API_GUIDE.md
+  // STATE MANAGEMENT
   // =====================================================================
   
   // Socket.IO endpoint: https://marketdata.vedpragya.com/market-data
   // Use HTTPS (not HTTP) - Socket.IO handles SSL upgrade automatically
-  const socketIOUrl = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 
-    'https://marketdata.vedpragya.com/market-data';
+  // Make URL editable for testing different endpoints
+  const [socketIOUrl, setSocketIOUrl] = useState<string>(
+    process.env.NEXT_PUBLIC_LIVE_MARKET_WS_URL || 
+    'https://marketdata.vedpragya.com/market-data'
+  );
   
   // API Key: Use demo-key-1 as fallback per user requirement
   const apiKey = process.env.NEXT_PUBLIC_LIVE_MARKET_WS_API_KEY || 'demo-key-1';
-  
-  console.log('🚀 [TEST-WEBSOCKET-PAGE] Initialized with config', {
-    url: socketIOUrl,
-    hasApiKey: !!apiKey,
-    apiKeyPreview: apiKey ? `${apiKey.substring(0, 8)}...` : 'missing',
-  });
-
-  // =====================================================================
-  // STATE MANAGEMENT
-  // =====================================================================
   
   const [tokenInput, setTokenInput] = useState('26000');
   const [subscriptionMode, setSubscriptionMode] = useState<SubscriptionMode>('ltp');
@@ -156,13 +149,25 @@ export default function WebSocketTestPage() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  
+  // Store current URL in ref so we can use it dynamically
+  const urlRef = useRef<string>(socketIOUrl);
+  const previousUrlRef = useRef<string>(socketIOUrl);
+  
+  console.log('🚀 [TEST-WEBSOCKET-PAGE] Initialized with config', {
+    url: socketIOUrl,
+    hasApiKey: !!apiKey,
+    apiKeyPreview: apiKey ? `${apiKey.substring(0, 8)}...` : 'missing',
+  });
 
   // =====================================================================
   // WEBSOCKET HOOK INTEGRATION
   // =====================================================================
   
+  // Initialize hook with current URL - hook will use this URL when initializing service
+  // When URL changes and we disconnect, the service is cleared and will use new URL on reconnect
   const wsData = useWebSocketMarketData({
-    url: socketIOUrl,
+    url: socketIOUrl, // This will be current value when hook runs
     apiKey,
     autoConnect: false, // Manual connection control
     reconnectAttempts: 5,
@@ -171,6 +176,27 @@ export default function WebSocketTestPage() {
     enableJitter: false,
     enableInterpolation: false,
   });
+  
+  // Update ref when URL changes and handle disconnect if needed
+  useEffect(() => {
+    const urlChanged = previousUrlRef.current !== socketIOUrl;
+    previousUrlRef.current = socketIOUrl;
+    urlRef.current = socketIOUrl;
+    
+    if (urlChanged) {
+      // Use console.log directly since addLog might not be ready yet
+      console.log('🔧 [TEST-WEBSOCKET-PAGE] WebSocket URL updated to:', socketIOUrl);
+      
+      // If connected when URL changes, disconnect to allow reconnection with new URL
+      // This ensures the hook will create a new service with the new URL
+      if (wsData.isConnected === 'connected' || wsData.isConnected === 'connecting') {
+        console.warn('⚠️ [TEST-WEBSOCKET-PAGE] URL changed while connected. Disconnecting to allow reconnection with new URL...');
+        wsData.disconnect();
+        setSubscriptions(new Map());
+        setTotalMessages(0);
+      }
+    }
+  }, [socketIOUrl, wsData]);
 
   // =====================================================================
   // LOGGING UTILITIES
@@ -327,26 +353,42 @@ export default function WebSocketTestPage() {
   
   /**
    * Handle connect button click
+   * Uses current URL from state (updated by user input)
    */
   const handleConnect = useCallback(async () => {
+    const currentUrl = urlRef.current;
+    
     addLog('info', '🔌 Initiating connection to WebSocket server...', {
-      url: socketIOUrl,
+      url: currentUrl,
       hasApiKey: !!apiKey,
     });
     
     setErrorMessage(null);
     setConnectionStartTime(null);
     
+    // Validate URL format
     try {
+      new URL(currentUrl);
+    } catch (e) {
+      addLog('error', '❌ Invalid WebSocket URL format', { url: currentUrl });
+      setErrorMessage('Invalid URL format. Please enter a valid URL (e.g., https://marketdata.vedpragya.com/market-data)');
+      return;
+    }
+    
+    try {
+      // The hook's connect will initialize service with current socketIOUrl from hook config
+      // If URL changed, the useEffect above should have already disconnected to clear old service
       await wsData.connect();
-      addLog('info', '🔄 Connection request sent, waiting for server response...');
+      addLog('info', '🔄 Connection request sent, waiting for server response...', {
+        connectingTo: currentUrl
+      });
     } catch (error) {
       addLog('error', '❌ Failed to initiate connection', {
         error: error instanceof Error ? error.message : String(error),
       });
       setErrorMessage('Failed to connect. Check console for details.');
     }
-  }, [wsData, socketIOUrl, apiKey, addLog]);
+  }, [wsData, apiKey, addLog]);
 
   /**
    * Handle disconnect button click
@@ -578,6 +620,40 @@ export default function WebSocketTestPage() {
                 </div>
               </div>
             )}
+
+            {/* WebSocket URL Configuration */}
+            <div className="border-b pb-4 space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                WebSocket URL (for testing different endpoints)
+              </label>
+              <div className="flex gap-2">
+                <Input 
+                  value={socketIOUrl} 
+                  onChange={(e) => setSocketIOUrl(e.target.value)} 
+                  placeholder="https://marketdata.vedpragya.com/market-data"
+                  disabled={wsData.isConnected === 'connected' || wsData.isConnected === 'connecting'}
+                  className="flex-1 font-mono text-sm"
+                />
+                <Button
+                  onClick={() => setSocketIOUrl('https://marketdata.vedpragya.com/market-data')}
+                  variant="outline"
+                  size="sm"
+                  disabled={wsData.isConnected === 'connected' || wsData.isConnected === 'connecting'}
+                  title="Reset to default URL"
+                >
+                  Reset
+                </Button>
+              </div>
+              {wsData.isConnected === 'connected' && (
+                <p className="text-xs text-yellow-600">
+                  ⚠️ URL change detected. Disconnect and reconnect to use the new URL.
+                </p>
+              )}
+              <p className="text-xs text-gray-500">
+                Format: https://marketdata.vedpragya.com/market-data (Socket.IO endpoint). 
+                You can change this to test different endpoints.
+              </p>
+            </div>
 
             {/* Connection Controls */}
             <div className="flex gap-3">
