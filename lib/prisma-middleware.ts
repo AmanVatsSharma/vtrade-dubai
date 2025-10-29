@@ -56,6 +56,47 @@ async function getUserIdFromTradingAccountId(
  */
 export function setupRealtimeMiddleware(prisma: any) {
   prisma.$use(async (params: any, next: any) => {
+    // For WatchlistItem delete, we need to fetch watchlistId BEFORE deletion
+    if (params.model === 'WatchlistItem' && params.action === 'delete') {
+      try {
+        const itemId = params.args?.where?.id
+        
+        if (itemId) {
+          const watchlistItem = await prisma.watchlistItem.findUnique({
+            where: { id: itemId },
+            select: { watchlistId: true }
+          })
+
+          if (watchlistItem?.watchlistId) {
+            const watchlist = await prisma.watchlist.findUnique({
+              where: { id: watchlistItem.watchlistId },
+              select: { userId: true }
+            })
+
+            // Execute the delete
+            const result = await next(params)
+
+            // Emit event after successful delete
+            if (watchlist?.userId) {
+              const eventData: WatchlistEventData = {
+                watchlistId: watchlistItem.watchlistId,
+                action: 'item_removed',
+                itemId: itemId,
+                userId: watchlist.userId
+              }
+
+              console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_removed for user ${watchlist.userId}`)
+              eventEmitter.emit(watchlist.userId, 'watchlist_item_removed', eventData)
+            }
+
+            return result
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [PRISMA-MIDDLEWARE] Error in WatchlistItem delete middleware:`, error)
+      }
+    }
+
     const result = await next(params)
 
     // Order events
@@ -202,82 +243,28 @@ export function setupRealtimeMiddleware(prisma: any) {
       }
     }
 
-    // WatchlistItem events
-    if (params.model === 'WatchlistItem') {
-      if (params.action === 'create') {
-        // Get userId from watchlist relation
-        try {
-          const watchlist = await prisma.watchlist.findUnique({
-            where: { id: result.watchlistId },
-            select: { userId: true }
-          })
+    // WatchlistItem events (create only - delete handled above before next())
+    if (params.model === 'WatchlistItem' && params.action === 'create') {
+      // Get userId from watchlist relation
+      try {
+        const watchlist = await prisma.watchlist.findUnique({
+          where: { id: result.watchlistId },
+          select: { userId: true }
+        })
 
-          if (watchlist?.userId) {
-            const eventData: WatchlistEventData = {
-              watchlistId: result.watchlistId,
-              action: 'item_added',
-              itemId: result.id,
-              userId: watchlist.userId
-            }
-
-            console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_added for user ${watchlist.userId}`)
-            eventEmitter.emit(watchlist.userId, 'watchlist_item_added', eventData)
+        if (watchlist?.userId) {
+          const eventData: WatchlistEventData = {
+            watchlistId: result.watchlistId,
+            action: 'item_added',
+            itemId: result.id,
+            userId: watchlist.userId
           }
-        } catch (error) {
-          console.error(`❌ [PRISMA-MIDDLEWARE] Error fetching watchlist userId:`, error)
+
+          console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_added for user ${watchlist.userId}`)
+          eventEmitter.emit(watchlist.userId, 'watchlist_item_added', eventData)
         }
-      } else if (params.action === 'delete') {
-        // For delete, we need to fetch watchlistId before the item is deleted
-        // Get the itemId from params and fetch watchlist info
-        try {
-          const itemId = params.args?.where?.id || params.args?.where?.watchlistItemId?.id
-          
-          if (itemId) {
-            const watchlistItem = await prisma.watchlistItem.findUnique({
-              where: { id: itemId },
-              select: { watchlistId: true }
-            })
-
-            if (watchlistItem?.watchlistId) {
-              const watchlist = await prisma.watchlist.findUnique({
-                where: { id: watchlistItem.watchlistId },
-                select: { userId: true }
-              })
-
-              if (watchlist?.userId) {
-                const eventData: WatchlistEventData = {
-                  watchlistId: watchlistItem.watchlistId,
-                  action: 'item_removed',
-                  itemId: itemId,
-                  userId: watchlist.userId
-                }
-
-                console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_removed for user ${watchlist.userId}`)
-                eventEmitter.emit(watchlist.userId, 'watchlist_item_removed', eventData)
-              }
-            }
-          } else if (result?.watchlistId) {
-            // Fallback: if result has watchlistId (some delete operations return this)
-            const watchlist = await prisma.watchlist.findUnique({
-              where: { id: result.watchlistId },
-              select: { userId: true }
-            })
-
-            if (watchlist?.userId) {
-              const eventData: WatchlistEventData = {
-                watchlistId: result.watchlistId,
-                action: 'item_removed',
-                itemId: result.id,
-                userId: watchlist.userId
-              }
-
-              console.log(`📤 [PRISMA-MIDDLEWARE] Emitting watchlist_item_removed for user ${watchlist.userId}`)
-              eventEmitter.emit(watchlist.userId, 'watchlist_item_removed', eventData)
-            }
-          }
-        } catch (error) {
-          console.error(`❌ [PRISMA-MIDDLEWARE] Error emitting watchlist_item_removed:`, error)
-        }
+      } catch (error) {
+        console.error(`❌ [PRISMA-MIDDLEWARE] Error fetching watchlist userId:`, error)
       }
     }
 

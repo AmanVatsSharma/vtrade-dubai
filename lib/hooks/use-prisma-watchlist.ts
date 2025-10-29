@@ -217,7 +217,6 @@ export function useEnhancedWatchlists(userId?: string) {
     console.log('📡 [useEnhancedWatchlists] Connecting to SSE stream for watchlist updates')
 
     const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
-    const eventSourceRef = { current: eventSource }
 
     eventSource.onopen = () => {
       console.log('✅ [useEnhancedWatchlists] SSE connection established')
