@@ -34,7 +34,7 @@ interface Stock {
 }
 
 interface StockSearchProps {
-  onAddStock: (stockId: string) => void
+  onAddStock: (stockData: string | { stockId?: string; token?: number; symbol?: string; name?: string; exchange?: string; segment?: string; strikePrice?: number; optionType?: 'CE' | 'PE'; expiry?: string; lotSize?: number }) => void
   onClose: () => void
 }
 

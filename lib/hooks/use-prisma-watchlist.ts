@@ -64,7 +64,16 @@ export interface UpdateWatchlistInput {
 }
 
 export interface AddWatchlistItemInput {
-  stockId: string
+  stockId?: string
+  token?: number
+  symbol?: string
+  name?: string
+  exchange?: string
+  segment?: string
+  strikePrice?: number
+  optionType?: 'CE' | 'PE'
+  expiry?: string
+  lotSize?: number
   notes?: string
   alertPrice?: number
   alertType?: string

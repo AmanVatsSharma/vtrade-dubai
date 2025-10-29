@@ -266,7 +266,7 @@ model Stock {
   // Instrument token from market data API
   token          Int?            @unique
   
-  watchlistItems WatchlistItem[]
+  // watchlistItems WatchlistItem[]
   orders         Order[]
   positions      Position[]
   
@@ -295,7 +295,7 @@ model Watchlist {
 model WatchlistItem {
   id          String   @id @default(cuid())
   watchlistId String
-  stockId     String
+  stockId     String?
   notes       String? // User notes for this stock
   alertPrice  Decimal? @db.Decimal(10, 2) // Price alert threshold
   alertType   String?  @default("ABOVE") // ABOVE, BELOW, BOTH
@@ -306,7 +306,7 @@ model WatchlistItem {
   token          Int?            @unique
 
   watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
-  stock     Stock     @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  // stock     Stock     @relation(fields: [stockId], references: [id], onDelete: Cascade)
 
   @@unique([watchlistId, stockId])
   @@index([watchlistId, sortOrder])

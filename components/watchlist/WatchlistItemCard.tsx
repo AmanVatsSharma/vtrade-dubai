@@ -32,6 +32,7 @@ import type { WatchlistItemData } from "@/lib/hooks/use-enhanced-watchlist"
 import { MiniChart } from "@/components/charts/MiniChart"
 import { AdvancedChart } from "@/components/charts/AdvancedChart"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
+import { formatExpiryDateIST, getCurrentISTDate } from "@/lib/date-utils"
 
 interface MarketDepth {
   bid: Array<{ price: number; quantity: number }>
@@ -76,6 +77,80 @@ interface WatchlistItemCardProps {
 const SWIPE_THRESHOLD = 80
 const DELETE_ACTION_WIDTH = 70
 
+/**
+ * Get exchange badge configuration for professional display
+ */
+const getExchangeBadge = (exchange?: string, segment?: string) => {
+  const normalizedExchange = exchange?.toUpperCase() || ''
+  const normalizedSegment = segment?.toUpperCase() || ''
+  
+  // Check for MCX first
+  if (normalizedExchange.includes('MCX') || normalizedSegment.includes('MCX')) {
+    return { label: 'MCX', color: 'bg-amber-500 text-white', bgLight: 'bg-amber-100 text-amber-700' }
+  }
+  
+  // Check for BSE
+  if (normalizedExchange.includes('BSE') || normalizedSegment.includes('BSE')) {
+    return { label: 'BSE', color: 'bg-orange-500 text-white', bgLight: 'bg-orange-100 text-orange-700' }
+  }
+  
+  // Check for NSE F&O
+  if (normalizedExchange.includes('NSE_FO') || normalizedExchange.includes('NFO') || normalizedSegment.includes('NFO')) {
+    return { label: 'NSE FO', color: 'bg-purple-500 text-white', bgLight: 'bg-purple-100 text-purple-700' }
+  }
+  
+  // Default to NSE Equity
+  return { label: 'NSE', color: 'bg-blue-500 text-white', bgLight: 'bg-blue-100 text-blue-700' }
+}
+
+/**
+ * Format expiry date in compact format (DD MMM YY)
+ */
+const formatCompactExpiry = (expiry?: string | null): string => {
+  if (!expiry) return ''
+  
+  try {
+    const date = new Date(expiry)
+    if (isNaN(date.getTime())) return ''
+    
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = date.toLocaleDateString('en-IN', { month: 'short' })
+    const year = date.getFullYear().toString().slice(-2)
+    
+    return `${day} ${month} ${year}`
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Calculate days until expiry
+ */
+const getDaysUntilExpiry = (expiry?: string | null): number | null => {
+  if (!expiry) return null
+  
+  try {
+    const expiryDate = new Date(expiry)
+    if (isNaN(expiryDate.getTime())) return null
+    
+    const now = getCurrentISTDate()
+    const diffMs = expiryDate.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+    
+    return diffDays
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Format strike price with currency symbol
+ */
+const formatStrikePrice = (strike?: number | null): string => {
+  if (strike == null) return ''
+  return `₹${strike.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+}
+
 export function WatchlistItemCard({
   item,
   quote,
@@ -106,9 +181,22 @@ export function WatchlistItemCard({
   const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0
   const isPositive = change >= 0
 
-  // Determine if it's futures or options
-  const isFutures = item.segment === "NFO" && !item.optionType
-  const isOption = item.segment === "NFO" && !!item.optionType
+  // Determine instrument type
+  const isFutures = (item.segment === "NFO" || item.segment?.includes("FO")) && !item.optionType
+  const isOption = (item.segment === "NFO" || item.segment?.includes("FO")) && !!item.optionType
+  const isEquity = !isFutures && !isOption && (item.segment === "EQ" || !item.segment?.includes("FO"))
+  const isMCX = item.exchange?.includes("MCX") || item.segment?.includes("MCX")
+  
+  // Get exchange badge
+  const exchangeBadge = getExchangeBadge(item.exchange, item.segment)
+  
+  // Get expiry info
+  const expiryDate = item.expiry ? formatCompactExpiry(item.expiry) : ''
+  const daysUntilExpiry = getDaysUntilExpiry(item.expiry)
+  const isNearExpiry = daysUntilExpiry !== null && daysUntilExpiry <= 7 && daysUntilExpiry >= 0
+  
+  // Get strike price formatted
+  const strikePriceFormatted = formatStrikePrice(item.strikePrice)
 
   const handleDragStart = () => {
     setIsDragging(true)
@@ -229,30 +317,98 @@ export function WatchlistItemCard({
         >
           <CardContent className="px-4 py-3">
             <div className="flex items-center justify-between">
-              {/* Stock Info - Compact */}
+              {/* Stock Info - Enhanced */}
               <div className="flex-1 overflow-hidden pr-3">
-                <div className="flex items-center gap-2 mb-1">
+                {/* First Row: Symbol + Exchange Badge + Type Badges */}
+                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                   <span className="font-semibold text-base text-foreground truncate">
                     {item.symbol}
                   </span>
+                  
+                  {/* Professional Exchange Badge */}
+                  <Badge 
+                    variant="secondary" 
+                    className={cn(
+                      "text-xs px-1.5 py-0.5 font-medium",
+                      exchangeBadge.bgLight
+                    )}
+                  >
+                    {exchangeBadge.label}
+                  </Badge>
+                  
+                  {/* Instrument Type Badges */}
                   {isFutures && (
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5">
-                      F
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 font-medium">
+                      FUT
                     </Badge>
                   )}
                   {isOption && (
-                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 text-xs px-1.5 py-0.5">
-                      O
+                    <Badge 
+                      variant="secondary" 
+                      className={cn(
+                        "text-xs px-1.5 py-0.5 font-medium",
+                        item.optionType === 'CE' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      )}
+                    >
+                      {item.optionType || 'OPT'}
                     </Badge>
                   )}
+                  {isEquity && !isMCX && (
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 font-medium">
+                      EQ
+                    </Badge>
+                  )}
+                  
                   {item.alertPrice && (
-                    <Bell className="h-3 w-3 text-yellow-500" />
+                    <Bell className="h-3 w-3 text-yellow-500 flex-shrink-0" />
                   )}
                 </div>
                 
-                <p className="text-xs text-muted-foreground truncate">
-                  {item.name}
-                </p>
+                {/* Second Row: Instrument-Specific Details */}
+                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                  {/* Expiry Date (for F&O) */}
+                  {expiryDate && (isFutures || isOption) && (
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.5 font-mono",
+                        isNearExpiry ? "border-red-400 text-red-600 bg-red-50" : "border-gray-300 text-gray-600"
+                      )}
+                    >
+                      {expiryDate}
+                      {isNearExpiry && daysUntilExpiry !== null && (
+                        <span className="ml-1">({daysUntilExpiry}d)</span>
+                      )}
+                    </Badge>
+                  )}
+                  
+                  {/* Strike Price (for Options) */}
+                  {strikePriceFormatted && isOption && (
+                    <Badge 
+                      variant="outline" 
+                      className="text-[10px] px-1.5 py-0.5 font-mono border-gray-300 text-gray-700"
+                    >
+                      {strikePriceFormatted}
+                    </Badge>
+                  )}
+                  
+                  {/* Lot Size */}
+                  {item.lotSize && (isFutures || isOption || isMCX) && (
+                    <Badge 
+                      variant="outline" 
+                      className="text-[10px] px-1.5 py-0.5 font-mono border-gray-300 text-gray-600"
+                    >
+                      Lot: {item.lotSize}
+                    </Badge>
+                  )}
+                </div>
+                
+                {/* Instrument Name (for equity/fallback) */}
+                {(isEquity || (!isFutures && !isOption)) && (
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {item.name}
+                  </p>
+                )}
               </div>
 
               {/* Price Info - Compact */}

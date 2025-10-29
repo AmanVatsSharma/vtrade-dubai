@@ -194,7 +194,7 @@ export function WatchlistManager({
     }
   }, [deleteWatchlist, activeTab])
 
-  const handleAddStock = useCallback(async (stockId: string) => {
+  const handleAddStock = useCallback(async (stockData: string | { stockId?: string; token?: number; symbol?: string; name?: string; exchange?: string; segment?: string; strikePrice?: number; optionType?: 'CE' | 'PE'; expiry?: string; lotSize?: number }) => {
     if (!activeTab) {
       toast({
         title: "No Watchlist Selected",
@@ -205,7 +205,30 @@ export function WatchlistManager({
     }
 
     try {
-      await addItem({ stockId })
+      // If it's a string (legacy format or token string), try to parse it
+      if (typeof stockData === 'string') {
+        // Check if it's a token-based format: token:token:symbol:exchange:segment:name
+        if (stockData.startsWith('token:')) {
+          const parts = stockData.split(':')
+          if (parts.length >= 4) {
+            await addItem({
+              token: parseInt(parts[1], 10),
+              symbol: parts[2],
+              exchange: parts[3],
+              segment: parts[4] || undefined,
+              name: parts[5] ? decodeURIComponent(parts[5]) : undefined,
+            })
+          } else {
+            await addItem({ stockId: stockData })
+          }
+        } else {
+          // Regular stockId (UUID)
+          await addItem({ stockId: stockData })
+        }
+      } else {
+        // Object with metadata
+        await addItem(stockData)
+      }
       setShowSearchDialog(false)
       await refetchWatchlists()
     } catch (error) {
