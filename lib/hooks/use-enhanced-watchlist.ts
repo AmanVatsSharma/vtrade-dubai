@@ -34,26 +34,21 @@ const GET_ALL_WATCHLISTS = gql`
               node {
                 id
                 token
+                symbol
+                exchange
+                segment
+                name
+                ltp
+                close
+                strikePrice
+                optionType
+                expiry
+                lotSize
                 notes
                 alertPrice
                 alertType
                 sortOrder
                 createdAt
-                stock {
-                  id
-                  instrumentId
-                  exchange
-                  ticker
-                  name
-                  ltp
-                  close
-                  segment
-                  strikePrice
-                  optionType
-                  expiry
-                  lot_size
-                  token
-                }
               }
             }
           }
@@ -82,26 +77,21 @@ const GET_WATCHLIST_BY_ID = gql`
               node {
                 id
                 token
+                symbol
+                exchange
+                segment
+                name
+                ltp
+                close
+                strikePrice
+                optionType
+                expiry
+                lotSize
                 notes
                 alertPrice
                 alertType
                 sortOrder
                 createdAt
-                stock {
-                  id
-                  instrumentId
-                  exchange
-                  ticker
-                  name
-                  ltp
-                  close
-                  segment
-                  strikePrice
-                  optionType
-                  expiry
-                  lot_size
-                  token
-                }
               }
             }
           }
@@ -258,37 +248,40 @@ const transformWatchlistData = (data: any): WatchlistData[] => {
   return data.watchlistCollection.edges.map((edge: any) => {
     const node = edge.node
     const items = node.watchlistItemCollection.edges.map((itemEdge: any) => {
+      // Read all fields directly from WatchlistItem (no Stock dependency)
       const item = itemEdge.node
-      const stock = item.stock
-      // Prefer token from WatchlistItem, fallback to Stock.token
-      const token = item.token ?? stock?.token
+      // Generate instrumentId from exchange and token
+      const instrumentId = item.token && item.exchange 
+        ? `${item.exchange}-${item.token}` 
+        : `unknown-${item.id}`
       
-      console.log('🔑 [GRAPHQL-TRANSFORM] WatchlistItem token extraction', {
+      console.log('🔑 [GRAPHQL-TRANSFORM] WatchlistItem data extraction', {
         watchlistItemId: item.id,
-        itemToken: item.token,
-        stockToken: stock?.token,
-        finalToken: token,
+        token: item.token,
+        symbol: item.symbol,
+        exchange: item.exchange,
       })
       
       return {
-        id: stock.id,
+        id: item.id, // Use WatchlistItem.id as item identifier
         watchlistItemId: item.id,
-        instrumentId: stock.instrumentId,
-        symbol: stock.ticker,
-        name: stock.name,
-        ltp: toNumber(stock.ltp),
-        close: toNumber(stock.close),
-        segment: stock.segment,
-        strikePrice: stock.strikePrice ? toNumber(stock.strikePrice) : undefined,
-        optionType: stock.optionType,
-        expiry: stock.expiry,
-        lotSize: stock.lot_size,
+        instrumentId,
+        symbol: item.symbol,
+        name: item.name,
+        exchange: item.exchange,
+        ltp: toNumber(item.ltp),
+        close: toNumber(item.close),
+        segment: item.segment,
+        strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
+        optionType: item.optionType,
+        expiry: item.expiry,
+        lotSize: item.lotSize,
         notes: item.notes,
         alertPrice: item.alertPrice ? toNumber(item.alertPrice) : undefined,
         alertType: item.alertType,
         sortOrder: item.sortOrder || 0,
         createdAt: item.createdAt,
-        token: token ? Number(token) : undefined, // Ensure it's a number or undefined
+        token: item.token ? Number(item.token) : undefined,
       }
     })
     

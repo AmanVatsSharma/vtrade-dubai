@@ -28,11 +28,9 @@ export const withCreateWatchlistTransaction = async (
         await tx.watchlist.updateMany({
           where: {
             userId,
-            // @ts-expect-error: Column may not exist in DB yet
             isDefault: true,
-          } as any,
-          // @ts-expect-error: Column may not exist in DB yet
-          data: { isDefault: false } as any,
+          },
+          data: { isDefault: false },
         })
       } catch (e) {
         console.warn("⚠️ isDefault column not present yet; skipping unset of other defaults")
@@ -46,15 +44,11 @@ export const withCreateWatchlistTransaction = async (
         data: {
           userId,
           name: data.name,
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
           description: data.description,
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
           color: data.color || "#3B82F6",
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
           isDefault: data.isDefault || false,
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
           sortOrder: 0,
-        } as any,
+        },
         select: {
           id: true,
           userId: true,
@@ -138,12 +132,10 @@ export const withUpdateWatchlistTransaction = async (
         await tx.watchlist.updateMany({
           where: {
             userId,
-            // @ts-expect-error: Column may not exist in DB yet
             isDefault: true,
             NOT: { id: watchlistId },
-          } as any,
-          // @ts-expect-error: Column may not exist in DB yet
-          data: { isDefault: false } as any,
+          },
+          data: { isDefault: false },
         })
       } catch (e) {
         console.warn("⚠️ isDefault column not present yet; skipping unset of other defaults")
@@ -323,10 +315,11 @@ export const withAddWatchlistItemTransaction = async (
     }
 
     // Create WatchlistItem with all instrument data stored directly
+    // Note: Using 'as any' because Prisma client needs to be regenerated after schema update
     const item = await tx.watchlistItem.create({
       data: {
         watchlistId,
-        stockId: data.stockId || null, // Optional, for backward compatibility
+        stockId: data.stockId || undefined, // Optional, for backward compatibility
         token: data.token,
         symbol: data.symbol,
         exchange: data.exchange,
@@ -342,7 +335,7 @@ export const withAddWatchlistItemTransaction = async (
         alertPrice: data.alertPrice,
         alertType: data.alertType || "ABOVE",
         sortOrder: 0,
-      },
+      } as any,
       select: {
         id: true,
         watchlistId: true,
@@ -363,13 +356,13 @@ export const withAddWatchlistItemTransaction = async (
         sortOrder: true,
         createdAt: true,
         updatedAt: true,
-      },
+      } as any,
     })
 
     console.log("✅ [WATCHLIST-TX] Item added to watchlist:", item.id, { 
-      token: item.token,
-      symbol: item.symbol,
-      exchange: item.exchange 
+      token: (item as any).token,
+      symbol: (item as any).symbol,
+      exchange: (item as any).exchange 
     })
     return item
   })
@@ -412,37 +405,33 @@ export const withUpdateWatchlistItemTransaction = async (
     if (data.alertPrice !== undefined) updateData.alertPrice = data.alertPrice
     if (data.alertType !== undefined) updateData.alertType = data.alertType
 
-    let updatedItem
-    try {
-      updatedItem = await tx.watchlistItem.update({
-        where: { id: itemId },
-        data: updateData,
-        select: {
-          id: true,
-          watchlistId: true,
-          stockId: true,
-          // @ts-expect-error: token column may not exist yet
-          token: true,
-          createdAt: true,
-          stock: true,
-        } as any,
-      })
-    } catch (err) {
-      console.warn("⚠️ Enhanced item update failed; falling back to minimal update", err)
-      updatedItem = await tx.watchlistItem.update({
-        where: { id: itemId },
-        data: { /* minimal update */ },
-        select: {
-          id: true,
-          watchlistId: true,
-          stockId: true,
-          // @ts-expect-error: token column may not exist yet
-          token: true,
-          createdAt: true,
-          stock: true,
-        } as any,
-      })
-    }
+    // Update WatchlistItem (no Stock dependency)
+    const updatedItem = await tx.watchlistItem.update({
+      where: { id: itemId },
+      data: updateData,
+      select: {
+        id: true,
+        watchlistId: true,
+        stockId: true,
+        token: true,
+        symbol: true,
+        exchange: true,
+        segment: true,
+        name: true,
+        ltp: true,
+        close: true,
+        strikePrice: true,
+        optionType: true,
+        expiry: true,
+        lotSize: true,
+        notes: true,
+        alertPrice: true,
+        alertType: true,
+        sortOrder: true,
+        createdAt: true,
+        updatedAt: true,
+      } as any,
+    })
 
     console.log("✅ Watchlist item updated:", updatedItem.id)
     return updatedItem
@@ -523,7 +512,7 @@ export const getAllWatchlists = async (userId: string) => {
           sortOrder: true,
           createdAt: true,
           updatedAt: true,
-        },
+        } as any,
         orderBy: { createdAt: 'desc' },
       },
     },
@@ -572,7 +561,7 @@ export const getWatchlistById = async (watchlistId: string, userId: string) => {
           sortOrder: true,
           createdAt: true,
           updatedAt: true,
-        },
+        } as any,
         orderBy: { createdAt: 'desc' },
       },
     },
@@ -618,6 +607,6 @@ export const getWatchlistItemById = async (itemId: string, userId: string) => {
           userId: true,
         },
       },
-    },
+    } as any,
   })
 }

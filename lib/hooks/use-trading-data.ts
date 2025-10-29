@@ -260,9 +260,16 @@ const GET_USER_WATCHLIST = gql`
               node {
                 id # This is the watchlistItemId
                 token
-                stock {
-                  id, instrumentId, exchange, ticker, name, ltp, close, segment, strikePrice, optionType, expiry, lot_size, token
-                }
+                symbol
+                exchange
+                segment
+                name
+                ltp
+                close
+                strikePrice
+                optionType
+                expiry
+                lotSize
               }
             }
           }
@@ -533,31 +540,35 @@ export function useUserWatchlist(userId?: string) {
     if (!wlNode) return { id: null, name: 'My Watchlist', items: [] };
 
     const items = wlNode.watchlistItemCollection.edges.map((e: any) => {
-      // Prefer token from WatchlistItem, fallback to Stock.token
-      const token = e.node.token ?? e.node.stock?.token
+      // Read all fields directly from WatchlistItem (no Stock dependency)
+      const item = e.node
+      // Generate instrumentId from exchange and token
+      const instrumentId = item.token && item.exchange 
+        ? `${item.exchange}-${item.token}` 
+        : `unknown-${item.id}`
       
-      console.log('🔑 [TRADING-DATA] WatchlistItem token extraction', {
-        watchlistItemId: e.node.id,
-        itemToken: e.node.token,
-        stockToken: e.node.stock?.token,
-        finalToken: token,
+      console.log('🔑 [TRADING-DATA] WatchlistItem data extraction', {
+        watchlistItemId: item.id,
+        token: item.token,
+        symbol: item.symbol,
+        exchange: item.exchange,
       })
       
       return {
-        watchlistItemId: e.node.id,
-        id: e.node.stock.id,
-        instrumentId: e.node.stock.instrumentId,
-        token: token ? Number(token) : undefined, // Prefer WatchlistItem.token, fallback to Stock.token
-        symbol: e.node.stock.ticker,
-        name: e.node.stock.name,
-        ltp: toNumber(e.node.stock.ltp),
-        close: toNumber(e.node.stock.close),
-        exchange: e.node.stock.exchange,
-        segment: e.node.stock.segment,
-        strikePrice: e.node.stock.strikePrice != null ? toNumber(e.node.stock.strikePrice) : undefined,
-        optionType: e.node.stock.optionType,
-        expiry: e.node.stock.expiry,
-        lotSize: e.node.stock.lot_size,
+        watchlistItemId: item.id,
+        id: item.id, // Use WatchlistItem.id as item identifier
+        instrumentId,
+        token: item.token ? Number(item.token) : undefined,
+        symbol: item.symbol,
+        name: item.name,
+        ltp: toNumber(item.ltp),
+        close: toNumber(item.close),
+        exchange: item.exchange,
+        segment: item.segment,
+        strikePrice: item.strikePrice != null ? toNumber(item.strikePrice) : undefined,
+        optionType: item.optionType,
+        expiry: item.expiry,
+        lotSize: item.lotSize,
       }
     });
 
