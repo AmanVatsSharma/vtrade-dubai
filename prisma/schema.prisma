@@ -295,21 +295,37 @@ model Watchlist {
 model WatchlistItem {
   id          String   @id @default(cuid())
   watchlistId String
-  stockId     String?
+  stockId     String?  // Optional, kept for backward compatibility
   notes       String? // User notes for this stock
   alertPrice  Decimal? @db.Decimal(10, 2) // Price alert threshold
   alertType   String?  @default("ABOVE") // ABOVE, BELOW, BOTH
   sortOrder   Int      @default(0) // Custom sort order within watchlist
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
-  // Instrument token from market data API
+  
+  // Instrument token from market data API (unique identifier)
   token          Int?            @unique
+  
+  // Instrument data stored directly in WatchlistItem (no Stock dependency)
+  symbol        String
+  exchange      String
+  segment       String
+  name          String
+  ltp           Float    @default(0)
+  close         Float    @default(0)
+  
+  // F&O specific fields
+  strikePrice    Decimal?        @db.Decimal(10, 2) // Only for options
+  optionType     OptionType? // CE/PE, only for options
+  expiry         DateTime? // Only for F&O
+  lotSize        Float?
 
   watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
-  // stock     Stock     @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  // stock     Stock     @relation(fields: [stockId], references: [id], onDelete: Cascade) // Commented out - no longer used
 
-  @@unique([watchlistId, stockId])
+  @@unique([watchlistId, token])
   @@index([watchlistId, sortOrder])
+  @@index([token])
 }
 
 model TradingAccount {

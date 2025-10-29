@@ -10,23 +10,22 @@ import { z } from 'zod'
 import { withAddWatchlistItemTransaction } from '@/lib/watchlist-transactions'
 
 const addItemSchema = z.object({
-  stockId: z.string().uuid().optional(),
-  token: z.number().optional(),
-  // Additional fields for token-based instrument creation
-  symbol: z.string().optional(),
-  name: z.string().optional(),
-  exchange: z.string().optional(),
-  segment: z.string().optional(),
+  stockId: z.string().uuid().optional(), // Optional, kept for backward compatibility
+  token: z.number(), // Required - token is the unique identifier
+  symbol: z.string(),
+  exchange: z.string(),
+  segment: z.string(),
+  name: z.string(),
+  ltp: z.number().optional(),
+  close: z.number().optional(),
   strikePrice: z.number().optional(),
   optionType: z.enum(['CE', 'PE']).optional(),
-  expiry: z.string().optional(), // ISO date string
+  expiry: z.string().optional(), // ISO date string or YYYYMMDD format
   lotSize: z.number().optional(),
   // Watchlist item specific fields
   notes: z.string().max(500).optional(),
   alertPrice: z.number().positive().optional(),
   alertType: z.enum(['ABOVE', 'BELOW', 'BOTH']).optional(),
-}).refine(data => data.stockId || data.token, {
-  message: "Either stockId or token is required"
 })
 
 // POST /api/watchlists/[id]/items - Add item to watchlist

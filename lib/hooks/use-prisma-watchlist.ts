@@ -98,36 +98,39 @@ const transformWatchlistData = (watchlists: any[]): WatchlistData[] => {
 
   return watchlists.map((watchlist) => {
     const items = watchlist.items?.map((item: any) => {
-      const stock = item.stock
-      // Prefer token from WatchlistItem, fallback to Stock.token
-      const token = item.token ?? stock?.token
+      // Read all fields directly from WatchlistItem (no Stock dependency)
+      // Generate instrumentId from exchange and token
+      const instrumentId = item.token && item.exchange 
+        ? `${item.exchange}-${item.token}` 
+        : item.stockId || `unknown-${item.id}`
       
-      console.log('🔑 [TRANSFORM] WatchlistItem token extraction', {
+      console.log('🔑 [TRANSFORM] WatchlistItem data extraction', {
         watchlistItemId: item.id,
-        itemToken: item.token,
-        stockToken: stock?.token,
-        finalToken: token,
+        token: item.token,
+        symbol: item.symbol,
+        exchange: item.exchange,
       })
       
       return {
-        id: stock.id,
+        id: item.stockId || item.id, // Use stockId if exists (backward compat), else item.id
         watchlistItemId: item.id,
-        instrumentId: stock.instrumentId,
-        symbol: stock.ticker,
-        name: stock.name,
-        ltp: toNumber(stock.ltp),
-        close: toNumber(stock.close),
-        segment: stock.segment,
-        strikePrice: stock.strikePrice ? toNumber(stock.strikePrice) : undefined,
-        optionType: stock.optionType,
-        expiry: stock.expiry,
-        lotSize: stock.lot_size,
+        instrumentId,
+        symbol: item.symbol,
+        name: item.name,
+        exchange: item.exchange,
+        ltp: toNumber(item.ltp),
+        close: toNumber(item.close),
+        segment: item.segment,
+        strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
+        optionType: item.optionType,
+        expiry: item.expiry,
+        lotSize: item.lotSize,
         notes: item.notes,
         alertPrice: item.alertPrice ? toNumber(item.alertPrice) : undefined,
         alertType: item.alertType,
         sortOrder: item.sortOrder || 0,
         createdAt: item.createdAt,
-        token: token ? Number(token) : undefined, // Ensure it's a number or undefined
+        token: item.token ? Number(item.token) : undefined,
       }
     }) || []
 

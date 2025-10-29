@@ -249,15 +249,17 @@ export const withAddWatchlistItemTransaction = async (
   watchlistId: string,
   userId: string,
   data: {
-    stockId?: string
-    token?: number
-    symbol?: string
-    name?: string
-    exchange?: string
-    segment?: string
+    stockId?: string // Optional, kept for backward compatibility
+    token: number // Required - token is the unique identifier
+    symbol: string
+    exchange: string
+    segment: string
+    name: string
+    ltp?: number
+    close?: number
     strikePrice?: number
     optionType?: string
-    expiry?: string
+    expiry?: string // ISO date string or YYYYMMDD format
     lotSize?: number
     notes?: string
     alertPrice?: number
@@ -265,7 +267,11 @@ export const withAddWatchlistItemTransaction = async (
   }
 ) => {
   return withTransaction(async (tx) => {
-    console.log("➕ Adding item to watchlist:", watchlistId, { token: data.token, stockId: data.stockId })
+    console.log("➕ [WATCHLIST-TX] Adding item to watchlist:", watchlistId, { 
+      token: data.token, 
+      symbol: data.symbol,
+      exchange: data.exchange 
+    })
 
     // Verify watchlist ownership
     const watchlist = await tx.watchlist.findFirst({
@@ -279,143 +285,92 @@ export const withAddWatchlistItemTransaction = async (
       throw new Error("Watchlist not found or access denied")
     }
 
-    let finalStockId = data.stockId
-
-    // If token is provided, find or create Stock record
-    if (data.token && !finalStockId) {
-      console.log("🔍 [WATCHLIST-TX] Looking up stock by token:", data.token)
-      
-      // First, try to find existing stock by token
-      const existingStock = await tx.stock.findFirst({
-        where: {
-          // @ts-expect-error: token column may not exist yet
-          token: data.token,
-        } as any,
-      })
-
-      if (existingStock) {
-        console.log("✅ [WATCHLIST-TX] Found existing stock:", existingStock.id)
-        finalStockId = existingStock.id
-      } else {
-        console.log("➕ [WATCHLIST-TX] Creating new stock record with token:", data.token)
-        
-        // Create new Stock record with token data (hybrid storage)
-        const newStock = await tx.stock.create({
-          data: {
-            instrumentId: `${data.exchange}-${data.token}`,
-            symbol: data.symbol || 'UNKNOWN',
-            exchange: data.exchange || 'NSE',
-            ticker: data.symbol || 'UNKNOWN',
-            name: data.name || data.symbol || 'Unknown',
-            segment: data.segment || 'NSE',
-            ltp: 0,
-            // @ts-expect-error: token column may not exist yet
-            token: data.token,
-            // @ts-expect-error: F&O fields may not exist yet
-            strikePrice: data.strikePrice,
-            // @ts-expect-error: F&O fields may not exist yet
-            optionType: data.optionType as any,
-            // @ts-expect-error: F&O fields may not exist yet
-            expiry: data.expiry,
-            // @ts-expect-error: F&O fields may not exist yet
-            lot_size: data.lotSize,
-          } as any,
-        })
-        
-        console.log("✅ [WATCHLIST-TX] Created new stock:", newStock.id)
-        finalStockId = newStock.id
-      }
-    }
-
-    if (!finalStockId) {
-      throw new Error("Could not determine stockId")
-    }
-
-    // Check if stock already exists in watchlist
+    // Check if item with same token already exists in watchlist
     const existingItem = await tx.watchlistItem.findFirst({
       where: {
         watchlistId,
-        stockId: finalStockId,
+        token: data.token,
       },
     })
 
     if (existingItem) {
-      throw new Error("Stock already exists in watchlist")
+      throw new Error("Instrument already exists in watchlist")
     }
 
-    // Verify stock exists and get token
-    const stock = await tx.stock.findUnique({
-      where: { id: finalStockId },
+    // Convert expiry string to DateTime if provided
+    let expiryDate: Date | null = null
+    if (data.expiry) {
+      try {
+        // Handle YYYYMMDD format
+        if (/^\d{8}$/.test(data.expiry)) {
+          const year = parseInt(data.expiry.substring(0, 4), 10)
+          const month = parseInt(data.expiry.substring(4, 6), 10) - 1 // Month is 0-indexed
+          const day = parseInt(data.expiry.substring(6, 8), 10)
+          expiryDate = new Date(year, month, day)
+        } else {
+          // Handle ISO string format
+          expiryDate = new Date(data.expiry)
+        }
+        
+        if (isNaN(expiryDate.getTime())) {
+          console.warn("⚠️ [WATCHLIST-TX] Invalid expiry date format, ignoring:", data.expiry)
+          expiryDate = null
+        }
+      } catch (error) {
+        console.warn("⚠️ [WATCHLIST-TX] Error parsing expiry date:", error)
+        expiryDate = null
+      }
+    }
+
+    // Create WatchlistItem with all instrument data stored directly
+    const item = await tx.watchlistItem.create({
+      data: {
+        watchlistId,
+        stockId: data.stockId || null, // Optional, for backward compatibility
+        token: data.token,
+        symbol: data.symbol,
+        exchange: data.exchange,
+        segment: data.segment,
+        name: data.name,
+        ltp: data.ltp ?? 0,
+        close: data.close ?? 0,
+        strikePrice: data.strikePrice,
+        optionType: data.optionType as any,
+        expiry: expiryDate,
+        lotSize: data.lotSize,
+        notes: data.notes,
+        alertPrice: data.alertPrice,
+        alertType: data.alertType || "ABOVE",
+        sortOrder: 0,
+      },
       select: {
         id: true,
-        // @ts-expect-error: token column may not exist yet
+        watchlistId: true,
         token: true,
-      } as any,
+        symbol: true,
+        exchange: true,
+        segment: true,
+        name: true,
+        ltp: true,
+        close: true,
+        strikePrice: true,
+        optionType: true,
+        expiry: true,
+        lotSize: true,
+        notes: true,
+        alertPrice: true,
+        alertType: true,
+        sortOrder: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     })
 
-    if (!stock) {
-      throw new Error("Stock not found")
-    }
-
-    // Determine final token: prefer data.token, fallback to stock.token
-    const finalToken = data.token ?? (stock as any).token
-    
-    console.log("🔑 [WATCHLIST-TX] Token for WatchlistItem:", {
-      providedToken: data.token,
-      stockToken: (stock as any).token,
-      finalToken,
+    console.log("✅ [WATCHLIST-TX] Item added to watchlist:", item.id, { 
+      token: item.token,
+      symbol: item.symbol,
+      exchange: item.exchange 
     })
-
-    // Add item to watchlist (attempt enhanced fields; fall back to minimal)
-    let item
-    try {
-      item = await tx.watchlistItem.create({
-        data: {
-          watchlistId,
-          stockId: finalStockId, // Fix: use finalStockId instead of data.stockId
-          // @ts-expect-error: token column may not exist yet
-          token: finalToken, // Store token directly in WatchlistItem
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
-          notes: data.notes,
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
-          alertPrice: data.alertPrice,
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
-          alertType: data.alertType || "ABOVE",
-          // @ts-expect-error: Columns may not exist; Prisma will throw and we fallback
-          sortOrder: 0,
-        } as any,
-        select: {
-          id: true,
-          watchlistId: true,
-          stockId: true,
-          // @ts-expect-error: token column may not exist yet
-          token: true,
-          createdAt: true,
-          stock: true,
-        } as any,
-      })
-    } catch (err) {
-      console.warn("⚠️ Enhanced item create failed; falling back to minimal create", err)
-      item = await tx.watchlistItem.create({
-        data: {
-          watchlistId,
-          stockId: finalStockId, // Fix: use finalStockId
-          // @ts-expect-error: token column may not exist yet
-          token: finalToken, // Still try to store token even in fallback
-        } as any,
-        select: {
-          id: true,
-          watchlistId: true,
-          stockId: true,
-          // @ts-expect-error: token column may not exist yet
-          token: true,
-          createdAt: true,
-          stock: true,
-        } as any,
-      })
-    }
-
-    console.log("✅ Item added to watchlist:", item.id, { token: (item as any).token })
     return item
   })
 }
@@ -532,31 +487,49 @@ export const withRemoveWatchlistItemTransaction = async (
  * Get all watchlists for a user with items
  */
 export const getAllWatchlists = async (userId: string) => {
-  console.log("🔎 Fetching all watchlists via Prisma", { userId })
+  console.log("🔎 [WATCHLIST-TX] Fetching all watchlists via Prisma", { userId })
   const results = await prisma.watchlist.findMany({
     where: { userId },
     select: {
       id: true,
       userId: true,
       name: true,
+      description: true,
+      color: true,
+      isDefault: true,
+      isPrivate: true,
+      sortOrder: true,
       createdAt: true,
       updatedAt: true,
       items: {
         select: {
           id: true,
           watchlistId: true,
-          stockId: true,
-          // @ts-expect-error: token column may not exist yet
+          stockId: true, // Optional, kept for backward compatibility
           token: true,
+          symbol: true,
+          exchange: true,
+          segment: true,
+          name: true,
+          ltp: true,
+          close: true,
+          strikePrice: true,
+          optionType: true,
+          expiry: true,
+          lotSize: true,
+          notes: true,
+          alertPrice: true,
+          alertType: true,
+          sortOrder: true,
           createdAt: true,
-          stock: true,
-        } as any,
+          updatedAt: true,
+        },
         orderBy: { createdAt: 'desc' },
       },
     },
     orderBy: { createdAt: 'asc' },
   })
-  console.log("✅ Prisma returned watchlists", { count: results.length })
+  console.log("✅ [WATCHLIST-TX] Prisma returned watchlists", { count: results.length })
   return results
 }
 
@@ -570,18 +543,36 @@ export const getWatchlistById = async (watchlistId: string, userId: string) => {
       id: true,
       userId: true,
       name: true,
+      description: true,
+      color: true,
+      isDefault: true,
+      isPrivate: true,
+      sortOrder: true,
       createdAt: true,
       updatedAt: true,
       items: {
         select: {
           id: true,
           watchlistId: true,
-          stockId: true,
-          // @ts-expect-error: token column may not exist yet
+          stockId: true, // Optional, kept for backward compatibility
           token: true,
+          symbol: true,
+          exchange: true,
+          segment: true,
+          name: true,
+          ltp: true,
+          close: true,
+          strikePrice: true,
+          optionType: true,
+          expiry: true,
+          lotSize: true,
+          notes: true,
+          alertPrice: true,
+          alertType: true,
+          sortOrder: true,
           createdAt: true,
-          stock: true,
-        } as any,
+          updatedAt: true,
+        },
         orderBy: { createdAt: 'desc' },
       },
     },
@@ -599,9 +590,34 @@ export const getWatchlistItemById = async (itemId: string, userId: string) => {
         userId,
       },
     },
-    include: {
-      stock: true,
-      watchlist: true,
+    select: {
+      id: true,
+      watchlistId: true,
+      stockId: true,
+      token: true,
+      symbol: true,
+      exchange: true,
+      segment: true,
+      name: true,
+      ltp: true,
+      close: true,
+      strikePrice: true,
+      optionType: true,
+      expiry: true,
+      lotSize: true,
+      notes: true,
+      alertPrice: true,
+      alertType: true,
+      sortOrder: true,
+      createdAt: true,
+      updatedAt: true,
+      watchlist: {
+        select: {
+          id: true,
+          name: true,
+          userId: true,
+        },
+      },
     },
   })
 }
