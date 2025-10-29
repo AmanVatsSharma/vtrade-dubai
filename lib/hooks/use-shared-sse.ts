@@ -8,7 +8,7 @@
 
 "use client"
 
-import { useEffect, useRef, useCallback } from 'react'
+import React, { useEffect, useRef, useCallback } from 'react'
 
 export type RealtimeEventType =
   | 'order_placed'
@@ -89,6 +89,12 @@ class SharedSSEManager {
    * Create SSE connection for a user
    */
   private createConnection(userId: string): void {
+    // Guard against SSR
+    if (typeof window === 'undefined') {
+      console.warn(`⚠️ [SHARED-SSE] Cannot create SSE connection on server side for user: ${userId}`)
+      return
+    }
+
     if (this.connections.has(userId)) {
       console.log(`⚠️ [SHARED-SSE] Connection already exists for user: ${userId}`)
       return
@@ -132,7 +138,9 @@ class SharedSSEManager {
       // Only attempt reconnection if we still have subscribers and connection is closed
       const hasSubscribers = this.subscribers.has(userId) && (this.subscribers.get(userId)?.size || 0) > 0
       
-      if (hasSubscribers && eventSource.readyState === EventSource.CLOSED) {
+      // EventSource constants (CLOSED = 2)
+      const EVENT_SOURCE_CLOSED = 2
+      if (hasSubscribers && eventSource.readyState === EVENT_SOURCE_CLOSED) {
         const attempts = this.reconnectAttempts.get(userId) || 0
         if (attempts < this.maxReconnectAttempts) {
           const newAttempts = attempts + 1
@@ -175,14 +183,18 @@ class SharedSSEManager {
    * Check if connection exists for a user
    */
   isConnected(userId: string): boolean {
+    if (typeof window === 'undefined') return false
     const eventSource = this.connections.get(userId)
-    return eventSource?.readyState === EventSource.OPEN
+    if (!eventSource) return false
+    // EventSource.OPEN = 1
+    return eventSource.readyState === 1
   }
 
   /**
    * Get connection state
    */
   getConnectionState(userId: string): 'connecting' | 'open' | 'closed' {
+    if (typeof window === 'undefined') return 'closed'
     const eventSource = this.connections.get(userId)
     if (!eventSource) return 'closed'
 
@@ -247,11 +259,39 @@ export function useSharedSSE(
     }
   }, [userId])
 
+  // Only check connection state on client-side to avoid SSR issues
+  const [connectionState, setConnectionState] = React.useState<'connecting' | 'open' | 'closed'>('closed')
+  const [isConnected, setIsConnected] = React.useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !userId) {
+      setIsConnected(false)
+      setConnectionState('closed')
+      return
+    }
+
+    // Check connection state
+    const checkState = () => {
+      setIsConnected(sseManager.isConnected(userId))
+      setConnectionState(sseManager.getConnectionState(userId))
+    }
+
+    checkState()
+    
+    // Poll connection state periodically (for SSR-safe updates)
+    const interval = setInterval(checkState, 1000)
+    
+    return () => clearInterval(interval)
+  }, [userId])
+
   return {
-    isConnected: userId ? sseManager.isConnected(userId) : false,
-    connectionState: userId ? sseManager.getConnectionState(userId) : 'closed' as const
+    isConnected,
+    connectionState
   }
 }
 
-console.log('✅ [SHARED-SSE] Module initialized')
+// Initialize log only in client-side
+if (typeof window !== 'undefined') {
+  console.log('✅ [SHARED-SSE] Module initialized')
+}
 
