@@ -182,15 +182,22 @@ export class SocketIOClient {
       console.log('🔧 [SOCKET-IO-CLIENT] Parsed URL', {
         baseUrl,
         path,
-        fullUrl: this.config.url
+        fullUrl: this.config.url,
+        apiKey: this.config.apiKey ? '***' : 'missing'
       });
       
       // Initialize Socket.IO connection with proper path configuration
+      // Use query parameter authentication (api_key) as per CLIENT_API_GUIDE.md
+      // This is the recommended method per the guide
       this.socket = io(baseUrl, {
         path: `${path}/socket.io`,
-        extraHeaders: {
-          'x-api-key': this.config.apiKey,
+        query: {
+          'api_key': this.config.apiKey,
         },
+        // Alternative: Can also use extraHeaders method
+        // extraHeaders: {
+        //   'x-api-key': this.config.apiKey,
+        // },
         reconnection: false, // Manual reconnection handling
         timeout: 10000,
         transports: ['websocket', 'polling'],
@@ -293,6 +300,8 @@ export class SocketIOClient {
    * Subscribe to instruments
    * @param instruments - Array of instrument tokens
    * @param mode - Subscription mode (ltp, ohlcv, full)
+   * 
+   * Note: Per CLIENT_API_GUIDE.md, use 'subscribe' event (not 'subscribe_instruments')
    */
   subscribe(instruments: number[], mode: 'ltp' | 'ohlcv' | 'full'): void {
     if (!this.socket?.connected) {
@@ -306,7 +315,8 @@ export class SocketIOClient {
       count: instruments.length 
     });
 
-    this.socket.emit('subscribe_instruments', {
+    // Use 'subscribe' event per CLIENT_API_GUIDE.md
+    this.socket.emit('subscribe', {
       instruments,
       mode,
     });
@@ -315,6 +325,8 @@ export class SocketIOClient {
   /**
    * Unsubscribe from instruments
    * @param instruments - Array of instrument tokens
+   * 
+   * Note: Per CLIENT_API_GUIDE.md, use 'unsubscribe' event (not 'unsubscribe_instruments')
    */
   unsubscribe(instruments: number[]): void {
     if (!this.socket?.connected) {
@@ -327,7 +339,8 @@ export class SocketIOClient {
       count: instruments.length 
     });
 
-    this.socket.emit('unsubscribe_instruments', {
+    // Use 'unsubscribe' event per CLIENT_API_GUIDE.md
+    this.socket.emit('unsubscribe', {
       instruments,
     });
   }
