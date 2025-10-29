@@ -16,7 +16,7 @@ import type { SSEMessage } from '@/types/realtime'
  * Thread-safe event emission using Set for multiple connections per user.
  */
 export class RealtimeEventEmitter {
-  private connections: Map<string, Set<ReadableStreamDefaultController>> = new Map()
+  private connections: Map<string, Set<ReadableStreamDefaultController<Uint8Array>>> = new Map()
   private heartbeatInterval: NodeJS.Timeout | null = null
   private readonly HEARTBEAT_INTERVAL = 30000 // 30 seconds
 
@@ -30,7 +30,7 @@ export class RealtimeEventEmitter {
    * @param userId - User ID to subscribe
    * @param controller - SSE stream controller
    */
-  subscribe(userId: string, controller: ReadableStreamDefaultController): void {
+  subscribe(userId: string, controller: ReadableStreamDefaultController<Uint8Array>): void {
     console.log(`📡 [REALTIME-EMITTER] Subscribing user: ${userId}`)
     
     if (!this.connections.has(userId)) {
@@ -59,7 +59,7 @@ export class RealtimeEventEmitter {
    * @param userId - User ID to unsubscribe
    * @param controller - SSE stream controller to remove
    */
-  unsubscribe(userId: string, controller: ReadableStreamDefaultController): void {
+  unsubscribe(userId: string, controller: ReadableStreamDefaultController<Uint8Array>): void {
     console.log(`📡 [REALTIME-EMITTER] Unsubscribing user: ${userId}`)
     
     const userConnections = this.connections.get(userId)
@@ -102,7 +102,7 @@ export class RealtimeEventEmitter {
     console.log(`📤 [REALTIME-EMITTER] Emitting ${event} to user ${userId} (${userConnections.size} connection(s))`)
 
     // Send to all connections for this user
-    const deadConnections: ReadableStreamDefaultController[] = []
+    const deadConnections: ReadableStreamDefaultController<Uint8Array>[] = []
     
     userConnections.forEach((controller) => {
       try {
@@ -157,7 +157,7 @@ export class RealtimeEventEmitter {
       const encoded = encoder.encode(heartbeatMessage)
 
       let totalSent = 0
-      const deadConnections: Array<{ userId: string; controller: ReadableStreamDefaultController }> = []
+      const deadConnections: Array<{ userId: string; controller: ReadableStreamDefaultController<Uint8Array> }> = []
 
       this.connections.forEach((connections, userId) => {
         connections.forEach((controller) => {

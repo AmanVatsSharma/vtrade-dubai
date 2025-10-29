@@ -145,16 +145,16 @@ function validateAccount(account: any): account is TradingAccount {
 }
 
 export function useRealtimeAccount(userId: string | undefined | null): UseRealtimeAccountReturn {
-  const shouldPoll = useRef(true)
   const retryCountRef = useRef(0)
   const maxRetries = 3
+  const eventSourceRef = useRef<EventSource | null>(null)
   
-  // Smart polling - poll every 10 seconds for account
+  // Initial data fetch only (no polling)
   const { data, error, isLoading, mutate } = useSWR<AccountResponse>(
     userId ? `/api/trading/account?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: shouldPoll.current ? 10000 : 0,
+      refreshInterval: 0, // No polling - SSE will trigger updates
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,
@@ -174,28 +174,58 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
     }
   )
 
-  // Stop polling when tab is hidden
+  // SSE connection for real-time updates
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      shouldPoll.current = !document.hidden
-      if (!document.hidden) {
-        console.log('👁️ [REALTIME-ACCOUNT] Tab visible, refreshing data')
-        mutate().catch(err => {
-          console.error('❌ [REALTIME-ACCOUNT] Refresh on visibility failed:', err)
-        })
-      } else {
-        console.log('💤 [REALTIME-ACCOUNT] Tab hidden, pausing polling')
+    if (!userId || typeof window === 'undefined') return
+
+    console.log('📡 [REALTIME-ACCOUNT] Connecting to SSE stream')
+
+    const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
+    eventSourceRef.current = eventSource
+
+    eventSource.onopen = () => {
+      console.log('✅ [REALTIME-ACCOUNT] SSE connection established')
+    }
+
+    eventSource.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        
+        // Handle account-related events
+        if (message.event === 'balance_updated' || 
+            message.event === 'margin_blocked' || 
+            message.event === 'margin_released') {
+          console.log(`📨 [REALTIME-ACCOUNT] Received ${message.event} event, refreshing account`)
+          mutate().catch(err => {
+            console.error('❌ [REALTIME-ACCOUNT] Refresh after event failed:', err)
+          })
+        }
+      } catch (error) {
+        console.error('❌ [REALTIME-ACCOUNT] Error parsing SSE message:', error)
       }
     }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [mutate])
+    eventSource.onerror = (error) => {
+      console.error('❌ [REALTIME-ACCOUNT] SSE connection error:', error)
+      // EventSource will automatically reconnect
+    }
+
+    // Cleanup on unmount
+    return () => {
+      console.log('🧹 [REALTIME-ACCOUNT] Closing SSE connection')
+      eventSource.close()
+      eventSourceRef.current = null
+    }
+  }, [userId, mutate])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      console.log('🧹 [REALTIME-ACCOUNT] Cleaning up')
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+      console.log('🧹 [REALTIME-ACCOUNT] Cleaned up')
     }
   }, [])
 

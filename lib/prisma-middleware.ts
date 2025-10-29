@@ -8,7 +8,7 @@
 
 import { Prisma } from '@prisma/client'
 import { getRealtimeEventEmitter } from './services/realtime/RealtimeEventEmitter'
-import type { OrderEventData, PositionEventData, AccountEventData } from '@/types/realtime'
+import type { OrderEventData, PositionEventData, AccountEventData, WatchlistEventData } from '@/types/realtime'
 
 const eventEmitter = getRealtimeEventEmitter()
 

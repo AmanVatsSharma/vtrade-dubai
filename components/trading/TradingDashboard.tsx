@@ -12,7 +12,6 @@ import { WebSocketMarketDataProvider } from "@/lib/market-data/providers/WebSock
 import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { useRealtimeAccount } from "@/lib/hooks/use-realtime-account"
-import { useRealtimeTest } from "@/lib/hooks/use-realtime-test"
 import { OrderManagement } from "@/components/order-management"
 import { PositionTracking } from "@/components/position-tracking"
 import { Account } from "@/components/Account"
@@ -145,10 +144,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   } = useOrdersAndPositions(userId)
   const { quotes, isLoading: isQuotesLoading, isConnected: wsConnectionState } = useMarketData()
 
-  // Realtime connection
-  const { isConnected: isRealtimeConnected, lastMessage } = useRealtimeTest()
-  
-  // Check if WebSocket is connected
+  // Check if WebSocket is connected (for market data)
   const isWebSocketConnected = wsConnectionState === 'connected'
 
   // Get trading account ID early to avoid hoisting issues
@@ -265,17 +261,15 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     if (process.env.NODE_ENV === 'development') {
       console.log('TradingDashboard Debug:', {
         tradingAccountId,
-        isRealtimeConnected,
         realtimeOrders: realtimeOrdersData?.length || 0,
         realtimePositions: realtimePositionsData?.length || 0,
         hasRealtimeAccount: !!realtimeAccountData,
-        lastMessage,
         currentTab,
         anyLoading,
         error
       })
     }
-  }, [tradingAccountId, isRealtimeConnected, realtimeOrdersData, realtimePositionsData, realtimeAccountData, lastMessage, currentTab, anyLoading, error])
+  }, [tradingAccountId, realtimeOrdersData, realtimePositionsData, realtimeAccountData, currentTab, anyLoading, error])
 
   // Error state
   if (error) {

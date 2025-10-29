@@ -20,6 +20,8 @@ export type RealtimeEventType =
   | 'margin_blocked'
   | 'margin_released'
   | 'watchlist_updated'
+  | 'watchlist_item_added'
+  | 'watchlist_item_removed'
 
 /**
  * Base structure for all realtime events
