@@ -539,40 +539,49 @@ export function useUserWatchlist(userId?: string) {
     const wlNode = data?.watchlistCollection?.edges?.[0]?.node;
     if (!wlNode) return { id: null, name: 'My Watchlist', items: [] };
 
-    const items = wlNode.watchlistItemCollection.edges.map((e: any) => {
-      // Read all fields directly from WatchlistItem (no Stock dependency)
-      const item = e.node
-      // Generate instrumentId from exchange and token
-      const instrumentId = item.token && item.exchange 
-        ? `${item.exchange}-${item.token}` 
-        : `unknown-${item.id}`
-      
-      console.log('🔑 [TRADING-DATA] WatchlistItem data extraction', {
-        watchlistItemId: item.id,
-        token: item.token,
-        symbol: item.symbol,
-        exchange: item.exchange,
+    // Filter out null/undefined items before mapping to prevent React Error #310
+    const items = (wlNode.watchlistItemCollection?.edges || [])
+      .filter((e: any) => e?.node != null) // Filter null nodes
+      .map((e: any) => {
+        // Read all fields directly from WatchlistItem (no Stock dependency)
+        const item = e.node
+        if (!item || !item.id) {
+          console.warn('⚠️ [TRADING-DATA] Skipping invalid WatchlistItem node:', e)
+          return null // Will be filtered out
+        }
+        
+        // Generate instrumentId from exchange and token
+        const instrumentId = item.token && item.exchange 
+          ? `${item.exchange}-${item.token}` 
+          : `unknown-${item.id}`
+        
+        console.log('🔑 [TRADING-DATA] WatchlistItem data extraction', {
+          watchlistItemId: item.id,
+          token: item.token,
+          symbol: item.symbol,
+          exchange: item.exchange,
+        })
+        
+        return {
+          watchlistItemId: item.id,
+          id: item.id, // Use WatchlistItem.id as item identifier
+          instrumentId,
+          token: item.token ? Number(item.token) : undefined,
+          symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
+          name: item.name || 'Unknown', // Fallback for null/undefined
+          ltp: toNumber(item.ltp),
+          close: toNumber(item.close),
+          exchange: item.exchange || 'NSE', // Fallback for null/undefined
+          segment: item.segment || 'NSE', // Fallback for null/undefined
+          strikePrice: item.strikePrice != null ? toNumber(item.strikePrice) : undefined,
+          optionType: item.optionType,
+          expiry: item.expiry,
+          lotSize: item.lotSize,
+        }
       })
-      
-      return {
-        watchlistItemId: item.id,
-        id: item.id, // Use WatchlistItem.id as item identifier
-        instrumentId,
-        token: item.token ? Number(item.token) : undefined,
-        symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
-        name: item.name || 'Unknown', // Fallback for null/undefined
-        ltp: toNumber(item.ltp),
-        close: toNumber(item.close),
-        exchange: item.exchange || 'NSE', // Fallback for null/undefined
-        segment: item.segment || 'NSE', // Fallback for null/undefined
-        strikePrice: item.strikePrice != null ? toNumber(item.strikePrice) : undefined,
-        optionType: item.optionType,
-        expiry: item.expiry,
-        lotSize: item.lotSize,
-      }
-    });
+      .filter(Boolean) // Remove any null entries from map
 
-    return { id: wlNode.id, name: wlNode.name, items };
+    return { id: wlNode.id, name: wlNode.name || 'My Watchlist', items: items || [] };
   }, [data]);
 
   const isInitialLoading = loading && !data

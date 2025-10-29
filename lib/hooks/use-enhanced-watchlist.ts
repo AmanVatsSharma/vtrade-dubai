@@ -247,57 +247,69 @@ const transformWatchlistData = (data: any): WatchlistData[] => {
   
   return data.watchlistCollection.edges.map((edge: any) => {
     const node = edge.node
-    const items = (node.watchlistItemCollection?.edges || []).map((itemEdge: any) => {
-      // Read all fields directly from WatchlistItem (no Stock dependency)
-      const item = itemEdge.node
-      // Generate instrumentId from exchange and token
-      const instrumentId = item.token && item.exchange 
-        ? `${item.exchange}-${item.token}` 
-        : `unknown-${item.id}`
-      
-      console.log('🔑 [GRAPHQL-TRANSFORM] WatchlistItem data extraction', {
-        watchlistItemId: item.id,
-        token: item.token,
-        symbol: item.symbol,
-        exchange: item.exchange,
+    if (!node) return null // Safety check for null node
+    
+    // Filter out null/undefined items before mapping to prevent React Error #310
+    const items = (node.watchlistItemCollection?.edges || [])
+      .filter((itemEdge: any) => itemEdge?.node != null) // Filter null nodes
+      .map((itemEdge: any) => {
+        // Read all fields directly from WatchlistItem (no Stock dependency)
+        const item = itemEdge.node
+        if (!item || !item.id) {
+          console.warn('⚠️ [GRAPHQL-TRANSFORM] Skipping invalid WatchlistItem node:', itemEdge)
+          return null // Will be filtered out
+        }
+        
+        // Generate instrumentId from exchange and token
+        const instrumentId = item.token && item.exchange 
+          ? `${item.exchange}-${item.token}` 
+          : `unknown-${item.id}`
+        
+        console.log('🔑 [GRAPHQL-TRANSFORM] WatchlistItem data extraction', {
+          watchlistItemId: item.id,
+          token: item.token,
+          symbol: item.symbol,
+          exchange: item.exchange,
+        })
+        
+        return {
+          id: item.id, // Use WatchlistItem.id as item identifier
+          watchlistItemId: item.id,
+          instrumentId,
+          symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
+          name: item.name || 'Unknown', // Fallback for null/undefined
+          exchange: item.exchange || 'NSE', // Fallback for null/undefined
+          ltp: toNumber(item.ltp),
+          close: toNumber(item.close),
+          segment: item.segment || 'NSE', // Fallback for null/undefined
+          strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
+          optionType: item.optionType,
+          expiry: item.expiry,
+          lotSize: item.lotSize,
+          notes: item.notes,
+          alertPrice: item.alertPrice ? toNumber(item.alertPrice) : undefined,
+          alertType: item.alertType,
+          sortOrder: item.sortOrder || 0,
+          createdAt: item.createdAt,
+          token: item.token ? Number(item.token) : undefined,
+        }
       })
-      
-      return {
-        id: item.id, // Use WatchlistItem.id as item identifier
-        watchlistItemId: item.id,
-        instrumentId,
-        symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
-        name: item.name || 'Unknown', // Fallback for null/undefined
-        exchange: item.exchange || 'NSE', // Fallback for null/undefined
-        ltp: toNumber(item.ltp),
-        close: toNumber(item.close),
-        segment: item.segment || 'NSE', // Fallback for null/undefined
-        strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
-        optionType: item.optionType,
-        expiry: item.expiry,
-        lotSize: item.lotSize,
-        notes: item.notes,
-        alertPrice: item.alertPrice ? toNumber(item.alertPrice) : undefined,
-        alertType: item.alertType,
-        sortOrder: item.sortOrder || 0,
-        createdAt: item.createdAt,
-        token: item.token ? Number(item.token) : undefined,
-      }
-    })
+      .filter(Boolean) // Remove any null entries from map
     
     return {
       id: node.id,
-      name: node.name,
+      name: node.name || 'Unnamed Watchlist',
       description: node.description,
       color: node.color || "#3B82F6",
       isDefault: node.isDefault || false,
       isPrivate: node.isPrivate || false,
       sortOrder: node.sortOrder || 0,
-      items,
+      items: items || [], // Ensure items is always an array
       createdAt: node.createdAt,
       updatedAt: node.updatedAt,
     }
   })
+  .filter(Boolean) // Remove any null entries from edges map
 }
 
 // Main Hook for All Watchlists
