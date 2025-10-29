@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { useInstrumentSearch, type SearchTab } from "@/lib/hooks/use-instrument-search"
 import type { Instrument } from "@/lib/services/market-data/search-client"
+import { cn } from "@/lib/utils"
 
 interface Stock {
   id: string
@@ -65,16 +66,36 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
 
   const handleAddStock = async (stock: Stock) => {
     setAddingStockId(stock.id)
-    console.log('➕ [STOCK-SEARCH] Adding stock', { stockId: stock.id, token: stock.token, stock })
+    console.log('➕ [STOCK-SEARCH] Adding stock with metadata', { 
+      stockId: stock.id, 
+      token: stock.token, 
+      symbol: stock.symbol,
+      exchange: stock.exchange,
+      segment: stock.segment,
+      expiry: stock.expiry,
+      strikePrice: stock.strike_price,
+      optionType: stock.option_type,
+      lotSize: stock.lot_size,
+      stock 
+    })
     
     try {
-      // Call the parent's onAddStock 
-      // Format: token:{token}:{symbol}:{exchange}:{segment}:{name}
+      // Send complete metadata as object for token-based instruments
       if (stock.token) {
-        // Build comprehensive token string with all metadata
-        const tokenStr = `token:${stock.token}:${stock.symbol}:${stock.exchange}:${stock.segment || ''}:${encodeURIComponent(stock.name || '')}`
-        await onAddStock(tokenStr)
+        const instrumentData = {
+          token: stock.token,
+          symbol: stock.symbol,
+          name: stock.name,
+          exchange: stock.exchange,
+          segment: stock.segment,
+          expiry: stock.expiry || stock.expiry_date,
+          strikePrice: stock.strike_price || stock.strikePrice,
+          optionType: stock.option_type,
+          lotSize: stock.lot_size || stock.lotSize,
+        }
+        await onAddStock(instrumentData)
       } else {
+        // Fallback to stockId if no token
         await onAddStock(stock.id)
       }
       onClose()
@@ -83,6 +104,44 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
       throw error
     } finally {
       setAddingStockId(null)
+    }
+  }
+  
+  // Get exchange badge config (similar to WatchlistItemCard)
+  const getExchangeBadge = (exchange?: string, segment?: string) => {
+    const normalizedExchange = exchange?.toUpperCase() || ''
+    const normalizedSegment = segment?.toUpperCase() || ''
+    
+    if (normalizedExchange.includes('MCX') || normalizedSegment.includes('MCX')) {
+      return { label: 'MCX', color: 'bg-amber-100 text-amber-700 border-amber-300' }
+    }
+    if (normalizedExchange.includes('BSE') || normalizedSegment.includes('BSE')) {
+      return { label: 'BSE', color: 'bg-orange-100 text-orange-700 border-orange-300' }
+    }
+    if (normalizedExchange.includes('NSE_FO') || normalizedExchange.includes('NFO') || normalizedSegment.includes('NFO')) {
+      return { label: 'NSE FO', color: 'bg-purple-100 text-purple-700 border-purple-300' }
+    }
+    return { label: 'NSE', color: 'bg-blue-100 text-blue-700 border-blue-300' }
+  }
+  
+  // Format expiry date
+  const formatCompactExpiry = (expiry?: string | null): string => {
+    if (!expiry) return ''
+    try {
+      // Handle YYYYMMDD format
+      if (/^\d{8}$/.test(expiry)) {
+        const year = expiry.substring(0, 4)
+        const month = expiry.substring(4, 6)
+        const day = expiry.substring(6, 8)
+        const date = new Date(`${year}-${month}-${day}`)
+        return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
+      }
+      // Handle ISO format
+      const date = new Date(expiry)
+      if (isNaN(date.getTime())) return expiry
+      return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
+    } catch {
+      return expiry || ''
     }
   }
 
@@ -173,39 +232,87 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
               
               const isAdding = addingStockId === stock.id
               
+              const exchangeBadge = getExchangeBadge(instrument.exchange, segment)
+              const isFutures = (activeTab === "futures") || (segment?.includes("FO") && !instrument.option_type)
+              const isOption = activeTab === "options" || !!instrument.option_type
+              const formattedExpiry = formatCompactExpiry(instrument.expiry_date)
+              
               return (
                 <div key={`${instrument.token}-${index}`} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <div className="flex-1 overflow-hidden">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-gray-900 dark:text-white">{instrument.symbol}</span>
-                      <Badge variant="outline" className="text-xs">{instrument.exchange}</Badge>
-                      {instrument.token && (
-                        <Badge variant="secondary" className="text-xs">#{instrument.token}</Badge>
+                  <div className="flex-1 overflow-hidden min-w-0">
+                    {/* First Row: Symbol + Badges */}
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                        {instrument.symbol}
+                      </span>
+                      
+                      {/* Professional Exchange Badge */}
+                      <Badge 
+                        variant="outline" 
+                        className={cn("text-xs px-1.5 py-0.5 font-medium", exchangeBadge.color)}
+                      >
+                        {exchangeBadge.label}
+                      </Badge>
+                      
+                      {/* Instrument Type Badges */}
+                      {isFutures && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 font-medium">
+                          FUT
+                        </Badge>
                       )}
-                      {(activeTab === "futures" || activeTab === "options") && instrument.expiry_date && (
-                        <span className="text-[10px] bg-gray-100 dark:bg-gray-800 rounded px-2 py-0.5">
-                          Exp: {instrument.expiry_date}
-                        </span>
+                      {isOption && (
+                        <Badge 
+                          variant="secondary" 
+                          className={cn(
+                            "text-xs px-1.5 py-0.5 font-medium",
+                            instrument.option_type === 'CE' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                          )}
+                        >
+                          {instrument.option_type || 'OPT'}
+                        </Badge>
                       )}
-                      {activeTab === "options" && instrument.strike_price && (
-                        <span className="text-[10px] bg-gray-100 dark:bg-gray-800 rounded px-2 py-0.5">
-                          Strike: ₹{instrument.strike_price}
-                        </span>
-                      )}
-                      {instrument.lot_size && (
-                        <span className="text-[10px] bg-gray-100 dark:bg-gray-800 rounded px-2 py-0.5">
-                          Lot: {instrument.lot_size}
-                        </span>
+                      {activeTab === "equity" && (
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 font-medium">
+                          EQ
+                        </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                    
+                    {/* Second Row: Instrument Details */}
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      {/* Expiry Date */}
+                      {formattedExpiry && (isFutures || isOption) && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 font-mono border-gray-300 text-gray-600">
+                          {formattedExpiry}
+                        </Badge>
+                      )}
+                      
+                      {/* Strike Price */}
+                      {instrument.strike_price && isOption && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 font-mono border-gray-300 text-gray-700">
+                          ₹{instrument.strike_price.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </Badge>
+                      )}
+                      
+                      {/* Lot Size */}
+                      {instrument.lot_size && (isFutures || isOption || activeTab === "commodities") && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 font-mono border-gray-300 text-gray-600">
+                          Lot: {instrument.lot_size}
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {/* Instrument Name */}
+                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5">
                       {instrument.name || instrument.symbol}
                     </p>
                   </div>
 
                   <div className="text-right mx-4 flex-shrink-0">
                     {instrument.last_price ? (
-                      <div className="font-medium font-mono text-sm">₹{instrument.last_price.toFixed(2)}</div>
+                      <div className="font-medium font-mono text-sm text-gray-900 dark:text-white">
+                        ₹{instrument.last_price.toFixed(2)}
+                      </div>
                     ) : (
                       <div className="font-medium text-xs text-gray-400">No price</div>
                     )}
@@ -215,7 +322,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                     size="sm" 
                     onClick={() => handleAddStock(stock)} 
                     disabled={isAdding} 
-                    className="bg-blue-600 hover:bg-blue-700 w-16"
+                    className="bg-blue-600 hover:bg-blue-700 w-16 flex-shrink-0"
                   >
                     {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   </Button>

@@ -408,7 +408,7 @@ export function WatchlistManager({
               </div>
             </motion.div>
 
-            {/* Instrument Type Filter Tabs */}
+            {/* Instrument Type Filter Tabs - Enhanced with Counts */}
             <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
               {(['all', 'equity', 'futures', 'options', 'commodities'] as InstrumentTab[]).map((tab) => {
                 const label = tab === 'all' ? 'All' : 
@@ -418,17 +418,62 @@ export function WatchlistManager({
                              'MCX'
                 const isActive = instrumentFilter === tab
                 
+                // Calculate count for each filter
+                const count = useMemo(() => {
+                  if (!activeWatchlist) return 0
+                  
+                  let items = [...activeWatchlist.items]
+                  
+                  switch (tab) {
+                    case 'all':
+                      return items.length
+                    case 'equity':
+                      return items.filter(item => {
+                        const segment = item.segment?.toUpperCase() || ''
+                        return ['NSE', 'NSE_EQ', 'BSE', 'BSE_EQ'].includes(segment)
+                      }).length
+                    case 'futures':
+                      return items.filter(item => {
+                        const segment = item.segment?.toUpperCase() || ''
+                        return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !item.optionType
+                      }).length
+                    case 'options':
+                      return items.filter(item => {
+                        const segment = item.segment?.toUpperCase() || ''
+                        return ['NSE_FO', 'BSE_FO', 'NFO'].includes(segment) && !!item.optionType
+                      }).length
+                    case 'commodities':
+                      return items.filter(item => {
+                        const segment = item.segment?.toUpperCase() || ''
+                        const exchange = item.exchange?.toUpperCase() || ''
+                        return ['MCX', 'MCX_FO'].includes(segment) || exchange.includes('MCX')
+                      }).length
+                    default:
+                      return 0
+                  }
+                }, [activeWatchlist, tab])
+                
                 return (
                   <button
                     key={tab}
                     onClick={() => setInstrumentFilter(tab)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
                       isActive 
-                        ? 'bg-blue-600 text-white shadow-md' 
+                        ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300' 
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
-                    {label}
+                    <span>{label}</span>
+                    <Badge 
+                      variant={isActive ? "secondary" : "outline"}
+                      className={`text-xs px-1.5 py-0.5 font-semibold ${
+                        isActive 
+                          ? 'bg-white/20 text-white border-white/30' 
+                          : 'bg-white/60 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {count}
+                    </Badge>
                   </button>
                 )
               })}
