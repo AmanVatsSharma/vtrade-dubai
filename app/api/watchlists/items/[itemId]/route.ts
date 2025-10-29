@@ -3,6 +3,7 @@
  * @description API endpoints for individual watchlist item operations using Prisma transactions
  */
 
+export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { z } from 'zod'

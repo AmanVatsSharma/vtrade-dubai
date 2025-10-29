@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextResponse } from "next/server"
 import { createPositionManagementService } from '@/lib/services/position/PositionManagementService'
 import { createTradingLogger } from '@/lib/services/logging/TradingLogger'

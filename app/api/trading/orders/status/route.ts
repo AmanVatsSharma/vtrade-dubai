@@ -4,6 +4,7 @@
  * Returns the status of a specific order for monitoring
  */
 
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'

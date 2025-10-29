@@ -4,6 +4,7 @@
  * Returns list of orders for a user (for real-time polling)
  */
 
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
