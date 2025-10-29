@@ -597,7 +597,14 @@ export function WatchlistManager({
                     </Badge>
                   </button>
                 )
-              })}
+                } catch (tabError: any) {
+                  console.error(`❌ [WATCHLIST-MANAGER] Error rendering tab ${tabIndex} (${tab}):`, {
+                    error: tabError.message,
+                    stack: tabError.stack,
+                  })
+                  return null
+                }
+              }).filter(Boolean)}
             </div>
 
             {/* Watchlist Items - Compact */}
@@ -691,7 +698,16 @@ export function WatchlistManager({
                         onToggleExpanded={() => handleToggleExpanded(item.watchlistItemId)}
                       />
                     </motion.div>
-                  ))
+                      )
+                    } catch (itemError: any) {
+                      console.error(`❌ [WATCHLIST-MANAGER] Error rendering item ${itemIndex}:`, {
+                        error: itemError.message,
+                        stack: itemError.stack,
+                        item,
+                      })
+                      return null
+                    }
+                  }).filter(Boolean)
                 )}
               </AnimatePresence>
             </div>

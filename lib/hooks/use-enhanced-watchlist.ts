@@ -180,6 +180,7 @@ interface WatchlistItemData {
   name: string
   ltp: number
   close: number
+  exchange?: string // Exchange name (NSE, BSE, MCX, etc.)
   segment?: string
   strikePrice?: number
   optionType?: string
@@ -442,7 +443,7 @@ export function useEnhancedWatchlists(userId?: string) {
       
       await refetch()
       toast({ title: "Watchlist Created", description: `"${input.name}" has been created successfully.` })
-      return result?.insertIntoWatchlistCollection?.records?.[0] || null
+      return (result as any)?.insertIntoWatchlistCollection?.records?.[0] || null
     } catch (error) {
       console.error("Error creating watchlist:", error)
       toast({
@@ -665,7 +666,7 @@ export async function addStockToWatchlist(
           isDefault: true
         }
       })
-      finalWatchlistId = newWatchlist?.insertIntoWatchlistCollection?.records?.[0]?.id || null
+      finalWatchlistId = (newWatchlist as any)?.insertIntoWatchlistCollection?.records?.[0]?.id || null
     }
   }
 

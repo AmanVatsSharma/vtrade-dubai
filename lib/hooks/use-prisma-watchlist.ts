@@ -22,6 +22,7 @@ export interface WatchlistItemData {
   name: string
   ltp: number
   close: number
+  exchange?: string // Exchange name (NSE, BSE, MCX, etc.)
   segment?: string
   strikePrice?: number
   optionType?: string
