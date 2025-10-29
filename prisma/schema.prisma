@@ -91,6 +91,7 @@ enum TransactionType {
 enum OptionType {
   CE
   PE
+  XX // Temporary: will be removed after data cleanup
 }
 
 enum LogLevel {
