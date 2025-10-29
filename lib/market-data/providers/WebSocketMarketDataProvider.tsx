@@ -156,35 +156,23 @@ export function WebSocketMarketDataProvider({
     // Add watchlist instruments
     if (watchlist?.items) {
       watchlist.items.forEach((item: any) => {
-        // Prefer WatchlistItem.token (stored directly), fallback to Stock.token or instrumentId parsing
+        // Use token directly from WatchlistItem (no Stock dependency)
         if (item.token) {
           tokens.add(item.token);
           console.log('🔑 [WS-PROVIDER] Using token from WatchlistItem.token field:', {
             token: item.token,
             symbol: item.symbol,
+            exchange: item.exchange,
             watchlistItemId: item.watchlistItemId || item.id,
             source: 'WatchlistItem.token'
           });
-        }
-        // Fallback to parsing instrumentId (legacy support)
-        else if (item.instrumentId) {
-          const token = parseInstrumentId(item.instrumentId);
-          if (token) {
-            tokens.add(token);
-            console.log('📋 [WS-PROVIDER] Parsed token from instrumentId (fallback):', {
-              token,
-              instrumentId: item.instrumentId,
-              symbol: item.symbol,
-              warning: 'Token not found in WatchlistItem, using parsed instrumentId'
-            });
-          } else {
-            console.warn('⚠️ [WS-PROVIDER] Could not extract token from watchlist item:', {
-              itemId: item.watchlistItemId || item.id,
-              instrumentId: item.instrumentId,
-              symbol: item.symbol,
-              warning: 'No token available - item will not receive real-time updates'
-            });
-          }
+        } else {
+          console.warn('⚠️ [WS-PROVIDER] WatchlistItem missing token - will not receive real-time updates:', {
+            itemId: item.watchlistItemId || item.id,
+            symbol: item.symbol,
+            exchange: item.exchange,
+            warning: 'Token is required for live price subscriptions'
+          });
         }
       });
     }
