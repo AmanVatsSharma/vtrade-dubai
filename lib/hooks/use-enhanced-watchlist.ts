@@ -247,7 +247,7 @@ const transformWatchlistData = (data: any): WatchlistData[] => {
   
   return data.watchlistCollection.edges.map((edge: any) => {
     const node = edge.node
-    const items = node.watchlistItemCollection.edges.map((itemEdge: any) => {
+    const items = (node.watchlistItemCollection?.edges || []).map((itemEdge: any) => {
       // Read all fields directly from WatchlistItem (no Stock dependency)
       const item = itemEdge.node
       // Generate instrumentId from exchange and token
@@ -266,12 +266,12 @@ const transformWatchlistData = (data: any): WatchlistData[] => {
         id: item.id, // Use WatchlistItem.id as item identifier
         watchlistItemId: item.id,
         instrumentId,
-        symbol: item.symbol,
-        name: item.name,
-        exchange: item.exchange,
+        symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
+        name: item.name || 'Unknown', // Fallback for null/undefined
+        exchange: item.exchange || 'NSE', // Fallback for null/undefined
         ltp: toNumber(item.ltp),
         close: toNumber(item.close),
-        segment: item.segment,
+        segment: item.segment || 'NSE', // Fallback for null/undefined
         strikePrice: item.strikePrice ? toNumber(item.strikePrice) : undefined,
         optionType: item.optionType,
         expiry: item.expiry,

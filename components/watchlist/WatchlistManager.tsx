@@ -99,14 +99,15 @@ export function WatchlistManager({
   // Computed values
   const activeWatchlist = useMemo(() => {
     // Preserve last selected tab if still present; otherwise fall back gracefully
+    if (watchlists.length === 0) return null
     const current = watchlists.find(w => w.id === activeTab)
-    return current || watchlists[0]
+    return current || watchlists[0] || null
   }, [watchlists, activeTab])
 
   const sortedItems = useMemo(() => {
-    if (!activeWatchlist) return []
+    if (!activeWatchlist || !activeWatchlist.items) return []
     
-    let items = [...activeWatchlist.items]
+    let items = [...(activeWatchlist.items || [])]
 
     // Filter by instrument type
     items = items.filter((item) => {
@@ -133,7 +134,7 @@ export function WatchlistManager({
     items.sort((a, b) => {
       switch (sortBy) {
         case 'name':
-          return a.symbol.localeCompare(b.symbol)
+          return (a.symbol || 'UNKNOWN').localeCompare(b.symbol || 'UNKNOWN')
         case 'change':
           const changeA = ((((quotes[a.instrumentId] as any)?.display_price ?? quotes[a.instrumentId]?.last_trade_price) ?? a.ltp)) - a.close
           const changeB = ((((quotes[b.instrumentId] as any)?.display_price ?? quotes[b.instrumentId]?.last_trade_price) ?? b.ltp)) - b.close
@@ -144,7 +145,9 @@ export function WatchlistManager({
           return priceB - priceA
         case 'added':
         default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          return timeB - timeA
       }
     })
 
@@ -274,11 +277,15 @@ export function WatchlistManager({
     if (watchlists.length > 0) {
       if (!activeTab) {
         const defaultWatchlist = watchlists.find(w => w.isDefault) || watchlists[0]
-        setActiveTab(defaultWatchlist.id)
+        if (defaultWatchlist) {
+          setActiveTab(defaultWatchlist.id)
+        }
       } else if (!watchlists.some(w => w.id === activeTab)) {
         // Previously selected tab removed; pick a new default
         const fallback = watchlists.find(w => w.isDefault) || watchlists[0]
-        setActiveTab(fallback.id)
+        if (fallback) {
+          setActiveTab(fallback.id)
+        }
       }
     }
   }, [watchlists, activeTab])
@@ -420,9 +427,9 @@ export function WatchlistManager({
                 
                 // Calculate count for each filter
                 const count = useMemo(() => {
-                  if (!activeWatchlist) return 0
+                  if (!activeWatchlist || !activeWatchlist.items) return 0
                   
-                  let items = [...activeWatchlist.items]
+                  let items = [...(activeWatchlist.items || [])]
                   
                   switch (tab) {
                     case 'all':
