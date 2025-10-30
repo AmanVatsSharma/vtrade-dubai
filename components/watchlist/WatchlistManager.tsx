@@ -40,6 +40,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
 import { useSession } from "next-auth/react"
+import { useRef, useEffect } from "react"
+import { useMarketData } from "@/lib/hooks/MarketDataProvider"
 
 import { WatchlistItemCard } from "./WatchlistItemCard"
 import { CreateWatchlistDialog } from "./CreateWatchlistDialog"
@@ -106,6 +108,67 @@ export function WatchlistManager({
     updateItem,
     removeItem
   } = useWatchlistItems(activeTab || undefined)
+
+  // WebSocket market data controls
+  const { subscribe, unsubscribe } = useMarketData()
+  const previousTokensRef = useRef<Set<number>>(new Set())
+
+  // Helper to parse token from instrumentId if token is missing
+  const parseTokenFromInstrumentId = useCallback((instrumentId?: string): number | null => {
+    try {
+      if (!instrumentId) return null
+      // Common formats: "NSE_EQ-26000", "NFO-BANKNIFTY-2025-10-30-46000-CE-123456"
+      const parts = instrumentId.split('-')
+      // Prefer the last numeric segment
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const maybe = Number(parts[i])
+        if (Number.isFinite(maybe) && maybe > 0) return maybe
+      }
+      return null
+    } catch {
+      return null
+    }
+  }, [])
+
+  // Subscribe/unsubscribe tokens whenever active watchlist changes or refresh completes
+  useEffect(() => {
+    try {
+      const items = activeWatchlist?.items || []
+      const currentTokens = new Set<number>()
+
+      for (const it of items) {
+        const token = typeof it?.token === 'number' && Number.isFinite(it.token)
+          ? it.token
+          : parseTokenFromInstrumentId(it?.instrumentId || undefined)
+        if (typeof token === 'number' && Number.isFinite(token)) {
+          currentTokens.add(token)
+        }
+      }
+
+      const prev = previousTokensRef.current
+      const toUnsubscribe: number[] = []
+      const toSubscribe: number[] = []
+
+      // Determine removed tokens
+      prev.forEach(t => { if (!currentTokens.has(t)) toUnsubscribe.push(t) })
+      // Determine added tokens
+      currentTokens.forEach(t => { if (!prev.has(t)) toSubscribe.push(t) })
+
+      if (toUnsubscribe.length > 0) {
+        console.log('🚫 [WATCHLIST-WS] Unsubscribing tokens', { count: toUnsubscribe.length, toUnsubscribe })
+        try { unsubscribe(toUnsubscribe as number[], 'ltp' as any) } catch (e) { /* no-op */ }
+      }
+      if (toSubscribe.length > 0) {
+        console.log('✅ [WATCHLIST-WS] Subscribing tokens', { count: toSubscribe.length, toSubscribe })
+        try { subscribe(toSubscribe as number[], 'ltp' as any) } catch (e) { /* no-op */ }
+      }
+
+      previousTokensRef.current = currentTokens
+    } catch (err) {
+      console.error('❌ [WATCHLIST-WS] Subscription management error', err)
+    }
+    // Re-run on active watchlist identity, its items reference changes, or when a refresh toggles
+  }, [activeWatchlist, watchlistsRefreshing, subscribe, unsubscribe, parseTokenFromInstrumentId])
 
   // Computed values
   const activeWatchlist = useMemo(() => {
