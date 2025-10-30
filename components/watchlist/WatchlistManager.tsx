@@ -41,7 +41,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast"
 import { useSession } from "next-auth/react"
 import { useRef, useEffect } from "react"
-import { useMarketData } from "@/lib/hooks/MarketDataProvider"
+import { useMarketData } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
+import type { SubscriptionMode } from "@/lib/market-data/providers/types"
 
 import { WatchlistItemCard } from "./WatchlistItemCard"
 import { CreateWatchlistDialog } from "./CreateWatchlistDialog"
@@ -130,6 +131,16 @@ export function WatchlistManager({
     }
   }, [])
 
+  
+
+  // Computed values
+  const activeWatchlist = useMemo(() => {
+    // Preserve last selected tab if still present; otherwise fall back gracefully
+    if (watchlists.length === 0) return null
+    const current = watchlists.find(w => w.id === activeTab)
+    return current || watchlists[0] || null
+  }, [watchlists, activeTab])
+
   // Subscribe/unsubscribe tokens whenever active watchlist changes or refresh completes
   useEffect(() => {
     try {
@@ -156,11 +167,11 @@ export function WatchlistManager({
 
       if (toUnsubscribe.length > 0) {
         console.log('🚫 [WATCHLIST-WS] Unsubscribing tokens', { count: toUnsubscribe.length, toUnsubscribe })
-        try { unsubscribe(toUnsubscribe as number[], 'ltp' as any) } catch (e) { /* no-op */ }
+        try { unsubscribe(toUnsubscribe as number[], 'ltp' as SubscriptionMode) } catch (e) { /* no-op */ }
       }
       if (toSubscribe.length > 0) {
         console.log('✅ [WATCHLIST-WS] Subscribing tokens', { count: toSubscribe.length, toSubscribe })
-        try { subscribe(toSubscribe as number[], 'ltp' as any) } catch (e) { /* no-op */ }
+        try { subscribe(toSubscribe as number[], 'ltp' as SubscriptionMode) } catch (e) { /* no-op */ }
       }
 
       previousTokensRef.current = currentTokens
@@ -169,14 +180,6 @@ export function WatchlistManager({
     }
     // Re-run on active watchlist identity, its items reference changes, or when a refresh toggles
   }, [activeWatchlist, watchlistsRefreshing, subscribe, unsubscribe, parseTokenFromInstrumentId])
-
-  // Computed values
-  const activeWatchlist = useMemo(() => {
-    // Preserve last selected tab if still present; otherwise fall back gracefully
-    if (watchlists.length === 0) return null
-    const current = watchlists.find(w => w.id === activeTab)
-    return current || watchlists[0] || null
-  }, [watchlists, activeTab])
 
   // Calculate tab counts in a separate useMemo (outside of map)
   const tabCounts = useMemo(() => {
