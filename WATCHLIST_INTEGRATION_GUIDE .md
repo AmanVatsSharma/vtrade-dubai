@@ -41,7 +41,7 @@ Search equity stocks by symbol (case-insensitive).
 **Request Example**:
 ```javascript
 const response = await fetch(
-  `${BASE_URL}${API_PREFIX}/vayu/equities?q=RELIANCE&limit=10`,
+  `${BASE_URL}${API_PREFIX}/vayu/equities?q=RELIANCE&limit=10&ltp_only=true`,
   { headers }
 );
 const { success, data } = await response.json();
@@ -89,7 +89,7 @@ Search futures contracts by symbol.
 **Request Example**:
 ```javascript
 const response = await fetch(
-  `${BASE_URL}${API_PREFIX}/vayu/futures?q=NIFTY&limit=10`,
+  `${BASE_URL}${API_PREFIX}/vayu/futures?q=NIFTY&limit=10&ltp_only=true`,
   { headers }
 );
 ```
@@ -137,7 +137,7 @@ Search options contracts with strike and expiry filters.
 **Request Example**:
 ```javascript
 const response = await fetch(
-  `${BASE_URL}${API_PREFIX}/vayu/options?q=NIFTY&option_type=CE&strike_min=19200&strike_max=19300&limit=20`,
+  `${BASE_URL}${API_PREFIX}/vayu/options?q=NIFTY&option_type=CE&strike_min=19200&strike_max=19300&limit=20&ltp_only=true`,
   { headers }
 );
 ```
@@ -183,7 +183,7 @@ Search MCX commodity futures.
 **Request Example**:
 ```javascript
 const response = await fetch(
-  `${BASE_URL}${API_PREFIX}/vayu/commodities?q=GOLD&limit=10`,
+  `${BASE_URL}${API_PREFIX}/vayu/commodities?q=GOLD&limit=10&ltp_only=true`,
   { headers }
 );
 ```
@@ -225,7 +225,7 @@ Search across all instrument types (equities, futures, options, commodities).
 **Request Example**:
 ```javascript
 const response = await fetch(
-  `${BASE_URL}${API_PREFIX}/vayu/instruments/search?q=rel&limit=20`,
+  `${BASE_URL}${API_PREFIX}/vayu/instruments/search?q=rel&limit=20&ltp_only=true`,
   { headers }
 );
 ```
@@ -626,7 +626,7 @@ async function searchInstruments(query, type = 'equities') {
   
   const endpoint = `/api/stock/vayu/${type}`;
   const response = await fetch(
-    `${BASE_URL}${endpoint}?q=${encodeURIComponent(query)}&limit=10`,
+    `${BASE_URL}${endpoint}?q=${encodeURIComponent(query)}&limit=10&ltp_only=true`,
     { headers }
   );
   const { data } = await response.json();
@@ -636,7 +636,7 @@ async function searchInstruments(query, type = 'equities') {
 // Universal search
 async function universalSearch(query) {
   const response = await fetch(
-    `${BASE_URL}/api/stock/vayu/instruments/search?q=${encodeURIComponent(query)}&limit=20`,
+    `${BASE_URL}/api/stock/vayu/instruments/search?q=${encodeURIComponent(query)}&limit=20&ltp_only=true`,
     { headers }
   );
   const { data } = await response.json();

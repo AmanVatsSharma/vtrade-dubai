@@ -88,6 +88,11 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Enforce ltp_only=true by default for all search types unless explicitly provided
+    if (!params.has('ltp_only')) {
+      params.set('ltp_only', 'true');
+    }
+
     // Build full URL
     const url = `${BASE_URL}${endpoint}${params.toString() ? `?${params.toString()}` : ''}`;
 

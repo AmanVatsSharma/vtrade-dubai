@@ -152,22 +152,22 @@ http://marketdata.vedpragya.com:3000
 
 #### 1. Search Equities
 ```
-GET /api/stock/vayu/equities?q={query}&limit=20
+GET /api/stock/vayu/equities?q={query}&limit=20&ltp_only=true
 ```
 
 #### 2. Search Futures
 ```
-GET /api/stock/vayu/futures?q={query}&limit=20
+GET /api/stock/vayu/futures?q={query}&limit=20&ltp_only=true
 ```
 
 #### 3. Search Options
 ```
-GET /api/stock/vayu/options?q={query}&option_type={CE|PE}&limit=20
+GET /api/stock/vayu/options?q={query}&option_type={CE|PE}&limit=20&ltp_only=true
 ```
 
 #### 4. Search Commodities (MCX)
 ```
-GET /api/stock/vayu/commodities?q={query}&limit=20
+GET /api/stock/vayu/commodities?q={query}&limit=20&ltp_only=true
 ```
 
 ### Response Format
