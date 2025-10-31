@@ -127,8 +127,7 @@ function withDefaults<T extends MilliSearchParams | MilliSuggestParams>(params: 
 export async function suggest(params: MilliSuggestParams): Promise<MilliInstrument[]> {
   try {
     const qp = withDefaults(params)
-    const url = new URL(`${BASE_URL}/api/search/suggest`)
-    Object.entries(qp).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+    const url = buildInternalURL('/api/milli-search/suggest', qp)
     console.log('🔎 [MILLI-CLIENT][REQ]', formatFetchDebug(url))
     const res = await fetch(url.toString(), {
       method: 'GET',
@@ -146,7 +145,7 @@ export async function suggest(params: MilliSuggestParams): Promise<MilliInstrume
     if (!list || list.length === 0) return []
     return list.map(normalizeItem)
   } catch (error) {
-    console.error('❌ [MILLI-CLIENT][SUGGEST] Failed', formatFetchError(error, `${BASE_URL}/api/search/suggest`))
+    console.error('❌ [MILLI-CLIENT][SUGGEST] Failed', formatFetchError(error, '/api/milli-search/suggest'))
     if (typeof window !== 'undefined' && error instanceof TypeError) {
       console.error('⚠️ [MILLI-CLIENT][SUGGEST] CORS: Verify Access-Control-Allow-Origin on', BASE_URL)
     }
@@ -157,8 +156,7 @@ export async function suggest(params: MilliSuggestParams): Promise<MilliInstrume
 export async function search(params: MilliSearchParams): Promise<MilliInstrument[]> {
   try {
     const qp = withDefaults(params)
-    const url = new URL(`${BASE_URL}/api/search`)
-    Object.entries(qp).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+    const url = buildInternalURL('/api/milli-search', qp)
     console.log('🔎 [MILLI-CLIENT][REQ]', formatFetchDebug(url))
     const res = await fetch(url.toString(), { method: 'GET', credentials: 'omit' })
     console.log('✅ [MILLI-CLIENT][RES]', { url: url.toString(), status: res.status })
@@ -173,7 +171,7 @@ export async function search(params: MilliSearchParams): Promise<MilliInstrument
     if (!list || list.length === 0) return []
     return list.map(normalizeItem)
   } catch (error) {
-    console.error('❌ [MILLI-CLIENT][SEARCH] Failed', formatFetchError(error, `${BASE_URL}/api/search`))
+    console.error('❌ [MILLI-CLIENT][SEARCH] Failed', formatFetchError(error, '/api/milli-search'))
     if (typeof window !== 'undefined' && error instanceof TypeError) {
       console.error('⚠️ [MILLI-CLIENT][SEARCH] CORS: Verify Access-Control-Allow-Origin on', BASE_URL)
     }
@@ -184,15 +182,14 @@ export async function search(params: MilliSearchParams): Promise<MilliInstrument
 export async function filters(params: MilliFiltersParams): Promise<any> {
   try {
     const qp = withDefaults(params as MilliSearchParams)
-    const url = new URL(`${BASE_URL}/api/search/filters`)
-    Object.entries(qp).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+    const url = buildInternalURL('/api/milli-search/filters', qp)
     console.log('🔎 [MILLI-CLIENT][REQ]', formatFetchDebug(url))
     const res = await fetch(url.toString(), { method: 'GET', credentials: 'omit' })
     console.log('✅ [MILLI-CLIENT][RES]', { url: url.toString(), status: res.status })
     const payload: any = await res.json().catch(() => ({}))
     return payload?.data ?? payload ?? {}
   } catch (error) {
-    console.error('❌ [MILLI-CLIENT][FILTERS] Failed', formatFetchError(error, `${BASE_URL}/api/search/filters`))
+    console.error('❌ [MILLI-CLIENT][FILTERS] Failed', formatFetchError(error, '/api/milli-search/filters'))
     if (typeof window !== 'undefined' && error instanceof TypeError) {
       console.error('⚠️ [MILLI-CLIENT][FILTERS] CORS: Verify Access-Control-Allow-Origin on', BASE_URL)
     }
@@ -217,7 +214,7 @@ export async function telemetrySelection(body: { q: string; symbol: string; inst
 }
 
 export function buildStreamURL(params: { tokens?: Array<number | string> | string; q?: string; ltp_only?: boolean; limit?: number }): string {
-  const url = new URL(`${BASE_URL}/api/search/stream`)
+  const url = new URL('/api/milli-search/stream', typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'))
   if (params.tokens) {
     const tokens = Array.isArray(params.tokens) ? params.tokens.join(',') : String(params.tokens)
     url.searchParams.set('tokens', tokens)
@@ -237,6 +234,13 @@ export const milliClient = {
   filters,
   telemetrySelection,
   buildStreamURL
+}
+
+function buildInternalURL(path: string, qp: Record<string, string | number | boolean>) {
+  const base = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000')
+  const url = new URL(path, base)
+  Object.entries(qp).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+  return url
 }
 
 
