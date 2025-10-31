@@ -24,12 +24,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  searchEquities,
-  searchFutures,
-  searchOptions,
-  searchCommodities,
-  type Instrument,
-} from '@/lib/services/market-data/search-client';
+  milliClient,
+  type MilliInstrument,
+  type MilliMode,
+} from '@/lib/services/search/milli-client';
 
 export type SearchTab = 'equity' | 'futures' | 'options' | 'commodities';
 
@@ -41,7 +39,7 @@ export interface UseInstrumentSearchOptions {
 
 export interface UseInstrumentSearchReturn {
   // State
-  results: Instrument[];
+  results: MilliInstrument[];
   loading: boolean;
   error: string | null;
   
@@ -66,13 +64,14 @@ export function useInstrumentSearch(
     limit = 20,
   } = options;
 
-  const [results, setResults] = useState<Instrument[]>([]);
+  const [results, setResults] = useState<MilliInstrument[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const currentSearchRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   /**
    * Perform search based on active tab
@@ -81,53 +80,28 @@ export function useInstrumentSearch(
     query: string,
     tab: SearchTab
   ) => {
-    console.log('🔍 [USE-INSTRUMENT-SEARCH] Performing search', { query, tab });
-    
     // Cancel previous request if any
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
-    // Create new abort controller
     abortControllerRef.current = new AbortController();
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      let searchResults: Instrument[] = [];
-      
-      switch (tab) {
-        case 'equity':
-          searchResults = await searchEquities(query, limit);
-          break;
-        case 'futures':
-          searchResults = await searchFutures(query, limit);
-          break;
-        case 'options':
-          searchResults = await searchOptions(query, undefined, limit);
-          break;
-        case 'commodities':
-          searchResults = await searchCommodities(query, limit);
-          break;
-      }
-      
-      console.log('✅ [USE-INSTRUMENT-SEARCH] Search successful', {
-        tab,
-        count: searchResults.length,
-      });
-      
-      setResults(searchResults);
-      setLoading(false);
-    } catch (err) {
-      console.error('❌ [USE-INSTRUMENT-SEARCH] Search failed', err);
-      
+      // map tab -> milli mode
+      const mode: MilliMode = tab === 'equity' ? 'eq' : tab === 'commodities' ? 'commodities' : 'fno'
+      // Use suggest for fast typeahead UX
+      const searchResults = await milliClient.suggest({ q: query, limit, mode, ltp_only: true })
+      setResults(searchResults)
+      setLoading(false)
+    } catch (err: any) {
       if (err instanceof Error && !err.message.includes('aborted')) {
-        setError(err.message);
+        setError(err.message)
       }
-      
-      setLoading(false);
-      setResults([]);
+      setLoading(false)
+      setResults([])
     }
   }, [limit]);
 
@@ -189,6 +163,10 @@ export function useInstrumentSearch(
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
     };
   }, []);
 
@@ -205,6 +183,58 @@ export function useInstrumentSearch(
       performSearch(currentSearchRef.current, activeTab);
     }
   }, [activeTab, performSearch]);
+
+  // SSE live LTP updates for current result set
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const q = currentSearchRef.current
+    if (!q || results.length === 0) {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+      return
+    }
+
+    try {
+      const url = milliClient.buildStreamURL({ q, ltp_only: true })
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+      const es = new EventSource(url)
+      eventSourceRef.current = es
+
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data)
+          const ltpMap: Record<string, number> = payload?.data || payload || {}
+          if (!ltpMap || typeof ltpMap !== 'object') return
+          setResults(prev => prev.map(item => {
+            const tokenKey = String(item.token ?? item.instrumentToken ?? '')
+            const ltp = ltpMap[tokenKey]
+            return ltp ? { ...item, last_price: ltp } : item
+          }))
+        } catch {}
+      }
+
+      es.onerror = () => {
+        es.close()
+        if (eventSourceRef.current === es) {
+          eventSourceRef.current = null
+        }
+      }
+    } catch {
+      // ignore SSE issues
+    }
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+    }
+  }, [results])
 
   return {
     results,

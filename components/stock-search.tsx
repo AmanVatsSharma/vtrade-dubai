@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { useInstrumentSearch, type SearchTab } from "@/lib/hooks/use-instrument-search"
-import type { Instrument } from "@/lib/services/market-data/search-client"
+import type { MilliInstrument } from "@/lib/services/search/milli-client"
+import { milliClient } from "@/lib/services/search/milli-client"
 import { cn } from "@/lib/utils"
 
 interface Stock {
@@ -98,6 +99,8 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
         // Fallback to stockId if no token
         await onAddStock(stock.id)
       }
+      // best-effort telemetry (non-blocking)
+      milliClient.telemetrySelection({ q: query, symbol: stock.symbol, instrumentToken: stock.token })
       onClose()
     } catch (error) {
       console.error('❌ [STOCK-SEARCH] Failed to add stock', error)
@@ -200,7 +203,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
           )}
 
           <div className="space-y-2 max-h-[60vh] overflow-y-auto mt-2">
-            {!loading && results.map((instrument: Instrument, index: number) => {
+            {!loading && results.map((instrument: MilliInstrument, index: number) => {
               // Determine segment based on exchange
               const segment = instrument.segment || 
                 (instrument.exchange === 'MCX_FO' ? 'MCX_FO' : 
@@ -235,7 +238,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
               const exchangeBadge = getExchangeBadge(instrument.exchange, segment)
               const isFutures = (activeTab === "futures") || (segment?.includes("FO") && !instrument.option_type)
               const isOption = activeTab === "options" || !!instrument.option_type
-              const formattedExpiry = formatCompactExpiry(instrument.expiry_date)
+              const formattedExpiry = formatCompactExpiry(instrument.expiry_date || (instrument as any).expiry || (instrument as any).expiryDate)
               
               return (
                 <div key={`${instrument.token}-${index}`} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">

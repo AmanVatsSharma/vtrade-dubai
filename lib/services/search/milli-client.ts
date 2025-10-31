@@ -1,0 +1,181 @@
+/**
+ * @file milli-client.ts
+ * @module services/search
+ * @description Client for milli-search external API (suggest/search/filters/SSE/telemetry)
+ * @author BharatERP
+ * @created 2025-10-31
+ */
+
+import axios, { AxiosInstance } from 'axios'
+
+// Base URL for external marketdata API (public, no secret)
+const BASE_URL = (process.env.NEXT_PUBLIC_MARKETDATA_BASE_URL || 'https://marketdata.vedpragya.com').replace(/\/$/, '')
+
+// Axios instance
+const http: AxiosInstance = axios.create({
+  baseURL: `${BASE_URL}/api/search`,
+  timeout: 10000,
+  withCredentials: false,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+export type MilliMode = 'eq' | 'fno' | 'curr' | 'commodities'
+
+export const modeToVortexExchange: Record<MilliMode, 'NSE_EQ' | 'NSE_FO' | 'NSE_CUR' | 'MCX_FO'> = {
+  eq: 'NSE_EQ',
+  fno: 'NSE_FO',
+  curr: 'NSE_CUR',
+  commodities: 'MCX_FO'
+}
+
+export interface MilliInstrument {
+  instrumentToken?: number
+  token?: number
+  symbol: string
+  tradingSymbol?: string
+  companyName?: string
+  name?: string
+  exchange: string
+  segment: string
+  instrumentType?: string
+  expiryDate?: string
+  expiry?: string
+  strike?: number
+  strike_price?: number
+  optionType?: 'CE' | 'PE'
+  option_type?: 'CE' | 'PE'
+  lotSize?: number
+  lot_size?: number
+  last_price?: number
+  vortexExchange?: string
+  ticker?: string
+  underlyingSymbol?: string
+  isDerivative?: boolean
+  [key: string]: any
+}
+
+export interface MilliSearchParams {
+  q: string
+  limit?: number
+  exchange?: string
+  segment?: string
+  instrumentType?: string
+  vortexExchange?: string
+  mode?: MilliMode
+  expiry_from?: string
+  expiry_to?: string
+  strike_min?: number
+  strike_max?: number
+  ltp_only?: boolean
+}
+
+export interface MilliSuggestParams extends Pick<MilliSearchParams, 'q' | 'limit' | 'mode' | 'vortexExchange' | 'ltp_only'> {}
+
+export interface MilliFiltersParams extends Omit<MilliSearchParams, 'limit'> {}
+
+type MilliResponse<T> = {
+  success?: boolean
+  data?: T
+  items?: T extends any[] ? T : never
+}
+
+function normalizeItem(item: MilliInstrument): MilliInstrument {
+  // Provide common aliases for UI consumption
+  const token = item.token ?? item.instrumentToken
+  const expiry = item.expiry ?? item.expiryDate
+  const strike_price = item.strike_price ?? item.strike
+  const option_type = item.option_type ?? item.optionType
+  const lot_size = item.lot_size ?? item.lotSize
+  const name = item.name ?? item.companyName ?? item.symbol
+  return {
+    ...item,
+    token,
+    instrumentToken: token,
+    expiry,
+    expiryDate: expiry,
+    strike_price,
+    strike: strike_price,
+    option_type,
+    optionType: option_type,
+    lot_size,
+    lotSize: lot_size,
+    name
+  }
+}
+
+function withDefaults(params: MilliSearchParams | MilliSuggestParams): Record<string, string | number | boolean> {
+  const p: Record<string, string | number | boolean> = { ...params }
+  if (p.mode && !p.vortexExchange) {
+    p.vortexExchange = modeToVortexExchange[p.mode as MilliMode]
+  }
+  if (p.ltp_only === undefined) {
+    p.ltp_only = true
+  }
+  return p
+}
+
+export async function suggest(params: MilliSuggestParams): Promise<MilliInstrument[]> {
+  const qp = withDefaults(params)
+  const res = await http.get<MilliResponse<{ instruments?: MilliInstrument[] } | MilliInstrument[]>>('/suggest', { params: qp })
+  const payload: any = res.data
+  const list: MilliInstrument[] = Array.isArray(payload?.items)
+    ? payload.items
+    : Array.isArray(payload?.data?.instruments)
+      ? payload.data.instruments
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : []
+  return list.map(normalizeItem)
+}
+
+export async function search(params: MilliSearchParams): Promise<MilliInstrument[]> {
+  const qp = withDefaults(params)
+  const res = await http.get<MilliResponse<{ instruments?: MilliInstrument[] } | MilliInstrument[]>>('', { params: qp })
+  const payload: any = res.data
+  const list: MilliInstrument[] = Array.isArray(payload?.items)
+    ? payload.items
+    : Array.isArray(payload?.data?.instruments)
+      ? payload.data.instruments
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : []
+  return list.map(normalizeItem)
+}
+
+export async function filters(params: MilliFiltersParams): Promise<any> {
+  const qp = withDefaults(params as MilliSearchParams)
+  const res = await http.get<MilliResponse<any>>('/filters', { params: qp })
+  return res.data?.data ?? res.data ?? {}
+}
+
+export async function telemetrySelection(body: { q: string; symbol: string; instrumentToken?: number | string }): Promise<void> {
+  try {
+    await http.post('/telemetry/selection', body)
+  } catch {
+    // best-effort, ignore
+  }
+}
+
+export function buildStreamURL(params: { tokens?: Array<number | string> | string; q?: string; ltp_only?: boolean; limit?: number }): string {
+  const url = new URL(`${BASE_URL}/api/search/stream`)
+  if (params.tokens) {
+    const tokens = Array.isArray(params.tokens) ? params.tokens.join(',') : String(params.tokens)
+    url.searchParams.set('tokens', tokens)
+  }
+  if (params.q) url.searchParams.set('q', params.q)
+  if (params.limit) url.searchParams.set('limit', String(params.limit))
+  url.searchParams.set('ltp_only', String(params.ltp_only ?? true))
+  return url.toString()
+}
+
+export const milliClient = {
+  suggest,
+  search,
+  filters,
+  telemetrySelection,
+  buildStreamURL
+}
+
+
