@@ -16,8 +16,7 @@ Base - https://marketdata.vedpragya.com
 - q: string (required)
 - limit: number (search: ≤50, suggest: ≤20)
 - exchange, segment, instrumentType: string (optional)
-- vortexExchange: 'NSE_EQ'|'NSE_FO'|'NSE_CUR'|'MCX_FO'
-- mode: eq|fno|curr|commodities (maps to vortexExchange)
+- mode: eq|fno|curr|commodities (optional)
 - expiry_from, expiry_to: ISO-like string (YYYY-MM-DD)
 - strike_min, strike_max: number
 - ltp_only: boolean (true → only items with valid last_price)
@@ -26,12 +25,12 @@ Base - https://marketdata.vedpragya.com
 - instrumentToken, symbol, tradingSymbol, companyName
 - exchange, segment, instrumentType
 - expiryDate, strike, tick, lotSize
-- vortexExchange, ticker (e.g., NSE_FO_RELIANCE)
+- ticker (e.g., NSE_FO_RELIANCE)
 - isDerivative (bool), underlyingSymbol (derivatives)
 - last_price (hydrated), timestamp (envelope)
 
 ## Behavior
-- Hydration: TTL ~0.8–1.0s cache; pair-based LTP when `vortexExchange` present.
+- Hydration: TTL ~0.8–1.0s cache; token-based LTP when available.
 - Hydrate top-10 by default; when `ltp_only=true`, hydrate up to top-50 for better coverage.
 - Filters apply to Meili query; `ltp_only` filters results after hydration.
 - SSE: emits every ~1s, auto-closes ~30s, max 100 tokens per session.
@@ -39,7 +38,7 @@ Base - https://marketdata.vedpragya.com
 ## Examples
 ```bash
 # Suggest with LTP and FO-only (external)
-curl "https://marketdata.vedpragya.com/api/search/suggest?q=RELI&vortexExchange=NSE_FO&ltp_only=true&limit=10"
+curl "https://marketdata.vedpragya.com/api/search/suggest?q=RELI&ltp_only=true&limit=10"
 
 # Search options in a date/strike window with LTP (external)
 curl "https://marketdata.vedpragya.com/api/search?q=NIFTY&instrumentType=OPTIDX&expiry_from=2025-10-01&expiry_to=2025-10-31&strike_min=20000&strike_max=22000&ltp_only=true&limit=30"
@@ -80,7 +79,7 @@ sequenceDiagram
 ```
 
 ## Notes
-- Use `vortexExchange` when available to improve LTP coverage (FO/CDS/MCX).
+- Endpoints may return empty arrays; handle gracefully in UI.
 - Use `ltp_only=true` for user-facing suggestions to show live instruments.
 - `ticker` is handy for display or quick lookups.
 - Telemetry: POST `/api/search/telemetry/selection` with `{ q, symbol, instrumentToken }` after user picks a result.

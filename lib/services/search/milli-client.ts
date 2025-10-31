@@ -23,13 +23,6 @@ const http: AxiosInstance = axios.create({
 
 export type MilliMode = 'eq' | 'fno' | 'curr' | 'commodities'
 
-export const modeToVortexExchange: Record<MilliMode, 'NSE_EQ' | 'NSE_FO' | 'NSE_CUR' | 'MCX_FO'> = {
-  eq: 'NSE_EQ',
-  fno: 'NSE_FO',
-  curr: 'NSE_CUR',
-  commodities: 'MCX_FO'
-}
-
 export interface MilliInstrument {
   instrumentToken?: number
   token?: number
@@ -62,7 +55,6 @@ export interface MilliSearchParams {
   exchange?: string
   segment?: string
   instrumentType?: string
-  vortexExchange?: string
   mode?: MilliMode
   expiry_from?: string
   expiry_to?: string
@@ -71,7 +63,7 @@ export interface MilliSearchParams {
   ltp_only?: boolean
 }
 
-export interface MilliSuggestParams extends Pick<MilliSearchParams, 'q' | 'limit' | 'mode' | 'vortexExchange' | 'ltp_only'> {}
+export interface MilliSuggestParams extends Pick<MilliSearchParams, 'q' | 'limit' | 'mode' | 'ltp_only'> {}
 
 export interface MilliFiltersParams extends Omit<MilliSearchParams, 'limit'> {}
 
@@ -105,14 +97,20 @@ function normalizeItem(item: MilliInstrument): MilliInstrument {
   }
 }
 
-function withDefaults(params: MilliSearchParams | MilliSuggestParams): Record<string, string | number | boolean> {
-  const p: Record<string, string | number | boolean> = { ...params }
-  if (p.mode && !p.vortexExchange) {
-    p.vortexExchange = modeToVortexExchange[p.mode as MilliMode]
-  }
-  if (p.ltp_only === undefined) {
-    p.ltp_only = true
-  }
+function withDefaults<T extends MilliSearchParams | MilliSuggestParams>(params: T): Record<string, string | number | boolean> {
+  const p: Record<string, string | number | boolean> = {}
+  // Only include supported query params (omit vortexExchange entirely)
+  if (params.q) p.q = params.q
+  if (params.limit !== undefined) p.limit = params.limit
+  if ('mode' in params && params.mode) p.mode = params.mode
+  if ('exchange' in params && params.exchange) p.exchange = params.exchange as string
+  if ('segment' in params && params.segment) p.segment = params.segment as string
+  if ('instrumentType' in params && params.instrumentType) p.instrumentType = params.instrumentType as string
+  if ('expiry_from' in params && params.expiry_from) p.expiry_from = params.expiry_from as string
+  if ('expiry_to' in params && params.expiry_to) p.expiry_to = params.expiry_to as string
+  if ('strike_min' in params && params.strike_min !== undefined) p.strike_min = params.strike_min as number
+  if ('strike_max' in params && params.strike_max !== undefined) p.strike_max = params.strike_max as number
+  p.ltp_only = params.ltp_only ?? true
   return p
 }
 
@@ -127,6 +125,7 @@ export async function suggest(params: MilliSuggestParams): Promise<MilliInstrume
       : Array.isArray(payload?.data)
         ? payload.data
         : []
+  if (!list || list.length === 0) return []
   return list.map(normalizeItem)
 }
 
@@ -141,6 +140,7 @@ export async function search(params: MilliSearchParams): Promise<MilliInstrument
       : Array.isArray(payload?.data)
         ? payload.data
         : []
+  if (!list || list.length === 0) return []
   return list.map(normalizeItem)
 }
 

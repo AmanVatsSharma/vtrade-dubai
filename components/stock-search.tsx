@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 interface Stock {
   id: string
   instrumentId: string
-  token: number
+  token?: number
   exchange: string
   ticker: string
   symbol: string
@@ -205,11 +205,12 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
           <div className="space-y-2 max-h-[60vh] overflow-y-auto mt-2">
             {!loading && results.map((instrument: MilliInstrument, index: number) => {
               // Determine segment based on exchange
+              const ex = instrument.exchange || ''
               const segment = instrument.segment || 
-                (instrument.exchange === 'MCX_FO' ? 'MCX_FO' : 
-                 instrument.exchange === 'NSE_FO' ? 'NSE_FO' :
-                 instrument.exchange.includes('MCX') ? 'MCX_FO' :
-                 instrument.exchange.includes('NSE') ? 'NSE' : 'NSE')
+                (ex === 'MCX_FO' ? 'MCX_FO' : 
+                 ex === 'NSE_FO' ? 'NSE_FO' :
+                 ex.includes('MCX') ? 'MCX_FO' :
+                 ex.includes('NSE') ? 'NSE' : 'NSE')
               
               const stock: Stock = {
                 id: `token-${instrument.token}`,
