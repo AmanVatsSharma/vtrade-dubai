@@ -26,13 +26,50 @@ interface OrderDialogProps {
   session?: any // Pass session data for logging
 }
 
+function normalizeStockData(raw: any | null) {
+  if (!raw) return null
+
+  const clone: any = { ...raw }
+
+  const deriveTokenFromInstrument = (instrumentId?: string | null): number | undefined => {
+    if (!instrumentId) return undefined
+    const parts = instrumentId.split('-')
+    const last = parts[parts.length - 1]
+    const maybe = Number(last)
+    return Number.isFinite(maybe) ? maybe : undefined
+  }
+
+  const token = clone.token ?? deriveTokenFromInstrument(clone.instrumentId)
+  const exchange = (clone.exchange || clone.segment || 'NSE')?.toString().toUpperCase()
+  const segment = (clone.segment || clone.exchange || 'NSE')?.toString().toUpperCase()
+  const instrumentId = clone.instrumentId || (exchange && token != null ? `${exchange}-${token}` : undefined)
+  const lotSize = clone.lot_size ?? clone.lotSize ?? (segment === 'NFO' ? clone.lotSize : undefined)
+
+  return {
+    ...clone,
+    stockId: clone.stockId ?? clone.id ?? null,
+    token,
+    exchange,
+    segment,
+    instrumentId,
+    lot_size: lotSize,
+    lotSize,
+    ltp: clone.ltp != null ? Number(clone.ltp) : undefined,
+    close: clone.close != null ? Number(clone.close) : undefined,
+    strikePrice: clone.strikePrice ?? clone.strike_price ?? undefined,
+    optionType: clone.optionType ?? clone.option_type ?? undefined,
+    name: clone.name || clone.symbol,
+    watchlistItemId: clone.watchlistItemId ?? clone.id ?? null
+  }
+}
+
 export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, drawer, session }: OrderDialogProps) {
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY")
   const [quantity, setQuantity] = useState(1)
   const [price, setPrice] = useState<number | null>(null)
   const [currentOrderType, setCurrentOrderType] = useState("CNC")
   const [loading, setLoading] = useState(false)
-  const [selectedStock, setSelectedStock] = useState(stock)
+  const [selectedStock, setSelectedStock] = useState<any>(() => normalizeStockData(stock))
   const [isMarket, setIsMarket] = useState(true)
 
   const { quotes } = useMarketData()
@@ -45,12 +82,13 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const { optimisticBlockMargin, optimisticUpdateBalance, refresh: refreshAccount } = useRealtimeAccount(userId)
 
   useEffect(() => {
-    setSelectedStock(stock)
-    if (stock) {
-      setPrice(stock.ltp)
-      if (stock.segment === "NFO") {
+    const normalized = normalizeStockData(stock)
+    setSelectedStock(normalized)
+    if (normalized) {
+      setPrice(normalized.ltp ?? null)
+      if (normalized.segment === "NFO") {
         setCurrentOrderType("DELIVERY")
-        setQuantity(stock.lot_size || 1)
+        setQuantity(normalized.lot_size || 1)
       } else {
         setQuantity(1)
         setCurrentOrderType("CNC")
@@ -67,7 +105,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
     // Calculate leverage based on segment and product type
     let leverage = 1
-    const segment = selectedStock.segment.toUpperCase()
+    const segment = (selectedStock.segment || selectedStock.exchange || "NSE").toUpperCase()
     const productType = currentOrderType.toUpperCase()
 
     if (segment === "NSE" || segment === "NSE_EQ") {
@@ -90,7 +128,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const brokerage = useMemo(() => {
     if (!selectedStock || !price || quantity <= 0) return 0
     const turnover = quantity * price
-    const segment = selectedStock.segment.toUpperCase()
+    const segment = (selectedStock.segment || selectedStock.exchange || "NSE").toUpperCase()
 
     // NSE Equity: 0.03% or ₹20 per order, whichever is lower
     if (segment === "NSE" || segment === "NSE_EQ") {
@@ -110,7 +148,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const additionalCharges = useMemo(() => {
     if (!selectedStock || !price || quantity <= 0) return 0
     const turnover = quantity * price
-    const segment = selectedStock.segment.toUpperCase()
+    const segment = (selectedStock.segment || selectedStock.exchange || "NSE").toUpperCase()
     const productType = currentOrderType.toUpperCase()
 
     // STT calculation
@@ -147,6 +185,11 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       return
     }
 
+    if (!portfolio?.account?.id) {
+      toast({ title: "Trading Account Missing", description: "No trading account available for this user.", variant: "destructive" })
+      return
+    }
+
     if (totalCost > availableMargin) {
       toast({
         title: "Insufficient Margin",
@@ -173,6 +216,10 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       
       console.log("📤 [ORDER-DIALOG] Submitting order with price:", orderPrice)
       
+      const instrumentId = selectedStock.instrumentId || (selectedStock.exchange && selectedStock.token != null
+        ? `${selectedStock.exchange}-${selectedStock.token}`
+        : undefined)
+
       // Create temporary order ID for optimistic update
       const tempOrderId = `temp-${Date.now()}`
       const timestamp = new Date().toISOString()
@@ -210,15 +257,25 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         userId: session?.user?.id,
         userName: session?.user?.name,
         userEmail: session?.user?.email,
-        stockId: selectedStock.id,
+        stockId: selectedStock.stockId,
         symbol: selectedStock.symbol,
         quantity,
         price: orderPrice,
         orderType: isMarket ? OrderType.MARKET : OrderType.LIMIT,
         orderSide,
         segment: selectedStock.segment,
+        exchange: selectedStock.exchange,
         productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
-        instrumentId: selectedStock.instrumentId,
+        instrumentId,
+        token: selectedStock.token,
+        name: selectedStock.name,
+        ltp: selectedStock.ltp,
+        close: selectedStock.close,
+        strikePrice: selectedStock.strikePrice,
+        optionType: selectedStock.optionType,
+        expiry: selectedStock.expiry,
+        lotSize: selectedStock.lot_size,
+        watchlistItemId: selectedStock.watchlistItemId,
         session
       })
       

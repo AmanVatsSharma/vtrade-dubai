@@ -19,7 +19,7 @@ import { FundManagementService } from "@/lib/services/funds/FundManagementServic
 import { MarginCalculator } from "@/lib/services/risk/MarginCalculator"
 import { TradingLogger } from "@/lib/services/logging/TradingLogger"
 import { OrderType, OrderSide, OrderStatus, Prisma } from "@prisma/client"
-import type { Stock, WatchlistItem } from "@prisma/client"
+import type { Stock } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { PriceResolutionService } from "@/lib/services/order/PriceResolutionService"
 import { MarketRealismService } from "@/lib/services/order/MarketRealismService"
@@ -29,16 +29,25 @@ console.log("🚀 [ORDER-EXECUTION-SERVICE] Module loaded")
 
 export interface PlaceOrderInput {
   tradingAccountId: string
-  stockId: string
-  instrumentId: string
+  stockId?: string | null
+  instrumentId?: string | null
   symbol: string
   quantity: number
   price?: number | null
   orderType: OrderType
   orderSide: OrderSide
-  productType: string
-  segment: string
-  lotSize?: number
+  productType?: string | null
+  segment?: string | null
+  token?: number | null
+  exchange?: string | null
+  name?: string | null
+  ltp?: number | null
+  close?: number | null
+  strikePrice?: number | null
+  optionType?: string | null
+  expiry?: string | null
+  lotSize?: number | null
+  watchlistItemId?: string | null
 }
 
 export interface OrderExecutionResult {
@@ -83,20 +92,36 @@ export class OrderExecutionService {
    * - Executes immediately (no 3-second delay)
    */
   async placeOrder(input: PlaceOrderInput): Promise<OrderExecutionResult> {
+    const normalizedSegment = (input.segment || input.exchange || 'NSE').toUpperCase()
+    const normalizedProductType = (() => {
+      const raw = (input.productType || 'MIS').toUpperCase()
+      if (raw === 'INTRADAY') return 'MIS'
+      if (raw === 'DELIVERY' || raw === 'CNC') return 'DELIVERY'
+      return raw
+    })()
+    const normalizedLotSize = input.lotSize && input.lotSize > 0 ? input.lotSize : 1
+
     console.log("🚀 [ORDER-EXECUTION-SERVICE] Placing order (INSTANT MODE):", {
       symbol: input.symbol,
       quantity: input.quantity,
       orderType: input.orderType,
       orderSide: input.orderSide,
-      dialogPrice: input.price
+      dialogPrice: input.price,
+      segment: normalizedSegment,
+      productType: normalizedProductType,
+      token: input.token,
+      instrumentId: input.instrumentId
     })
 
     await this.logger.logOrder("ORDER_PLACEMENT_START", `Placing ${input.orderSide} order for ${input.symbol}`, {
       symbol: input.symbol,
       quantity: input.quantity,
       orderType: input.orderType,
-      productType: input.productType,
-      segment: input.segment
+      productType: normalizedProductType,
+      segment: normalizedSegment,
+      token: input.token,
+      instrumentId: input.instrumentId,
+      watchlistItemId: input.watchlistItemId
     })
 
     try {
@@ -106,7 +131,7 @@ export class OrderExecutionService {
 
       // Step 2: Use dialog price directly (4th attempt - instant execution)
       // Skip all price resolution tiers to make order placement super instant
-      let executionPrice = input.price || 0
+      let executionPrice = input.price ?? input.ltp ?? input.close ?? 0
       
       if (!executionPrice || executionPrice <= 0) {
         console.error("❌ [ORDER-EXECUTION-SERVICE] No valid price provided from dialog")
@@ -117,11 +142,11 @@ export class OrderExecutionService {
 
       // Step 3: Calculate margin and charges
       const marginCalc = await this.marginCalculator.calculateMargin(
-        input.segment,
-        input.productType,
+        normalizedSegment,
+        normalizedProductType,
         input.quantity,
         executionPrice,
-        input.lotSize || 1
+        normalizedLotSize
       )
 
       console.log("📊 [ORDER-EXECUTION-SERVICE] Margin calculation:", marginCalc)
@@ -172,7 +197,12 @@ export class OrderExecutionService {
         // Create order
         console.log("📝 [ORDER-EXECUTION-SERVICE] Creating order record")
 
-        const stockRecord = await this.ensureStockForOrder(tx, input)
+        const stockRecord = await this.ensureStockForOrder(tx, {
+          ...input,
+          segment: normalizedSegment,
+          productType: normalizedProductType,
+          lotSize: normalizedLotSize
+        })
 
         const order = await this.orderRepo.create(
           {
@@ -222,7 +252,16 @@ export class OrderExecutionService {
       // Step 6: Execute synchronously and return executed status to client
       console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order synchronously (no background)")
       try {
-        await this.executeOrder(input.symbol, { ...input, stockId: result.stockId }, result.executionPrice, result.orderId)
+        const enrichedInput: PlaceOrderInput = {
+          ...input,
+          stockId: result.stockId,
+          segment: normalizedSegment,
+          productType: normalizedProductType,
+          lotSize: normalizedLotSize,
+          price: executionPrice,
+          instrumentId: input.instrumentId || `${input.exchange || normalizedSegment}-${input.token ?? input.symbol}`
+        }
+        await this.executeOrder(input.symbol, enrichedInput, result.executionPrice, result.orderId)
       } catch (execError: any) {
         console.error("❌ [ORDER-EXECUTION-SERVICE] Synchronous execution failed:", execError)
         // Best-effort cleanup: mark rejected and release margin
@@ -230,11 +269,11 @@ export class OrderExecutionService {
           await executeInTransaction(async (tx) => {
             await this.orderRepo.update(result.orderId, { status: OrderStatus.CANCELLED }, tx)
             const marginCalc = await this.marginCalculator.calculateMargin(
-              input.segment,
-              input.productType,
+              normalizedSegment,
+              normalizedProductType,
               input.quantity,
               result.executionPrice,
-              input.lotSize || 1
+              normalizedLotSize
             )
             await this.fundService.releaseMargin(
               input.tradingAccountId,
@@ -282,6 +321,25 @@ export class OrderExecutionService {
   ): Promise<void> {
     console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order with timeout:", orderId)
 
+    if (!input.stockId) {
+      throw new Error(`Stock reference missing while executing order ${orderId}`)
+    }
+
+    const normalizedSegment = (input.segment || input.exchange || 'NSE').toUpperCase()
+    const normalizedProductType = (() => {
+      const raw = (input.productType || 'MIS').toUpperCase()
+      if (raw === 'INTRADAY') return 'MIS'
+      if (raw === 'DELIVERY' || raw === 'CNC') return 'DELIVERY'
+      return raw
+    })()
+    const normalizedLotSize = input.lotSize && input.lotSize > 0 ? input.lotSize : 1
+    const enrichedInput: PlaceOrderInput = {
+      ...input,
+      segment: normalizedSegment,
+      productType: normalizedProductType,
+      lotSize: normalizedLotSize
+    }
+
     // Create timeout promise
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
@@ -292,7 +350,7 @@ export class OrderExecutionService {
     try {
       // Race between execution and timeout
       await Promise.race([
-        this.executeOrder(orderId, input, executionPrice),
+        this.executeOrder(orderId, enrichedInput, executionPrice),
         timeoutPromise
       ])
       
@@ -308,11 +366,11 @@ export class OrderExecutionService {
           
           // Calculate and release margin
           const marginCalc = await this.marginCalculator.calculateMargin(
-            input.segment,
-            input.productType,
+            normalizedSegment,
+            normalizedProductType,
             input.quantity,
             executionPrice,
-            input.lotSize || 1
+            normalizedLotSize
           )
           
           await this.fundService.releaseMargin(
@@ -359,10 +417,25 @@ export class OrderExecutionService {
     const orderId = existingOrderId || 'new-order'
     console.log("🎯 [ORDER-EXECUTION-SERVICE] Executing order:", orderId)
 
+    if (!input.stockId) {
+      throw new Error(`Stock reference missing while executing order ${orderId}`)
+    }
+
+    const runtimeSegment = (input.segment || input.exchange || 'NSE').toUpperCase()
+    const runtimeProductType = (() => {
+      const raw = (input.productType || 'MIS').toUpperCase()
+      if (raw === 'INTRADAY') return 'MIS'
+      if (raw === 'DELIVERY' || raw === 'CNC') return 'DELIVERY'
+      return raw
+    })()
+    const runtimeLotSize = input.lotSize && input.lotSize > 0 ? input.lotSize : 1
+
     await this.logger.logOrder("ORDER_EXECUTION_START", `Executing order: ${orderId}`, {
       orderId,
       symbol: input.symbol,
-      executionPrice
+      executionPrice,
+      segment: runtimeSegment,
+      productType: runtimeProductType
     })
 
     try {
@@ -445,148 +518,165 @@ export class OrderExecutionService {
     tx: Prisma.TransactionClient,
     input: PlaceOrderInput
   ): Promise<Stock> {
-    const existingStock = await tx.stock.findUnique({ where: { id: input.stockId } })
+    if (input.stockId) {
+      const existingStock = await tx.stock.findUnique({ where: { id: input.stockId } })
+      if (existingStock) {
+        return existingStock
+      }
 
-    if (existingStock) {
-      return existingStock
+      await this.logger.warn("ORDER_STOCK_RECOVERY", "Provided stockId missing, attempting recovery", {
+        requestedStockId: input.stockId,
+        symbol: input.symbol
+      })
     }
 
-    await this.logger.warn("ORDER_STOCK_RECOVERY", "Stock missing for order. Attempting recovery.", {
-      requestedStockId: input.stockId,
-      symbol: input.symbol,
-      instrumentId: input.instrumentId
+    const parsedIdentifier = this.parseInstrumentIdentifier(input.instrumentId ?? undefined)
+    const token = input.token ?? parsedIdentifier.token ?? null
+    const exchange = (input.exchange || parsedIdentifier.exchange || input.segment || 'NSE').toUpperCase()
+    const normalizedSymbol = input.symbol?.toUpperCase() || 'UNKNOWN'
+    const segment = (input.segment || exchange).toUpperCase()
+
+    let instrumentId = input.instrumentId?.trim() || null
+    if (!instrumentId) {
+      if (token != null) {
+        instrumentId = `${exchange}-${token}`
+      } else {
+        instrumentId = `${exchange}-${normalizedSymbol}`
+      }
+    }
+
+    const finalInstrumentId = instrumentId || `${exchange}-${normalizedSymbol}`
+
+    const lookupClauses: Prisma.StockWhereInput[] = []
+    if (token != null) {
+      lookupClauses.push({ token })
+    }
+    if (finalInstrumentId) {
+      lookupClauses.push({ instrumentId: finalInstrumentId })
+    }
+
+    if (lookupClauses.length > 0) {
+      const recoveredByIdentifiers = await tx.stock.findFirst({
+        where: {
+          OR: lookupClauses
+        }
+      })
+
+      if (recoveredByIdentifiers) {
+        await this.logger.logSystemEvent("ORDER_STOCK_RECOVERED", "Recovered stock via identifiers", {
+          recoveredStockId: recoveredByIdentifiers.id,
+          token,
+          instrumentId: finalInstrumentId
+        })
+        return recoveredByIdentifiers
+      }
+    }
+
+    const recoveredBySymbol = await tx.stock.findFirst({
+      where: {
+        AND: [
+          { symbol: normalizedSymbol },
+          { exchange }
+        ]
+      }
     })
 
-    const { exchange: parsedExchange, token } = this.parseInstrumentIdentifier(input.instrumentId)
-    const normalizedSymbol = input.symbol?.toUpperCase() || "UNKNOWN"
-    const exchange = parsedExchange || input.segment || "NSE"
-
-    let recoveredStock: Stock | null = null
-
-    const primaryLookupClauses: Prisma.StockWhereInput[] = []
-
-    if (token != null) {
-      primaryLookupClauses.push({ token })
-    }
-
-    if (input.instrumentId && input.instrumentId.trim().length > 0) {
-      primaryLookupClauses.push({ instrumentId: input.instrumentId })
-    }
-
-    if (primaryLookupClauses.length > 0) {
-      recoveredStock = await tx.stock.findFirst({
-        where: {
-          OR: primaryLookupClauses
-        }
-      })
-    }
-
-    if (!recoveredStock) {
-      recoveredStock = await tx.stock.findFirst({
-        where: {
-          AND: [
-            { symbol: normalizedSymbol },
-            { exchange }
-          ]
-        }
-      })
-    }
-
-    if (recoveredStock) {
-      await this.logger.logSystemEvent("ORDER_STOCK_RECOVERED", "Recovered stock via secondary lookup", {
-        recoveredStockId: recoveredStock.id,
+    if (recoveredBySymbol) {
+      await this.logger.logSystemEvent("ORDER_STOCK_RECOVERED", "Recovered stock via symbol + exchange", {
+        recoveredStockId: recoveredBySymbol.id,
         token,
-        exchange
+        instrumentId: finalInstrumentId
       })
-      return recoveredStock
+      return recoveredBySymbol
     }
 
-    let watchlistItem: WatchlistItem | null = null
-
-    if (token != null) {
-      watchlistItem = await tx.watchlistItem.findFirst({ where: { token } })
-    }
-
-    if (!watchlistItem) {
-      watchlistItem = await tx.watchlistItem.findFirst({
-        where: {
-          symbol: input.symbol,
-          exchange
+    const parseExpiry = (value?: string | null): Date | undefined => {
+      if (!value) return undefined
+      try {
+        if (/^\d{8}$/.test(value)) {
+          const year = parseInt(value.substring(0, 4), 10)
+          const month = parseInt(value.substring(4, 6), 10) - 1
+          const day = parseInt(value.substring(6, 8), 10)
+          const date = new Date(year, month, day)
+          return Number.isNaN(date.getTime()) ? undefined : date
         }
-      })
+
+        const date = new Date(value)
+        return Number.isNaN(date.getTime()) ? undefined : date
+      } catch {
+        return undefined
+      }
     }
 
-    const ltpValue = watchlistItem?.ltp ?? 0
-    const instrumentToken = watchlistItem?.token ?? token ?? undefined
-    const instrumentId = input.instrumentId?.trim()
-      ? input.instrumentId
-      : `${exchange}-${instrumentToken ?? normalizedSymbol}`
+    const ltpValue = input.ltp ?? input.price ?? input.close ?? 0
+    const closeValue = input.close ?? ltpValue
+    const strikePriceDecimal = input.strikePrice != null ? new Prisma.Decimal(input.strikePrice) : undefined
+    const expiryDate = parseExpiry(input.expiry)
 
-    const stockData = {
-      instrumentId,
+    const stockPayload: Prisma.StockUncheckedCreateInput = {
+      instrumentId: finalInstrumentId,
       symbol: normalizedSymbol,
       exchange,
       ticker: normalizedSymbol,
-      name: watchlistItem?.name || input.symbol,
-      segment: watchlistItem?.segment || input.segment || exchange,
+      name: input.name || input.symbol,
+      segment,
+      token: token ?? undefined,
       ltp: ltpValue,
-      close: watchlistItem?.close ?? ltpValue,
-      token: instrumentToken,
-      strikePrice: watchlistItem?.strikePrice ?? undefined,
-      optionType: watchlistItem?.optionType ?? undefined,
-      expiry: watchlistItem?.expiry ?? undefined,
-      lot_size: watchlistItem?.lotSize ?? undefined,
+      close: closeValue,
       open: ltpValue,
       high: ltpValue,
       low: ltpValue,
       volume: 0,
       change: 0,
       changePercent: 0,
-      isActive: true
+      isActive: true,
+      strikePrice: strikePriceDecimal,
+      optionType: input.optionType as any,
+      expiry: expiryDate,
+      lot_size: input.lotSize ?? undefined
     }
 
     try {
-      const createdStock = await tx.stock.create({ data: stockData })
-
-      await this.logger.logSystemEvent("ORDER_STOCK_CREATED", "Created fallback stock for order", {
-        stockId: createdStock.id,
-        token: instrumentToken,
-        exchange,
-        source: watchlistItem ? "watchlist" : "synthetic"
+      const created = await tx.stock.create({ data: stockPayload })
+      await this.logger.logSystemEvent("ORDER_STOCK_CREATED", "Created synthetic stock for order", {
+        stockId: created.id,
+        token,
+        instrumentId: finalInstrumentId,
+        source: 'order-metadata'
       })
-
-      return createdStock
+      return created
     } catch (error: any) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        const conflictClauses: Prisma.StockWhereInput[] = []
-
-        if (instrumentToken != null) {
-          conflictClauses.push({ token: instrumentToken })
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const conflictLookup: Prisma.StockWhereInput[] = []
+        if (token != null) {
+          conflictLookup.push({ token })
+        }
+        if (finalInstrumentId) {
+          conflictLookup.push({ instrumentId: finalInstrumentId })
         }
 
-        conflictClauses.push({ instrumentId })
-
-        const conflictRecovery = await tx.stock.findFirst({
+        const recovered = await tx.stock.findFirst({
           where: {
-            OR: conflictClauses
+            OR: conflictLookup
           }
         })
 
-        if (conflictRecovery) {
+        if (recovered) {
           await this.logger.logSystemEvent("ORDER_STOCK_RECOVERED", "Recovered stock after unique constraint", {
-            recoveredStockId: conflictRecovery.id,
-            token: instrumentToken,
-            instrumentId
+            recoveredStockId: recovered.id,
+            token,
+            instrumentId: finalInstrumentId
           })
-          return conflictRecovery
+          return recovered
         }
       }
 
       const recoveryError = error instanceof Error ? error : new Error(String(error))
       await this.logger.error("ORDER_STOCK_CREATE_FAILED", "Failed to create fallback stock", recoveryError, {
-        instrumentId,
-        symbol: input.symbol,
-        exchange
+        token,
+        instrumentId: finalInstrumentId,
+        exchange,
+        symbol: input.symbol
       })
 
       throw new Error(`Unable to prepare stock record for ${input.symbol}. Please retry.`)

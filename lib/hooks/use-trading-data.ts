@@ -259,6 +259,7 @@ const GET_USER_WATCHLIST = gql`
             edges {
               node {
                 id # This is the watchlistItemId
+                stockId
                 token
                 symbol
                 exchange
@@ -500,7 +501,7 @@ async function createOrUpdatePosition(apolloClient: any, executedOrder: { tradin
 // -----------------------------
 
 export function usePortfolio(userId?: string, userName?: string | null, userEmail?: string | null) {
-  const { data, refetch, loading, error } = useQuery(GET_ACCOUNT_BY_USER, { 
+  const { data, refetch, loading, error } = useQuery<any>(GET_ACCOUNT_BY_USER, { 
     variables: { userId: userId ?? "" }, 
     skip: !userId, 
     errorPolicy: "all",
@@ -528,7 +529,7 @@ export function usePortfolio(userId?: string, userName?: string | null, userEmai
 
 export function useUserWatchlist(userId?: string) {
   const tradingAccountId = useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery(GET_USER_WATCHLIST, {
+  const { data, loading, error, refetch } = useQuery<any>(GET_USER_WATCHLIST, {
     variables: { userId: userId ?? "" },
     skip: !userId,
     errorPolicy: "all",
@@ -586,6 +587,7 @@ export function useUserWatchlist(userId?: string) {
             const transformedItem = {
               watchlistItemId: item.id,
               id: item.id, // Use WatchlistItem.id as item identifier
+              stockId: item.stockId || null,
               instrumentId,
               token: item.token ? Number(item.token) : undefined,
               symbol: item.symbol || 'UNKNOWN', // Fallback for null/undefined
@@ -593,11 +595,13 @@ export function useUserWatchlist(userId?: string) {
               ltp: toNumber(item.ltp),
               close: toNumber(item.close),
               exchange: item.exchange || 'NSE', // Fallback for null/undefined
-              segment: item.segment || 'NSE', // Fallback for null/undefined
+              segment: item.segment || item.exchange || 'NSE', // Fallback for null/undefined
               strikePrice: item.strikePrice != null ? toNumber(item.strikePrice) : undefined,
               optionType: item.optionType,
               expiry: item.expiry,
-              lotSize: item.lotSize,
+              lotSize: item.lotSize != null ? toNumber(item.lotSize) : undefined,
+              lot_size: item.lotSize != null ? toNumber(item.lotSize) : undefined,
+              metadataSource: 'watchlist-item'
             }
 
             // Warn if token is missing - this is required for WebSocket price updates
@@ -658,13 +662,13 @@ export function useUserWatchlist(userId?: string) {
 
 
 function useAccountId(userId?: string) {
-  const { data } = useQuery(GET_ACCOUNT_BY_USER, { variables: { userId: userId ?? "" }, skip: !userId })
+  const { data } = useQuery<any>(GET_ACCOUNT_BY_USER, { variables: { userId: userId ?? "" }, skip: !userId })
   return data?.trading_accountsCollection?.edges?.[0]?.node?.id as string | undefined
 }
 
 export function useOrders(userId?: string, tradingAccountIdOverride?: string) {
   const tradingAccountId = tradingAccountIdOverride || useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery(GET_ORDERS, {
+  const { data, loading, error, refetch } = useQuery<any>(GET_ORDERS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
     errorPolicy: "all",
@@ -681,7 +685,7 @@ export function useOrders(userId?: string, tradingAccountIdOverride?: string) {
 
 export function usePositions(userId?: string, tradingAccountIdOverride?: string) {
   const tradingAccountId = tradingAccountIdOverride || useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery(GET_POSITIONS, {
+  const { data, loading, error, refetch } = useQuery<any>(GET_POSITIONS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
     errorPolicy: "all",
@@ -711,7 +715,7 @@ export function usePositions(userId?: string, tradingAccountIdOverride?: string)
 
 export function useOrdersAndPositions(userId?: string, tradingAccountIdOverride?: string) {
   const tradingAccountId = tradingAccountIdOverride || useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery(GET_ORDERS_AND_POSITIONS, {
+  const { data, loading, error, refetch } = useQuery<any>(GET_ORDERS_AND_POSITIONS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
     errorPolicy: "all",
@@ -752,7 +756,7 @@ export function useOrdersAndPositions(userId?: string, tradingAccountIdOverride?
 }
 
 export function useTransactions(tradingAccountId?: string) {
-  const { data, loading, error, refetch } = useQuery(GET_TRANSACTIONS, { 
+  const { data, loading, error, refetch } = useQuery<any>(GET_TRANSACTIONS, {
     variables: { tradingAccountId: tradingAccountId ?? "" },
     skip: !tradingAccountId,
     errorPolicy: "all",
@@ -776,7 +780,7 @@ export function useTransactions(tradingAccountId?: string) {
 
 export async function searchStocks(query: string) {
   try {
-    const { data } = await client.query({ query: SEARCH_STOCKS, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
+    const { data } = await client.query<any>({ query: SEARCH_STOCKS, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
     return data?.stockCollection?.edges?.map((e: any) => ({
       ...e.node,
       ltp: toNumber(e.node.ltp),
@@ -796,7 +800,7 @@ export async function searchStocks(query: string) {
 
 export async function searchEquities(query: string) {
   try {
-    const { data } = await client.query({ query: SEARCH_STOCKS_EQUITY, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
+    const { data } = await client.query<any>({ query: SEARCH_STOCKS_EQUITY, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
     return data?.stockCollection?.edges?.map((e: any) => ({
       ...e.node,
       ltp: toNumber(e.node.ltp),
@@ -812,7 +816,7 @@ export async function searchEquities(query: string) {
 
 export async function searchFutures(query: string) {
   try {
-    const { data } = await client.query({ query: SEARCH_STOCKS_FUTURES, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
+    const { data } = await client.query<any>({ query: SEARCH_STOCKS_FUTURES, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
     return data?.stockCollection?.edges?.map((e: any) => ({
       ...e.node,
       ltp: toNumber(e.node.ltp),
@@ -828,7 +832,7 @@ export async function searchFutures(query: string) {
 
 export async function searchOptions(query: string) {
   try {
-    const { data } = await client.query({ query: SEARCH_STOCKS_OPTIONS, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
+    const { data } = await client.query<any>({ query: SEARCH_STOCKS_OPTIONS, variables: { query: `%${query}%` }, fetchPolicy: "network-only" })
     return data?.stockCollection?.edges?.map((e: any) => ({
       ...e.node,
       ltp: toNumber(e.node.ltp),
@@ -848,10 +852,10 @@ export async function searchOptions(query: string) {
 export async function addStockToWatchlist(userId: string, stockId: string, watchlistId?: string | null) {
   let finalWatchlistId = watchlistId;
   if (!finalWatchlistId) {
-    const { data: wlData } = await client.query({ query: GET_USER_WATCHLIST, variables: { userId } });
+    const { data: wlData } = await client.query<any>({ query: GET_USER_WATCHLIST, variables: { userId } });
     finalWatchlistId = wlData?.watchlistCollection?.edges?.[0]?.node?.id;
     if (!finalWatchlistId) {
-      const { data: newWl } = await client.mutate({ mutation: CREATE_WATCHLIST, variables: { userId, name: "My Watchlist" } });
+      const { data: newWl } = await client.mutate<any>({ mutation: CREATE_WATCHLIST, variables: { userId, name: "My Watchlist" } });
       finalWatchlistId = newWl?.insertIntowatchlistCollection?.records?.[0]?.id;
     }
   }
@@ -894,7 +898,32 @@ function computeRequiredMargin(segment: string | undefined, turnover: number, pr
   return turnover
 }
 
-export async function placeOrder(orderData: { userId?: string, userName?: string | null, userEmail?: string | null, tradingAccountId?: string, symbol: string, stockId: string, instrumentId: string, quantity: number, price: number | null, orderType: OrderType, orderSide: OrderSide, productType?: string, segment?: string, session?: any }) {
+export async function placeOrder(orderData: {
+  userId?: string
+  userName?: string | null
+  userEmail?: string | null
+  tradingAccountId?: string
+  symbol: string
+  stockId?: string | null
+  instrumentId?: string | null
+  token?: number | null
+  quantity: number
+  price: number | null
+  orderType: OrderType
+  orderSide: OrderSide
+  productType?: string
+  exchange?: string | null
+  segment?: string | null
+  name?: string | null
+  ltp?: number | null
+  close?: number | null
+  strikePrice?: number | null
+  optionType?: string | null
+  expiry?: string | null
+  lotSize?: number | null
+  watchlistItemId?: string | null
+  session?: any
+}) {
     const logger = orderData.session ? createLoggerFromSession(orderData.session, orderData.tradingAccountId) : null
     
     try {
@@ -917,15 +946,25 @@ export async function placeOrder(orderData: { userId?: string, userName?: string
                 userId: orderData.userId,
                 userName: orderData.userName,
                 userEmail: orderData.userEmail,
-                stockId: orderData.stockId,
-                instrumentId: orderData.instrumentId,
+                stockId: orderData.stockId || undefined,
+                instrumentId: orderData.instrumentId || undefined,
+                token: orderData.token ?? undefined,
                 symbol: orderData.symbol,
                 quantity: orderData.quantity,
                 price: orderData.price,
                 orderType: orderData.orderType,
                 orderSide: orderData.orderSide,
                 productType: normalizedProductType ?? "MIS",
-                segment: orderData.segment
+                segment: orderData.segment || orderData.exchange,
+                exchange: orderData.exchange,
+                name: orderData.name,
+                ltp: orderData.ltp ?? undefined,
+                close: orderData.close ?? undefined,
+                strikePrice: orderData.strikePrice ?? undefined,
+                optionType: orderData.optionType ?? undefined,
+                expiry: orderData.expiry ?? undefined,
+                lotSize: orderData.lotSize ?? undefined,
+                watchlistItemId: orderData.watchlistItemId ?? undefined
             })
         })
 

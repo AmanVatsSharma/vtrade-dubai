@@ -141,6 +141,14 @@ This document describes the migration of the watchlist system to use the new mar
 10. **`lib/repositories/OrderRepository.ts`**
     - Exposes stock LTP for cancellation margin fallback
 
+11. **`lib/hooks/use-trading-data.ts`**
+    - Sends watchlist metadata (token, segment, lot size) directly for order placement
+    - Drops dependency on pre-fetched `Stock` records in the client layer
+
+12. **`components/OrderDialog.tsx`**
+    - Normalizes watchlist items into order-ready payloads with graceful fallbacks
+    - Builds order requests purely from watchlist metadata (instrumentId/token)
+
 ## Search API Endpoints
 
 ### Base URL
@@ -399,6 +407,7 @@ If issues arise:
 
 - **2025-10-31** — Auto-upsert `Stock` entries during watchlist item creation and add order-execution fallback that rebuilds missing stocks before blocking funds.
 - **2025-10-31** — Ensure order cancellation can reuse live `ltp` data by selecting it in repository helpers.
+- **2025-10-31** — Orders now flow directly from watchlist metadata (token/instrumentId) without requiring preloaded `Stock` records in the client.
 
 ## Support
 

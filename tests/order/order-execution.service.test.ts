@@ -32,7 +32,12 @@ describe("OrderExecutionService stock resolution", () => {
     orderSide: OrderSide.BUY,
     productType: "MIS",
     segment: "NSE",
-    lotSize: 1
+    exchange: "NSE",
+    lotSize: 1,
+    token: 123456,
+    ltp: 2500,
+    close: 2495,
+    name: "Reliance Industries"
   }
 
   it("returns existing stock when found by primary id", async () => {
@@ -45,9 +50,6 @@ describe("OrderExecutionService stock resolution", () => {
         findUnique: jest.fn().mockResolvedValue(existingStock),
         findFirst: jest.fn(),
         create: jest.fn()
-      },
-      watchlistItem: {
-        findFirst: jest.fn()
       }
     }
 
@@ -69,13 +71,10 @@ describe("OrderExecutionService stock resolution", () => {
         findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValueOnce(recoveredStock),
         create: jest.fn()
-      },
-      watchlistItem: {
-        findFirst: jest.fn()
       }
     }
 
-    const input = { ...baseInput, stockId: "missing", instrumentId: "NSE_EQ-555555" }
+    const input = { ...baseInput, stockId: "missing", instrumentId: "NSE_EQ-555555", token: 555555 }
 
     const result = await (service as any).ensureStockForOrder(tx, input)
 
@@ -91,20 +90,6 @@ describe("OrderExecutionService stock resolution", () => {
 
     const createdStock = { id: "stock-3" }
 
-    const watchlistMeta = {
-      token: 789012,
-      name: "Reliance Industries",
-      symbol: "RELIANCE",
-      exchange: "NSE_EQ",
-      segment: "NSE_EQ",
-      ltp: 2500,
-      close: 2490,
-      strikePrice: null,
-      optionType: null,
-      expiry: null,
-      lotSize: 1
-    }
-
     const tx = {
       stock: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -113,17 +98,23 @@ describe("OrderExecutionService stock resolution", () => {
           .mockResolvedValueOnce(null)
           .mockResolvedValueOnce(null),
         create: jest.fn().mockResolvedValue(createdStock)
-      },
-      watchlistItem: {
-        findFirst: jest.fn()
-          .mockResolvedValueOnce(watchlistMeta)
       }
     }
 
     const input = {
       ...baseInput,
       stockId: "missing",
-      instrumentId: "NSE_EQ-789012"
+      instrumentId: "NSE_EQ-789012",
+      token: 789012,
+      exchange: "NSE_EQ",
+      segment: "NSE_EQ",
+      ltp: 2505,
+      close: 2500,
+      lotSize: 1,
+      strikePrice: null,
+      optionType: null,
+      expiry: null,
+      name: "Reliance Industries"
     }
 
     const result = await (service as any).ensureStockForOrder(tx, input)
