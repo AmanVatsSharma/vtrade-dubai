@@ -18,7 +18,8 @@ import { PositionRepository } from "@/lib/repositories/PositionRepository"
 import { FundManagementService } from "@/lib/services/funds/FundManagementService"
 import { MarginCalculator } from "@/lib/services/risk/MarginCalculator"
 import { TradingLogger } from "@/lib/services/logging/TradingLogger"
-import { OrderType, OrderSide } from "@prisma/client"
+import { OrderType, OrderSide, OrderStatus, Prisma } from "@prisma/client"
+import type { Stock, WatchlistItem } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { PriceResolutionService } from "@/lib/services/order/PriceResolutionService"
 import { MarketRealismService } from "@/lib/services/order/MarketRealismService"
@@ -170,22 +171,13 @@ export class OrderExecutionService {
 
         // Create order
         console.log("📝 [ORDER-EXECUTION-SERVICE] Creating order record")
-        
-        // Verify stockId exists in database to prevent foreign key constraint errors
-        const stockExists = await tx.stock.findUnique({
-          where: { id: input.stockId },
-          select: { id: true }
-        })
-        
-        if (!stockExists) {
-          console.error("❌ [ORDER-EXECUTION-SERVICE] Stock not found in database:", input.stockId)
-          throw new Error(`Stock not found: ${input.symbol}. Please refresh stock data.`)
-        }
-        
+
+        const stockRecord = await this.ensureStockForOrder(tx, input)
+
         const order = await this.orderRepo.create(
           {
             tradingAccountId: input.tradingAccountId,
-            stockId: input.stockId,
+            stockId: stockRecord.id,
             symbol: input.symbol,
             quantity: input.quantity,
             price: executionPrice,
@@ -215,26 +207,28 @@ export class OrderExecutionService {
           orderId: order.id,
           marginBlocked: marginCalc.requiredMargin,
           chargesDeducted: marginCalc.totalCharges,
-          executionPrice
+          executionPrice,
+          stockId: stockRecord.id
         }
       })
 
       await this.logger.logOrder("ORDER_PLACED", `Order placed successfully: ${result.orderId}`, {
         orderId: result.orderId,
         marginBlocked: result.marginBlocked,
-        chargesDeducted: result.chargesDeducted
+        chargesDeducted: result.chargesDeducted,
+        stockId: result.stockId
       })
 
       // Step 6: Execute synchronously and return executed status to client
       console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order synchronously (no background)")
       try {
-        await this.executeOrder(input.symbol, input, result.executionPrice, result.orderId)
+        await this.executeOrder(input.symbol, { ...input, stockId: result.stockId }, result.executionPrice, result.orderId)
       } catch (execError: any) {
         console.error("❌ [ORDER-EXECUTION-SERVICE] Synchronous execution failed:", execError)
         // Best-effort cleanup: mark rejected and release margin
         try {
           await executeInTransaction(async (tx) => {
-            await this.orderRepo.update(result.orderId, { status: 'REJECTED' }, tx)
+            await this.orderRepo.update(result.orderId, { status: OrderStatus.CANCELLED }, tx)
             const marginCalc = await this.marginCalculator.calculateMargin(
               input.segment,
               input.productType,
@@ -310,7 +304,7 @@ export class OrderExecutionService {
       try {
         await executeInTransaction(async (tx) => {
           // Mark as rejected
-          await this.orderRepo.update(orderId, { status: 'REJECTED' }, tx)
+          await this.orderRepo.update(orderId, { status: OrderStatus.CANCELLED }, tx)
           
           // Calculate and release margin
           const marginCalc = await this.marginCalculator.calculateMargin(
@@ -420,6 +414,182 @@ export class OrderExecutionService {
         orderId
       })
       throw error
+    }
+  }
+
+  private parseInstrumentIdentifier(identifier?: string | null): { exchange: string | null; token: number | null } {
+    if (!identifier) {
+      return { exchange: null, token: null }
+    }
+
+    const trimmed = identifier.trim()
+    if (!trimmed) {
+      return { exchange: null, token: null }
+    }
+
+    const lastHyphenIndex = trimmed.lastIndexOf("-")
+    if (lastHyphenIndex === -1) {
+      return { exchange: trimmed || null, token: null }
+    }
+
+    const tokenCandidate = Number(trimmed.substring(lastHyphenIndex + 1))
+    const exchangeCandidate = trimmed.substring(0, lastHyphenIndex) || null
+
+    return {
+      exchange: exchangeCandidate,
+      token: Number.isFinite(tokenCandidate) ? tokenCandidate : null
+    }
+  }
+
+  private async ensureStockForOrder(
+    tx: Prisma.TransactionClient,
+    input: PlaceOrderInput
+  ): Promise<Stock> {
+    const existingStock = await tx.stock.findUnique({ where: { id: input.stockId } })
+
+    if (existingStock) {
+      return existingStock
+    }
+
+    await this.logger.warn("ORDER_STOCK_RECOVERY", "Stock missing for order. Attempting recovery.", {
+      requestedStockId: input.stockId,
+      symbol: input.symbol,
+      instrumentId: input.instrumentId
+    })
+
+    const { exchange: parsedExchange, token } = this.parseInstrumentIdentifier(input.instrumentId)
+    const normalizedSymbol = input.symbol?.toUpperCase() || "UNKNOWN"
+    const exchange = parsedExchange || input.segment || "NSE"
+
+    let recoveredStock: Stock | null = null
+
+    const primaryLookupClauses: Prisma.StockWhereInput[] = []
+
+    if (token != null) {
+      primaryLookupClauses.push({ token })
+    }
+
+    if (input.instrumentId && input.instrumentId.trim().length > 0) {
+      primaryLookupClauses.push({ instrumentId: input.instrumentId })
+    }
+
+    if (primaryLookupClauses.length > 0) {
+      recoveredStock = await tx.stock.findFirst({
+        where: {
+          OR: primaryLookupClauses
+        }
+      })
+    }
+
+    if (!recoveredStock) {
+      recoveredStock = await tx.stock.findFirst({
+        where: {
+          AND: [
+            { symbol: normalizedSymbol },
+            { exchange }
+          ]
+        }
+      })
+    }
+
+    if (recoveredStock) {
+      await this.logger.logSystemEvent("ORDER_STOCK_RECOVERED", "Recovered stock via secondary lookup", {
+        recoveredStockId: recoveredStock.id,
+        token,
+        exchange
+      })
+      return recoveredStock
+    }
+
+    let watchlistItem: WatchlistItem | null = null
+
+    if (token != null) {
+      watchlistItem = await tx.watchlistItem.findFirst({ where: { token } })
+    }
+
+    if (!watchlistItem) {
+      watchlistItem = await tx.watchlistItem.findFirst({
+        where: {
+          symbol: input.symbol,
+          exchange
+        }
+      })
+    }
+
+    const ltpValue = watchlistItem?.ltp ?? 0
+    const instrumentToken = watchlistItem?.token ?? token ?? undefined
+    const instrumentId = input.instrumentId?.trim()
+      ? input.instrumentId
+      : `${exchange}-${instrumentToken ?? normalizedSymbol}`
+
+    const stockData = {
+      instrumentId,
+      symbol: normalizedSymbol,
+      exchange,
+      ticker: normalizedSymbol,
+      name: watchlistItem?.name || input.symbol,
+      segment: watchlistItem?.segment || input.segment || exchange,
+      ltp: ltpValue,
+      close: watchlistItem?.close ?? ltpValue,
+      token: instrumentToken,
+      strikePrice: watchlistItem?.strikePrice ?? undefined,
+      optionType: watchlistItem?.optionType ?? undefined,
+      expiry: watchlistItem?.expiry ?? undefined,
+      lot_size: watchlistItem?.lotSize ?? undefined,
+      open: ltpValue,
+      high: ltpValue,
+      low: ltpValue,
+      volume: 0,
+      change: 0,
+      changePercent: 0,
+      isActive: true
+    }
+
+    try {
+      const createdStock = await tx.stock.create({ data: stockData })
+
+      await this.logger.logSystemEvent("ORDER_STOCK_CREATED", "Created fallback stock for order", {
+        stockId: createdStock.id,
+        token: instrumentToken,
+        exchange,
+        source: watchlistItem ? "watchlist" : "synthetic"
+      })
+
+      return createdStock
+    } catch (error: any) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const conflictClauses: Prisma.StockWhereInput[] = []
+
+        if (instrumentToken != null) {
+          conflictClauses.push({ token: instrumentToken })
+        }
+
+        conflictClauses.push({ instrumentId })
+
+        const conflictRecovery = await tx.stock.findFirst({
+          where: {
+            OR: conflictClauses
+          }
+        })
+
+        if (conflictRecovery) {
+          await this.logger.logSystemEvent("ORDER_STOCK_RECOVERED", "Recovered stock after unique constraint", {
+            recoveredStockId: conflictRecovery.id,
+            token: instrumentToken,
+            instrumentId
+          })
+          return conflictRecovery
+        }
+      }
+
+      const recoveryError = error instanceof Error ? error : new Error(String(error))
+      await this.logger.error("ORDER_STOCK_CREATE_FAILED", "Failed to create fallback stock", recoveryError, {
+        instrumentId,
+        symbol: input.symbol,
+        exchange
+      })
+
+      throw new Error(`Unable to prepare stock record for ${input.symbol}. Please retry.`)
     }
   }
 

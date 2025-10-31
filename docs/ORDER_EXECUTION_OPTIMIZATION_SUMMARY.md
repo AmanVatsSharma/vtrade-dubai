@@ -97,6 +97,7 @@ This document summarizes the complete order execution optimization implemented t
 - ✅ User warnings in order response
 - ✅ Deprecated old `resolveExecutionPrice` method
 - ✅ Full transparency in execution details
+- ✅ Automatically rebuilds missing `Stock` records using watchlist metadata before blocking funds
 
 **Order Flow**:
 1. Validate order parameters

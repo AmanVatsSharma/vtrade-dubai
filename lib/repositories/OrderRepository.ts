@@ -194,7 +194,8 @@ export class OrderRepository {
             instrumentId: true,
             symbol: true,
             segment: true,
-            lot_size: true
+            lot_size: true,
+            ltp: true
           }
         }
       }

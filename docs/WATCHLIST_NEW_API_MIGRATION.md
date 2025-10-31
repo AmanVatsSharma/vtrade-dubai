@@ -134,6 +134,13 @@ This document describes the migration of the watchlist system to use the new mar
    - Accepts token-based creation
    - Validates either stockId or token
 
+9. **`lib/services/order/OrderExecutionService.ts`**
+   - Recovers or synthesizes missing `Stock` records before placing orders
+   - Logs stock recovery and creation events for audit trail
+
+10. **`lib/repositories/OrderRepository.ts`**
+    - Exposes stock LTP for cancellation margin fallback
+
 ## Search API Endpoints
 
 ### Base URL
@@ -387,6 +394,11 @@ If issues arise:
 ✅ Tab filtering works correctly  
 ✅ No console errors  
 ✅ All existing functionality preserved  
+
+## Changelog
+
+- **2025-10-31** — Auto-upsert `Stock` entries during watchlist item creation and add order-execution fallback that rebuilds missing stocks before blocking funds.
+- **2025-10-31** — Ensure order cancellation can reuse live `ltp` data by selecting it in repository helpers.
 
 ## Support
 

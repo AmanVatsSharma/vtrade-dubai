@@ -7,6 +7,105 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { withTransaction, PrismaTransactionClient } from "@/lib/database-transactions"
 
+interface UpsertStockInput {
+  token: number
+  symbol: string
+  exchange: string
+  segment?: string
+  name: string
+  ltp?: number
+  close?: number
+  strikePrice?: number
+  optionType?: string
+  expiry?: Date | null
+  lotSize?: number
+}
+
+async function ensureStockRecord(
+  tx: PrismaTransactionClient,
+  input: UpsertStockInput
+) {
+  const instrumentId = `${input.exchange}-${input.token}`
+  const segment = input.segment || input.exchange || "NSE"
+  const normalizedSymbol = (input.symbol || "UNKNOWN").toUpperCase()
+  const ticker = normalizedSymbol
+
+  const existingStock = await tx.stock.findFirst({
+    where: {
+      OR: [
+        { token: input.token },
+        { instrumentId },
+        {
+          AND: [
+            { symbol: normalizedSymbol },
+            { exchange: input.exchange }
+          ]
+        }
+      ]
+    }
+  })
+
+  const stockData = {
+    instrumentId,
+    symbol: normalizedSymbol,
+    exchange: input.exchange,
+    ticker,
+    name: input.name,
+    segment,
+    token: input.token,
+    strikePrice: input.strikePrice != null ? new Prisma.Decimal(input.strikePrice) : undefined,
+    optionType: input.optionType as any,
+    expiry: input.expiry ?? undefined,
+    lot_size: input.lotSize ?? undefined
+  }
+
+  if (input.ltp !== undefined) {
+    Object.assign(stockData, { ltp: input.ltp, open: input.ltp, high: input.ltp, low: input.ltp })
+  }
+
+  if (input.close !== undefined) {
+    Object.assign(stockData, { close: input.close })
+  }
+
+  if (existingStock) {
+    console.log("🔁 [WATCHLIST-TX] Updating existing stock record", {
+      stockId: existingStock.id,
+      instrumentId,
+      token: input.token
+    })
+
+    const updated = await tx.stock.update({
+      where: { id: existingStock.id },
+      data: {
+        ...stockData,
+        updatedAt: new Date()
+      }
+    })
+
+    return updated
+  }
+
+  console.log("🆕 [WATCHLIST-TX] Creating new stock record", {
+    instrumentId,
+    token: input.token
+  })
+
+  const created = await tx.stock.create({
+    data: {
+      ...stockData,
+      open: (stockData as any).ltp ?? 0,
+      high: (stockData as any).ltp ?? 0,
+      low: (stockData as any).ltp ?? 0,
+      volume: 0,
+      change: 0,
+      changePercent: 0,
+      isActive: true
+    }
+  })
+
+  return created
+}
+
 /**
  * Transaction wrapper for creating a watchlist
  */
@@ -310,12 +409,26 @@ export const withAddWatchlistItemTransaction = async (
       }
     }
 
+    const stockRecord = await ensureStockRecord(tx, {
+      token: data.token,
+      symbol: data.symbol,
+      exchange: data.exchange,
+      segment: data.segment,
+      name: data.name,
+      ltp: data.ltp,
+      close: data.close,
+      strikePrice: data.strikePrice,
+      optionType: data.optionType,
+      expiry: expiryDate,
+      lotSize: data.lotSize
+    })
+
     // Create WatchlistItem with all instrument data stored directly
     // Note: Using 'as any' because Prisma client needs to be regenerated after schema update
     const item = await tx.watchlistItem.create({
       data: {
         watchlistId,
-        stockId: data.stockId || undefined, // Optional, for backward compatibility
+        stockId: stockRecord.id,
         token: data.token,
         symbol: data.symbol,
         exchange: data.exchange,
@@ -335,6 +448,7 @@ export const withAddWatchlistItemTransaction = async (
       select: {
         id: true,
         watchlistId: true,
+        stockId: true,
         token: true,
         symbol: true,
         exchange: true,
