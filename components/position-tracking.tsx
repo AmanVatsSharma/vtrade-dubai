@@ -62,9 +62,34 @@ const POSITION_FILTERS = [
 
 type FilterType = typeof POSITION_FILTERS[number]['id']
 
-// Helper function to get instrumentId from position (handles both direct and nested structures)
+// Helper: instrumentId (handles both direct and nested structures)
 const getInstrumentId = (position: Position): string | null => {
   return position.stock?.instrumentId ?? position.instrumentId ?? null
+}
+
+// Helper: parse token from instrumentId (e.g., "NSE_EQ-26000" or "NFO-...-123456")
+const parseTokenFromInstrumentId = (instrumentId?: string | null): number | null => {
+  try {
+    if (!instrumentId) return null
+    const parts = instrumentId.split('-')
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const maybe = Number(parts[i])
+      if (Number.isFinite(maybe) && maybe > 0) return maybe
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Helper: compute quote key for a position (WebSocket quotes are keyed by token string)
+const getQuoteKeyForPosition = (position: Position): string | null => {
+  const anyPos: any = position as any
+  const token: number | undefined = anyPos?.stock?.token ?? anyPos?.token
+  if (typeof token === 'number' && Number.isFinite(token)) return String(token)
+  const instrumentId = getInstrumentId(position)
+  const parsed = parseTokenFromInstrumentId(instrumentId)
+  return parsed != null ? String(parsed) : instrumentId
 }
 
 // Swipeable Position Card Component
@@ -411,8 +436,8 @@ export function PositionTracking({
         day += pos.unrealizedPnL ?? 0
         if (pos.unrealizedPnL > 0) winners++
       } else {
-        const instrumentId = getInstrumentId(pos)
-        const quote = instrumentId ? quotes[instrumentId] : null
+        const quoteKey = getQuoteKeyForPosition(pos)
+        const quote = quoteKey ? quotes[quoteKey] : null
         // Use display_price for live animated position updates
         const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
         const pnl = (ltp - pos.averagePrice) * pos.quantity
@@ -443,14 +468,14 @@ export function PositionTracking({
           return pos.quantity < 0
         case 'profit':
           if (pos.quantity === 0) return pos.unrealizedPnL > 0
-          const instrumentId = getInstrumentId(pos)
-          const quote = instrumentId ? quotes[instrumentId] : null
+          const quoteKey = getQuoteKeyForPosition(pos)
+          const quote = quoteKey ? quotes[quoteKey] : null
           const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
           return (ltp - pos.averagePrice) * pos.quantity > 0
         case 'loss':
           if (pos.quantity === 0) return pos.unrealizedPnL < 0
-          const instrumentIdLoss = getInstrumentId(pos)
-          const quoteLoss = instrumentIdLoss ? quotes[instrumentIdLoss] : null
+          const quoteKeyLoss = getQuoteKeyForPosition(pos)
+          const quoteLoss = quoteKeyLoss ? quotes[quoteKeyLoss] : null
           const ltpLoss = (((quoteLoss as any)?.display_price ?? quoteLoss?.last_trade_price) ?? pos.averagePrice)
           return (ltpLoss - pos.averagePrice) * pos.quantity < 0
         case 'today':
@@ -470,8 +495,8 @@ export function PositionTracking({
         
         // Get current price for the position being closed
         const position = positions.find(p => p.id === positionId)
-        const instrumentId = position ? getInstrumentId(position) : null
-        const currentLtp = instrumentId ? quotes[instrumentId]?.last_trade_price : undefined
+        const quoteKey = position ? getQuoteKeyForPosition(position) : null
+        const currentLtp = quoteKey ? (quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price : undefined
         
         await closePosition(
           positionId, 
@@ -644,15 +669,15 @@ export function PositionTracking({
                     case 'short': return p.quantity < 0
                     case 'profit': 
                       if (p.quantity === 0) return p.unrealizedPnL > 0
-                      const instrumentId = getInstrumentId(p)
-                      const q = instrumentId ? quotes[instrumentId] : null
-                      const ltp = q?.last_trade_price ?? p.averagePrice
+            const quoteKey = getQuoteKeyForPosition(p)
+            const q = quoteKey ? quotes[quoteKey] : null
+            const ltp = (q as any)?.display_price ?? q?.last_trade_price ?? p.averagePrice
                       return (ltp - p.averagePrice) * p.quantity > 0
                     case 'loss':
                       if (p.quantity === 0) return p.unrealizedPnL < 0
-                      const instrumentIdLoss = getInstrumentId(p)
-                      const ql = instrumentIdLoss ? quotes[instrumentIdLoss] : null
-                      const ltpl = ql?.last_trade_price ?? p.averagePrice
+                      const quoteKeyLoss = getQuoteKeyForPosition(p)
+                      const ql = quoteKeyLoss ? quotes[quoteKeyLoss] : null
+                      const ltpl = (ql as any)?.display_price ?? ql?.last_trade_price ?? p.averagePrice
                       return (ltpl - p.averagePrice) * p.quantity < 0
                     default: return true
                   }
@@ -710,8 +735,8 @@ export function PositionTracking({
       >
         <AnimatePresence mode="popLayout">
           {filteredPositions.map((position) => {
-            const instrumentId = getInstrumentId(position)
-            const quote = instrumentId ? quotes[instrumentId] : null
+            const quoteKey = getQuoteKeyForPosition(position)
+            const quote = quoteKey ? quotes[quoteKey] : null
             
             return (
               <SwipeablePositionCard
