@@ -304,7 +304,7 @@ model WatchlistItem {
   updatedAt   DateTime @default(now()) @updatedAt
   
   // Instrument token from market data API (unique identifier)
-  token          Int?            @unique
+  token          Int?            
   
   // Instrument data stored directly in WatchlistItem (no Stock dependency)
   symbol        String?  @default("UNKNOWN") // Temporarily nullable for migration
