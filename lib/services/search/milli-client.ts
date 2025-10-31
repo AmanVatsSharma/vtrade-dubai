@@ -61,7 +61,6 @@ export interface MilliInstrument {
 
 export interface MilliSearchParams {
   q: string
-  limit?: number
   exchange?: string
   segment?: string
   instrumentType?: string
@@ -73,7 +72,7 @@ export interface MilliSearchParams {
   ltp_only?: boolean
 }
 
-export interface MilliSuggestParams extends Pick<MilliSearchParams, 'q' | 'limit' | 'mode' | 'ltp_only'> {}
+export interface MilliSuggestParams extends Pick<MilliSearchParams, 'q' | 'mode' | 'ltp_only'> {}
 
 export interface MilliFiltersParams extends Omit<MilliSearchParams, 'limit'> {}
 
@@ -111,7 +110,6 @@ function withDefaults<T extends MilliSearchParams | MilliSuggestParams>(params: 
   const p: Record<string, string | number | boolean> = {}
   // Only include supported query params (omit vortexExchange entirely)
   if (params.q) p.q = params.q
-  if (params.limit !== undefined) p.limit = params.limit
   if ('mode' in params && params.mode) p.mode = params.mode
   if ('exchange' in params && params.exchange) p.exchange = params.exchange as string
   if ('segment' in params && params.segment) p.segment = params.segment as string
@@ -213,14 +211,13 @@ export async function telemetrySelection(body: { q: string; symbol: string; inst
   }
 }
 
-export function buildStreamURL(params: { tokens?: Array<number | string> | string; q?: string; ltp_only?: boolean; limit?: number }): string {
+export function buildStreamURL(params: { tokens?: Array<number | string> | string; q?: string; ltp_only?: boolean }): string {
   const url = new URL('/api/milli-search/stream', typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'))
   if (params.tokens) {
     const tokens = Array.isArray(params.tokens) ? params.tokens.join(',') : String(params.tokens)
     url.searchParams.set('tokens', tokens)
   }
   if (params.q) url.searchParams.set('q', params.q)
-  if (params.limit) url.searchParams.set('limit', String(params.limit))
   url.searchParams.set('ltp_only', String(params.ltp_only ?? true))
   try {
     console.log('🔗 [MILLI-CLIENT][SSE-URL]', url.toString())

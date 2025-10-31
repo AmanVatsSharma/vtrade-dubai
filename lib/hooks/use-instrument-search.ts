@@ -34,7 +34,6 @@ export type SearchTab = 'equity' | 'futures' | 'options' | 'commodities';
 export interface UseInstrumentSearchOptions {
   activeTab?: SearchTab;
   debounceMs?: number;
-  limit?: number;
 }
 
 export interface UseInstrumentSearchReturn {
@@ -61,7 +60,6 @@ export function useInstrumentSearch(
   const {
     activeTab = 'equity',
     debounceMs = 300,
-    limit = 20,
   } = options;
 
   const [results, setResults] = useState<MilliInstrument[]>([]);
@@ -92,8 +90,8 @@ export function useInstrumentSearch(
     try {
       // map tab -> milli mode
       const mode: MilliMode = tab === 'equity' ? 'eq' : tab === 'commodities' ? 'commodities' : 'fno'
-      // Use suggest for fast typeahead UX
-      const searchResults = await milliClient.suggest({ q: query, limit, mode, ltp_only: true })
+      // Use suggest for fast typeahead UX (no client-side limit)
+      const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true })
       setResults(searchResults)
       setLoading(false)
     } catch (err: any) {
@@ -103,7 +101,7 @@ export function useInstrumentSearch(
       setLoading(false)
       setResults([])
     }
-  }, [limit]);
+  }, []);
 
   /**
    * Debounced search function

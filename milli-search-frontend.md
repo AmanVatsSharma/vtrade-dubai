@@ -14,7 +14,6 @@ Base - https://marketdata.vedpragya.com
 
 ## Query params (search & suggest)
 - q: string (required)
-- limit: number (search: ≤50, suggest: ≤20)
 - exchange, segment, instrumentType: string (optional)
 - mode: eq|fno|curr|commodities (optional)
 - expiry_from, expiry_to: ISO-like string (YYYY-MM-DD)
@@ -38,10 +37,10 @@ Base - https://marketdata.vedpragya.com
 ## Examples
 ```bash
 # Suggest with LTP and FO-only (external)
-curl "https://marketdata.vedpragya.com/api/search/suggest?q=RELI&ltp_only=true&limit=10"
+curl "https://marketdata.vedpragya.com/api/search/suggest?q=RELI&ltp_only=true"
 
 # Search options in a date/strike window with LTP (external)
-curl "https://marketdata.vedpragya.com/api/search?q=NIFTY&instrumentType=OPTIDX&expiry_from=2025-10-01&expiry_to=2025-10-31&strike_min=20000&strike_max=22000&ltp_only=true&limit=30"
+curl "https://marketdata.vedpragya.com/api/search?q=NIFTY&instrumentType=OPTIDX&expiry_from=2025-10-01&expiry_to=2025-10-31&strike_min=20000&strike_max=22000&ltp_only=true"
 
 # Facets for filters UI (external)
 curl "https://marketdata.vedpragya.com/api/search/filters?segment=NSE"

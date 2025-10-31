@@ -49,7 +49,6 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
   const { results, loading, error, search } = useInstrumentSearch({
     activeTab,
     debounceMs: 300,
-    limit: 20,
   })
   
   console.log('📊 [STOCK-SEARCH] Search results', {
