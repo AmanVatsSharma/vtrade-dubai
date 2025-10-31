@@ -205,6 +205,9 @@ export function useInstrumentSearch(
       const es = new EventSource(url)
       eventSourceRef.current = es
 
+      es.onopen = () => {
+        try { console.log('✅ [USE-INSTRUMENT-SEARCH][SSE] Opened', { url }) } catch {}
+      }
       es.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data)
@@ -218,7 +221,10 @@ export function useInstrumentSearch(
         } catch {}
       }
 
-      es.onerror = () => {
+      es.onerror = (ev) => {
+        try {
+          console.error('❌ [USE-INSTRUMENT-SEARCH][SSE] Error', { url, readyState: es.readyState, event: ev })
+        } catch {}
         es.close()
         if (eventSourceRef.current === es) {
           eventSourceRef.current = null
