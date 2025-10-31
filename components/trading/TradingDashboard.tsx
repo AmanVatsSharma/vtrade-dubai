@@ -172,12 +172,12 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Unified data (realtime takes precedence)
   const orders = useMemo(() => {
-    return realtimeOrdersData && realtimeOrdersData.length > 0 ? realtimeOrdersData : initialOrders
-  }, [realtimeOrdersData, initialOrders])
+    return !isRealtimeOrdersLoading ? (realtimeOrdersData || []) : initialOrders
+  }, [realtimeOrdersData, initialOrders, isRealtimeOrdersLoading])
 
   const positions = useMemo(() => {
-    return realtimePositionsData && realtimePositionsData.length > 0 ? realtimePositionsData : initialPositions
-  }, [realtimePositionsData, initialPositions])
+    return !isRealtimePositionsLoading ? (realtimePositionsData || []) : initialPositions
+  }, [realtimePositionsData, initialPositions, isRealtimePositionsLoading])
 
   const accountUnified = useMemo(() => {
     return realtimeAccountData ? { account: realtimeAccountData } : portfolio

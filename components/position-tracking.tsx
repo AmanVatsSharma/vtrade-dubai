@@ -16,6 +16,8 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { closePosition, updateStopLoss, updateTarget } from "@/lib/hooks/use-trading-data"
+import { useSession } from "next-auth/react"
+import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { cn } from "@/lib/utils"
 import { formatExpiryDateIST, formatDateIST } from "@/lib/date-utils"
 
@@ -415,6 +417,9 @@ export function PositionTracking({
   onPositionUpdate, 
   tradingAccountId 
 }: PositionTrackingProps) {
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const { optimisticClosePosition, mutate: mutatePositions } = useRealtimePositions(userId)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [stopLossDialogOpen, setStopLossDialogOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
@@ -498,6 +503,9 @@ export function PositionTracking({
         const quoteKey = position ? getQuoteKeyForPosition(position) : null
         const currentLtp = quoteKey ? (quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price : undefined
         
+        // Optimistic close: remove the position immediately
+        try { optimisticClosePosition(positionId) } catch {}
+        
         await closePosition(
           positionId, 
           { 
@@ -514,6 +522,8 @@ export function PositionTracking({
           description: "Your position has been closed successfully.",
           className: "bg-green-500 text-white border-0"
         })
+        // Ensure realtime list is synced promptly
+        try { await mutatePositions() } catch {}
       } else if (action === 'stoploss' && value) {
         await updateStopLoss(positionId, value)
         toast({
@@ -538,6 +548,10 @@ export function PositionTracking({
         description: error instanceof Error ? error.message : "Unknown error", 
         variant: "destructive" 
       })
+      // Revert by revalidating if optimistic removal happened
+      if (action === 'close') {
+        try { await mutatePositions() } catch {}
+      }
     } finally {
       setLoading(null)
     }

@@ -493,10 +493,47 @@ export function WatchlistManager({
   // Only block UI before first load. Keep content during refresh.
   if (watchlistsLoading && watchlists.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-sm text-gray-500">Loading watchlists...</p>
+      <div className="space-y-6">
+        {/* Tabs skeleton */}
+        <div className="flex gap-2 overflow-x-auto">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-12 w-36 rounded-xl bg-gray-200 dark:bg-gray-800 animate-pulse"
+            />
+          ))}
+          <div className="h-12 w-10 rounded-lg bg-gray-200 dark:bg-gray-800 animate-pulse" />
+        </div>
+
+        {/* Search skeleton */}
+        <div className="h-11 rounded-xl bg-gray-200 dark:bg-gray-800 animate-pulse" />
+
+        {/* Instrument filter skeleton */}
+        <div className="flex gap-2 overflow-x-auto">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-9 w-24 rounded-lg bg-gray-200 dark:bg-gray-800 animate-pulse"
+            />
+          ))}
+        </div>
+
+        {/* Watchlist item rows skeleton */}
+        <div className="space-y-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-gray-200 dark:border-gray-800 p-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-28 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="h-3 w-40 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                </div>
+                <div className="h-6 w-16 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )
