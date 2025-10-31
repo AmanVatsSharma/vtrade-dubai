@@ -15,10 +15,7 @@ const BASE_URL = (process.env.NEXT_PUBLIC_MARKETDATA_BASE_URL || 'https://market
 const http: AxiosInstance = axios.create({
   baseURL: `${BASE_URL}/api/search`,
   timeout: 10000,
-  withCredentials: false,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  withCredentials: false
 })
 
 export type MilliMode = 'eq' | 'fno' | 'curr' | 'commodities'
