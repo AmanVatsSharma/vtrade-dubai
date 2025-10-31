@@ -283,7 +283,7 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
             ...currentData,
             positions: currentData.positions.map((p: Position) => 
               p.id === positionId ? { ...p, quantity: 0 } : p
-            ).filter((p: Position) => p.quantity !== 0) // Remove closed positions
+            ) // Keep closed positions (qty 0) to show as booked
           }
         },
         false
