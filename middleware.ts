@@ -20,6 +20,9 @@ const publicRoutes = [
   "/api/ready",
   "/api/metrics",
   "/api/auth/*",
+  // Milli-search proxy (public; used by frontend, no auth required)
+  "/api/milli-search",
+  "/api/milli-search/*",
   // Allow console API to handle auth itself (returns 401 JSON)
   // Prevent middleware redirect which breaks client fetch with HTML responses
   "/api/console",
