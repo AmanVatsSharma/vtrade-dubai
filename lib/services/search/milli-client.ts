@@ -6,70 +6,30 @@
  * @created 2025-10-31
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios'
+// fetch-based client (no XHR)
 
 // Base URL for external marketdata API (public, no secret)
 const BASE_URL = (process.env.NEXT_PUBLIC_MARKETDATA_BASE_URL || 'https://marketdata.vedpragya.com').replace(/\/$/, '')
 
-// Axios instance
-const http: AxiosInstance = axios.create({
-  baseURL: `${BASE_URL}/api/search`,
-  timeout: 10000,
-  withCredentials: false
-})
-
-// ---- Debug helpers & interceptors ----
-function formatAxiosError(error: any) {
-  const isAxios = !!(error as any)?.isAxiosError
-  const ae = error as AxiosError
+// ---- Debug helpers (fetch) ----
+function formatFetchDebug(input: RequestInfo | URL, init?: RequestInit) {
+  const url = typeof input === 'string' ? input : (input as URL).toString()
   return {
-    isAxios,
-    message: error?.message,
-    code: ae?.code,
-    url: (ae?.config?.baseURL || '') + (ae?.config?.url || ''),
-    method: ae?.config?.method,
-    params: ae?.config?.params,
-    hasResponse: !!ae?.response,
-    status: ae?.response?.status,
-    statusText: ae?.response?.statusText,
-    corsLikely:
-      typeof window !== 'undefined' && !ae?.response && !!ae?.request,
+    url,
+    method: init?.method || 'GET',
+    mode: init?.mode,
+    credentials: init?.credentials,
   }
 }
 
-http.interceptors.request.use((config) => {
-  try {
-    // Avoid logging secrets; only log path and params
-    console.log('🔎 [MILLI-CLIENT][REQ]', {
-      url: (config.baseURL || '') + (config.url || ''),
-      method: config.method,
-      params: config.params,
-    })
-  } catch {}
-  return config
-})
-
-http.interceptors.response.use(
-  (response) => {
-    try {
-      console.log('✅ [MILLI-CLIENT][RES]', {
-        url: (response.config.baseURL || '') + (response.config.url || ''),
-        status: response.status,
-      })
-    } catch {}
-    return response
-  },
-  (error) => {
-    try {
-      const info = formatAxiosError(error)
-      console.error('❌ [MILLI-CLIENT][ERR]', info)
-      if (info.corsLikely) {
-        console.error('⚠️ [MILLI-CLIENT] Possible CORS issue: Missing Access-Control-Allow-Origin on external API')
-      }
-    } catch {}
-    return Promise.reject(error)
+function formatFetchError(error: any, input: RequestInfo | URL, init?: RequestInit) {
+  const base = formatFetchDebug(input, init)
+  return {
+    ...base,
+    message: error?.message,
+    corsLikely: typeof window !== 'undefined' && error instanceof TypeError,
   }
-)
+}
 
 export type MilliMode = 'eq' | 'fno' | 'curr' | 'commodities'
 
@@ -167,8 +127,15 @@ function withDefaults<T extends MilliSearchParams | MilliSuggestParams>(params: 
 export async function suggest(params: MilliSuggestParams): Promise<MilliInstrument[]> {
   try {
     const qp = withDefaults(params)
-    const res = await http.get<MilliResponse<{ instruments?: MilliInstrument[] } | MilliInstrument[]>>('/suggest', { params: qp })
-    const payload: any = res.data
+    const url = new URL(`${BASE_URL}/api/search/suggest`)
+    Object.entries(qp).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+    console.log('🔎 [MILLI-CLIENT][REQ]', formatFetchDebug(url))
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      credentials: 'omit'
+    })
+    console.log('✅ [MILLI-CLIENT][RES]', { url: url.toString(), status: res.status })
+    const payload: any = await res.json().catch(() => ({}))
     const list: MilliInstrument[] = Array.isArray(payload?.items)
       ? payload.items
       : Array.isArray(payload?.data?.instruments)
@@ -179,9 +146,8 @@ export async function suggest(params: MilliSuggestParams): Promise<MilliInstrume
     if (!list || list.length === 0) return []
     return list.map(normalizeItem)
   } catch (error) {
-    const info = formatAxiosError(error)
-    console.error('❌ [MILLI-CLIENT][SUGGEST] Failed', info)
-    if (info.corsLikely) {
+    console.error('❌ [MILLI-CLIENT][SUGGEST] Failed', formatFetchError(error, `${BASE_URL}/api/search/suggest`))
+    if (typeof window !== 'undefined' && error instanceof TypeError) {
       console.error('⚠️ [MILLI-CLIENT][SUGGEST] CORS: Verify Access-Control-Allow-Origin on', BASE_URL)
     }
     throw error
@@ -191,8 +157,12 @@ export async function suggest(params: MilliSuggestParams): Promise<MilliInstrume
 export async function search(params: MilliSearchParams): Promise<MilliInstrument[]> {
   try {
     const qp = withDefaults(params)
-    const res = await http.get<MilliResponse<{ instruments?: MilliInstrument[] } | MilliInstrument[]>>('', { params: qp })
-    const payload: any = res.data
+    const url = new URL(`${BASE_URL}/api/search`)
+    Object.entries(qp).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+    console.log('🔎 [MILLI-CLIENT][REQ]', formatFetchDebug(url))
+    const res = await fetch(url.toString(), { method: 'GET', credentials: 'omit' })
+    console.log('✅ [MILLI-CLIENT][RES]', { url: url.toString(), status: res.status })
+    const payload: any = await res.json().catch(() => ({}))
     const list: MilliInstrument[] = Array.isArray(payload?.items)
       ? payload.items
       : Array.isArray(payload?.data?.instruments)
@@ -203,9 +173,8 @@ export async function search(params: MilliSearchParams): Promise<MilliInstrument
     if (!list || list.length === 0) return []
     return list.map(normalizeItem)
   } catch (error) {
-    const info = formatAxiosError(error)
-    console.error('❌ [MILLI-CLIENT][SEARCH] Failed', info)
-    if (info.corsLikely) {
+    console.error('❌ [MILLI-CLIENT][SEARCH] Failed', formatFetchError(error, `${BASE_URL}/api/search`))
+    if (typeof window !== 'undefined' && error instanceof TypeError) {
       console.error('⚠️ [MILLI-CLIENT][SEARCH] CORS: Verify Access-Control-Allow-Origin on', BASE_URL)
     }
     throw error
@@ -215,12 +184,16 @@ export async function search(params: MilliSearchParams): Promise<MilliInstrument
 export async function filters(params: MilliFiltersParams): Promise<any> {
   try {
     const qp = withDefaults(params as MilliSearchParams)
-    const res = await http.get<MilliResponse<any>>('/filters', { params: qp })
-    return res.data?.data ?? res.data ?? {}
+    const url = new URL(`${BASE_URL}/api/search/filters`)
+    Object.entries(qp).forEach(([k, v]) => url.searchParams.set(k, String(v)))
+    console.log('🔎 [MILLI-CLIENT][REQ]', formatFetchDebug(url))
+    const res = await fetch(url.toString(), { method: 'GET', credentials: 'omit' })
+    console.log('✅ [MILLI-CLIENT][RES]', { url: url.toString(), status: res.status })
+    const payload: any = await res.json().catch(() => ({}))
+    return payload?.data ?? payload ?? {}
   } catch (error) {
-    const info = formatAxiosError(error)
-    console.error('❌ [MILLI-CLIENT][FILTERS] Failed', info)
-    if (info.corsLikely) {
+    console.error('❌ [MILLI-CLIENT][FILTERS] Failed', formatFetchError(error, `${BASE_URL}/api/search/filters`))
+    if (typeof window !== 'undefined' && error instanceof TypeError) {
       console.error('⚠️ [MILLI-CLIENT][FILTERS] CORS: Verify Access-Control-Allow-Origin on', BASE_URL)
     }
     throw error
@@ -229,7 +202,15 @@ export async function filters(params: MilliFiltersParams): Promise<any> {
 
 export async function telemetrySelection(body: { q: string; symbol: string; instrumentToken?: number | string }): Promise<void> {
   try {
-    await http.post('/telemetry/selection', body)
+    const url = `${BASE_URL}/api/search/telemetry/selection`
+    // best effort; may trigger preflight depending on server CORS
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      keepalive: true,
+      credentials: 'omit'
+    })
   } catch {
     // best-effort, ignore
   }
