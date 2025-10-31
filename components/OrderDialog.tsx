@@ -76,9 +76,9 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   // Get realtime hooks for immediate UI updates
   const userId = session?.user?.id
-  const { optimisticUpdate: optimisticUpdateOrder, refresh: refreshOrders } = useRealtimeOrders(userId)
+  const { optimisticUpdate: optimisticUpdateOrder, refresh: refreshOrders, mutate: mutateOrders } = useRealtimeOrders(userId)
   const { optimisticAddPosition, refresh: refreshPositions } = useRealtimePositions(userId)
-  const { optimisticBlockMargin, optimisticUpdateBalance, refresh: refreshAccount } = useRealtimeAccount(userId)
+  const { optimisticBlockMargin, optimisticReleaseMargin, optimisticUpdateBalance, refresh: refreshAccount } = useRealtimeAccount(userId)
 
   useEffect(() => {
     const normalized = normalizeStockData(stock)
@@ -258,9 +258,14 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         description: `${orderSide} ${quantity} ${selectedStock.symbol} @ ₹${orderPrice.toFixed(2)} - Processing...`,
         duration: 2000
       })
-      
-      // 4. Place actual order on backend
-      const result = await placeOrder({
+
+      // 3.5 Close the sheet immediately and notify parent
+      onOrderPlaced()
+      onClose()
+
+      // 4. Place actual order on backend (do not block the sheet)
+      ;(async () => {
+        const result = await placeOrder({
         tradingAccountId: portfolio.account.id,
         userId: session?.user?.id,
         userName: session?.user?.name,
@@ -285,62 +290,51 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         lotSize: selectedStock.lot_size,
         watchlistItemId: selectedStock.watchlistItemId,
         session
-      })
-      
-      console.log("✅ [ORDER-DIALOG] Order submitted successfully:", result)
-      
-      // 5. IMMEDIATELY refresh all data to get real order status
-      setTimeout(async () => {
-        await Promise.all([
-          refreshOrders(),
-          refreshPositions(),
-          refreshAccount()
-        ])
-        console.log("🔄 [ORDER-DIALOG] Refreshed all data after order placement")
-      }, 500)
-      
-      // 6. Schedule another refresh after 3 seconds for execution status
-      setTimeout(async () => {
-        await Promise.all([
-          refreshOrders(),
-          refreshPositions(),
-          refreshAccount()
-        ])
-        console.log("🔄 [ORDER-DIALOG] Checked execution status")
-      }, 3000)
-      
-      onOrderPlaced()
-      onClose()
-      
-      // Monitor order execution for 10 seconds
-      if (result.orderId) {
+        })
+        
+        console.log("✅ [ORDER-DIALOG] Order submitted successfully:", result)
+        
+        // Refresh data to pull the official order and any position update
         setTimeout(async () => {
-          try {
-            // Check if order is still pending after 10 seconds
-            const checkResponse = await fetch(`/api/trading/orders/status?orderId=${result.orderId}`)
-            if (checkResponse.ok) {
-              const statusData = await checkResponse.json()
-              if (statusData.status === 'PENDING') {
-                toast({
-                  title: "Order Processing",
-                  description: `Order ${selectedStock.symbol} is taking longer than expected. Check your orders tab.`,
-                  variant: "default",
-                  duration: 5000
-                })
-              } else if (statusData.status === 'REJECTED') {
-                toast({
-                  title: "Order Failed",
-                  description: `Order ${selectedStock.symbol} failed: ${statusData.message || 'Unknown error'}`,
-                  variant: "destructive",
-                  duration: 7000
-                })
-              }
+          await Promise.all([
+            refreshOrders(),
+            refreshPositions(),
+            refreshAccount()
+          ])
+        }, 500)
+        setTimeout(async () => {
+          await Promise.all([
+            refreshOrders(),
+            refreshPositions(),
+            refreshAccount()
+          ])
+        }, 3000)
+      })().catch(async (error: any) => {
+        console.error("❌ [ORDER-DIALOG] Backend order placement failed:", error)
+        // Mark the optimistic order as REJECTED with reason
+        try {
+          await mutateOrders((current: any) => {
+            if (!current || !Array.isArray(current.orders)) return current
+            return {
+              ...current,
+              orders: current.orders.map((o: any) =>
+                o.id === tempOrderId
+                  ? { ...o, status: 'REJECTED', failureReason: error?.message || 'Order failed' }
+                  : o
+              )
             }
-          } catch (checkError) {
-            console.warn("⚠️ [ORDER-DIALOG] Unable to check order status:", checkError)
-          }
-        }, 10000)
-      }
+          }, false)
+        } catch (e) {
+          console.warn('⚠️ [ORDER-DIALOG] Could not mark order as REJECTED optimistically', e)
+        }
+        
+        // Release previously blocked margin
+        try { optimisticReleaseMargin(marginRequired) } catch {}
+        
+        // Trigger a refresh so server truth is reflected
+        await refreshOrders()
+        await refreshAccount()
+      })
       
     } catch (error: any) {
       console.error("❌ [ORDER-DIALOG] Order submission failed:", error)
