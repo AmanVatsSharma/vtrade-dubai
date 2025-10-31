@@ -939,16 +939,23 @@ export async function placeOrder(orderData: {
           return orderData.productType
         })()
 
+        // Sanitize optional UUIDs to avoid server-side Zod "invalid uuid" errors
+        const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
+        const safeUserId = typeof orderData.userId === 'string' && UUID_RE.test(orderData.userId) ? orderData.userId : undefined
+        const safeStockId = typeof orderData.stockId === 'string' && UUID_RE.test(orderData.stockId) ? orderData.stockId : undefined
+        const safeWatchlistItemId = typeof orderData.watchlistItemId === 'string' && UUID_RE.test(orderData.watchlistItemId) ? orderData.watchlistItemId : undefined
+        const safeOptionType = orderData.optionType === 'CE' || orderData.optionType === 'PE' ? orderData.optionType : undefined
+
         // Call server-side order placement API
         const response = await fetch('/api/trading/orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 tradingAccountId: orderData.tradingAccountId,
-                userId: orderData.userId,
+                userId: safeUserId,
                 userName: orderData.userName,
                 userEmail: orderData.userEmail,
-                stockId: orderData.stockId || undefined,
+                stockId: safeStockId,
                 instrumentId: orderData.instrumentId || undefined,
                 token: orderData.token ?? undefined,
                 symbol: orderData.symbol,
@@ -963,10 +970,10 @@ export async function placeOrder(orderData: {
                 ltp: orderData.ltp ?? undefined,
                 close: orderData.close ?? undefined,
                 strikePrice: orderData.strikePrice ?? undefined,
-                optionType: orderData.optionType ?? undefined,
+                optionType: safeOptionType,
                 expiry: orderData.expiry ?? undefined,
                 lotSize: orderData.lotSize ?? undefined,
-                watchlistItemId: orderData.watchlistItemId ?? undefined
+                watchlistItemId: safeWatchlistItemId
             })
         })
 
