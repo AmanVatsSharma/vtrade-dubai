@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { Loader2, DollarSign, Package, Calculator } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { placeOrder } from "@/lib/hooks/use-trading-data"
-import { OrderType } from "@prisma/client"
 import { useMarketData } from "@/lib/hooks/MarketDataProvider"
 import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
@@ -177,7 +176,8 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const totalCost = marginRequired + totalCharges
 
   const sessionStatus = getMarketSession()
-  const isMarketBlocked = sessionStatus !== 'open'
+  const allowDevOrders = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ALLOW_DEV_ORDERS === 'true'
+  const isMarketBlocked = !allowDevOrders && sessionStatus !== 'open'
 
   const handleSubmit = async () => {
     if (!selectedStock || quantity <= 0) {
@@ -225,24 +225,32 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       const timestamp = new Date().toISOString()
       
       // 1. IMMEDIATELY show pending order in UI (optimistic update)
-      optimisticUpdateOrder({
-        id: tempOrderId,
-        symbol: selectedStock.symbol,
-        quantity: orderSide === "BUY" ? quantity : -quantity,
-        orderType: isMarket ? "MARKET" : "LIMIT",
-        orderSide,
-        price: orderPrice,
-        averagePrice: orderPrice,
-        filledQuantity: 0,
-        productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
-        status: "PENDING",
-        createdAt: timestamp,
-        executedAt: null,
-        stock: selectedStock
-      })
+      try {
+        optimisticUpdateOrder({
+          id: tempOrderId,
+          symbol: selectedStock.symbol,
+          quantity: orderSide === "BUY" ? quantity : -quantity,
+          orderType: isMarket ? "MARKET" : "LIMIT",
+          orderSide,
+          price: orderPrice,
+          averagePrice: orderPrice,
+          filledQuantity: 0,
+          productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
+          status: "PENDING",
+          createdAt: timestamp,
+          executedAt: null,
+          stock: selectedStock
+        })
+      } catch (e) {
+        console.error("❌ [ORDER-DIALOG] Optimistic order update failed:", e)
+      }
       
       // 2. IMMEDIATELY block margin (optimistic update)
-      optimisticBlockMargin(marginRequired)
+      try { 
+        optimisticBlockMargin(marginRequired)
+      } catch (e) {
+        console.error("❌ [ORDER-DIALOG] Optimistic margin block failed:", e)
+      }
       
       // 3. Show immediate feedback
       toast({ 
@@ -261,7 +269,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         symbol: selectedStock.symbol,
         quantity,
         price: orderPrice,
-        orderType: isMarket ? OrderType.MARKET : OrderType.LIMIT,
+        orderType: isMarket ? "MARKET" : "LIMIT",
         orderSide,
         segment: selectedStock.segment,
         exchange: selectedStock.exchange,
@@ -432,6 +440,12 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
               {sessionStatus === 'pre-open'
                 ? 'Pre-Open (09:00–09:15 IST): Orders are temporarily blocked.'
                 : 'Market Closed: Orders are allowed only between 09:15–15:30 IST.'}
+            </div>
+          )}
+          {/* Dev override banner */}
+          {!isMarketBlocked && sessionStatus !== 'open' && allowDevOrders && (
+            <div className="p-2 rounded-md border text-xs bg-blue-50 border-blue-200 text-blue-800">
+              Dev override active: Orders are enabled outside market hours (testing).
             </div>
           )}
 

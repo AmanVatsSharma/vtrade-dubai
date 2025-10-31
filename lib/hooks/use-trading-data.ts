@@ -11,7 +11,9 @@ import { useQuery } from "@apollo/client/react"
 import { gql } from "@apollo/client/core"
 import client from "@/lib/graphql/apollo-client"
 import { useMemo } from "react"
-import { OrderSide, OrderType } from "@prisma/client"
+// Use client-safe literal types instead of importing Prisma enums at runtime
+export type ClientOrderType = "MARKET" | "LIMIT"
+export type ClientOrderSide = "BUY" | "SELL"
 import { Calculator } from "lucide-react"
 import { createLoggerFromSession, LogLevel, LogCategory } from "@/lib/logger"
 
@@ -909,8 +911,8 @@ export async function placeOrder(orderData: {
   token?: number | null
   quantity: number
   price: number | null
-  orderType: OrderType
-  orderSide: OrderSide
+  orderType: ClientOrderType
+  orderSide: ClientOrderSide
   productType?: string
   exchange?: string | null
   segment?: string | null
