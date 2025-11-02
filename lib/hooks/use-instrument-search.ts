@@ -29,6 +29,9 @@ import {
   type MilliMode,
 } from '@/lib/services/search/milli-client';
 
+// Configurable default exchange for Equity tab
+const DEFAULT_EQUITY_EXCHANGE = process.env.NEXT_PUBLIC_DEFAULT_EQUITY_EXCHANGE || 'NSE_EQ'
+
 export type SearchTab = 'equity' | 'futures' | 'options' | 'commodities';
 
 export interface UseInstrumentSearchOptions {
@@ -70,6 +73,7 @@ export function useInstrumentSearch(
   const currentSearchRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
    * Perform search based on active tab
@@ -90,10 +94,28 @@ export function useInstrumentSearch(
     try {
       // map tab -> milli mode
       const mode: MilliMode = tab === 'equity' ? 'eq' : tab === 'commodities' ? 'commodities' : 'fno'
+      const exchange = tab === 'equity' ? DEFAULT_EQUITY_EXCHANGE : undefined
       // Use suggest for fast typeahead UX (no client-side limit)
-      const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true })
+      const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
       setResults(searchResults)
       setLoading(false)
+
+      // Schedule an idle follow-up full search to refine results (hybrid UX)
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current)
+      }
+      idleTimerRef.current = setTimeout(async () => {
+        // Ignore if query changed during idle
+        if (currentSearchRef.current !== query) return
+        try {
+          const fullResults = await milliClient.search({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
+          if (currentSearchRef.current === query && Array.isArray(fullResults) && fullResults.length > 0) {
+            setResults(fullResults)
+          }
+        } catch {
+          // ignore background refinement errors
+        }
+      }, Math.max(400, Math.min(600, debounceMs + 250)))
     } catch (err: any) {
       if (err instanceof Error && !err.message.includes('aborted')) {
         setError(err.message)
@@ -115,6 +137,9 @@ export function useInstrumentSearch(
     // Clear existing timer
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
+    }
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current)
     }
     
     // If query is empty, clear immediately
@@ -138,6 +163,9 @@ export function useInstrumentSearch(
     
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
+    }
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current)
     }
     
     if (abortControllerRef.current) {
@@ -164,6 +192,9 @@ export function useInstrumentSearch(
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null
+      }
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current)
       }
     };
   }, []);

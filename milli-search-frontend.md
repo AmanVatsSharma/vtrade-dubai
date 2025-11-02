@@ -12,6 +12,19 @@ Base - https://marketdata.vedpragya.com
 - GET `/api/search/stream` (SSE ~1s for LTP; auto-closes ~30s)
 - POST `/api/search/telemetry/selection` (best-effort query→symbol learning)
 
+## App integration (TradingPro)
+- Default equity exchange: `NEXT_PUBLIC_DEFAULT_EQUITY_EXCHANGE` (defaults to `NSE_EQ`).
+- Hybrid UX: UI uses suggest while typing and auto-calls full `/api/search` after ~500ms idle to refine results.
+- SSE stays on for live LTP using `/api/search/stream` via internal proxy.
+- Internal proxies at `/api/milli-search/*` run on Edge runtime with `preferredRegion` set (e.g., `bom1`) to minimize latency while avoiding CORS.
+
+### .env local example
+```bash
+# Frontend
+NEXT_PUBLIC_MARKETDATA_BASE_URL=https://marketdata.vedpragya.com
+NEXT_PUBLIC_DEFAULT_EQUITY_EXCHANGE=NSE_EQ
+```
+
 ## Query params (search & suggest)
 - q: string (required)
 - exchange, segment, instrumentType: string (optional)
@@ -38,6 +51,9 @@ Base - https://marketdata.vedpragya.com
 ```bash
 # Suggest with LTP and FO-only (external)
 curl "https://marketdata.vedpragya.com/api/search/suggest?q=RELI&ltp_only=true"
+
+# Equity search with LTP on NSE_EQ (external)
+curl "https://marketdata.vedpragya.com/api/search?q=tata&ltp_only=true&exchange=NSE_EQ"
 
 # Search options in a date/strike window with LTP (external)
 curl "https://marketdata.vedpragya.com/api/search?q=NIFTY&instrumentType=OPTIDX&expiry_from=2025-10-01&expiry_to=2025-10-31&strike_min=20000&strike_max=22000&ltp_only=true"
