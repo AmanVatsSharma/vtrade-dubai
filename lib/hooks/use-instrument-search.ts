@@ -28,9 +28,13 @@ import {
   type MilliInstrument,
   type MilliMode,
 } from '@/lib/services/search/milli-client';
+import type { Instrument } from '@/lib/services/market-data/search-client'
+import { searchEquities, searchFutures, searchOptions, searchCommodities } from '@/lib/services/market-data/search-client'
 
 // Configurable default exchange for Equity tab
 const DEFAULT_EQUITY_EXCHANGE = process.env.NEXT_PUBLIC_DEFAULT_EQUITY_EXCHANGE || 'NSE_EQ'
+// Configurable default exchange for MCX tab
+const DEFAULT_MCX_EXCHANGE = process.env.NEXT_PUBLIC_DEFAULT_MCX_EXCHANGE || 'MCX_FO'
 
 export type SearchTab = 'equity' | 'futures' | 'options' | 'commodities';
 
@@ -94,7 +98,7 @@ export function useInstrumentSearch(
     try {
       // map tab -> milli mode
       const mode: MilliMode = tab === 'equity' ? 'eq' : tab === 'commodities' ? 'commodities' : 'fno'
-      const exchange = tab === 'equity' ? DEFAULT_EQUITY_EXCHANGE : undefined
+      const exchange = tab === 'equity' ? DEFAULT_EQUITY_EXCHANGE : (tab === 'commodities' ? DEFAULT_MCX_EXCHANGE : undefined)
       // Use suggest for fast typeahead UX (no client-side limit)
       const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
       setResults(searchResults)
