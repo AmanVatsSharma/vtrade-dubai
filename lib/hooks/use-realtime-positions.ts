@@ -1,6 +1,14 @@
 /**
+ * @file use-realtime-positions.ts
+ * @module lib/hooks/use-realtime-positions
+ * @description Shared hook to stream positions (open + closed) with optimistic UX.
+ * @author BharatERP
+ * @created 2025-11-06
+ */
+
+/**
  * Real-time Positions Hook
- * 
+ *
  * Provides real-time position updates with:
  * - Optimistic UI updates
  * - Smart polling with SWR
@@ -25,6 +33,10 @@ interface Position {
   averagePrice: number
   unrealizedPnL: number
   dayPnL: number
+  realizedPnL?: number
+  bookedPnL?: number
+  status?: "OPEN" | "CLOSED"
+  isClosed?: boolean
   stopLoss?: number | null
   target?: number | null
   createdAt: string
@@ -117,6 +129,11 @@ function validatePosition(position: any): position is Partial<Position> {
   if (position.quantity !== undefined) {
     if (typeof position.quantity !== 'number' || isNaN(position.quantity)) {
       console.warn('⚠️ [REALTIME-POSITIONS] Invalid quantity:', position.quantity)
+      return false
+    }
+
+    if (position.status && position.status !== "OPEN" && position.status !== "CLOSED") {
+      console.warn("⚠️ [REALTIME-POSITIONS] Invalid status:", position.status)
       return false
     }
   }
@@ -215,9 +232,9 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
           }
           
           // Check if position already exists (update quantity)
-          const existingIndex = currentData.positions.findIndex(
-            (p: Position) => p.symbol === newPosition.symbol
-          )
+            const existingIndex = currentData.positions.findIndex(
+              (p: Position) => p.symbol === newPosition.symbol
+            )
           
           if (existingIndex >= 0) {
             const updated = [...currentData.positions]
@@ -226,10 +243,20 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
             // Safe quantity update
             const newQuantity = (existingPosition.quantity || 0) + (newPosition.quantity || 0)
             
-            updated[existingIndex] = {
-              ...existingPosition,
-              quantity: newQuantity
-            }
+              updated[existingIndex] = {
+                ...existingPosition,
+                quantity: newQuantity,
+                status: newQuantity === 0 ? "CLOSED" : "OPEN",
+                isClosed: newQuantity === 0,
+                realizedPnL:
+                  newQuantity === 0
+                    ? existingPosition.realizedPnL ?? existingPosition.unrealizedPnL ?? 0
+                    : existingPosition.realizedPnL,
+                bookedPnL:
+                  newQuantity === 0
+                    ? existingPosition.realizedPnL ?? existingPosition.unrealizedPnL ?? 0
+                    : existingPosition.bookedPnL
+              }
             
             console.log(`📊 [REALTIME-POSITIONS] Updated existing position ${newPosition.symbol}: ${existingPosition.quantity} → ${newQuantity}`)
             
@@ -238,10 +265,23 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
           
           console.log(`📊 [REALTIME-POSITIONS] Added new position ${newPosition.symbol}`)
           
-          return {
-            ...currentData,
-            positions: [newPosition as Position, ...currentData.positions]
-          }
+            const isClosed = (newPosition.quantity ?? 0) === 0
+            const normalizedPosition: Position = {
+              status: newPosition.status ?? (isClosed ? "CLOSED" : "OPEN"),
+              isClosed,
+              realizedPnL:
+                newPosition.realizedPnL ??
+                (isClosed ? newPosition.unrealizedPnL ?? 0 : undefined),
+              bookedPnL:
+                newPosition.bookedPnL ??
+                (isClosed ? newPosition.unrealizedPnL ?? 0 : undefined),
+              ...newPosition
+            } as Position
+
+            return {
+              ...currentData,
+              positions: [normalizedPosition, ...currentData.positions]
+            }
         },
         false
       )
@@ -281,9 +321,18 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
           
           return {
             ...currentData,
-            positions: currentData.positions.map((p: Position) => 
-              p.id === positionId ? { ...p, quantity: 0 } : p
-            ) // Keep closed positions (qty 0) to show as booked
+              positions: currentData.positions.map((p: Position) =>
+                p.id === positionId
+                  ? {
+                      ...p,
+                      quantity: 0,
+                      status: "CLOSED",
+                      isClosed: true,
+                      realizedPnL: p.realizedPnL ?? p.unrealizedPnL ?? 0,
+                      bookedPnL: p.bookedPnL ?? p.realizedPnL ?? p.unrealizedPnL ?? 0
+                    }
+                  : p
+              ) // Keep closed positions (qty 0) to show as booked
           }
         },
         false
@@ -303,8 +352,20 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
   // Safe data extraction with fallback
   const positions: Position[] = (() => {
     try {
-      if (data?.positions && Array.isArray(data.positions)) {
-        return data.positions
+        if (data?.positions && Array.isArray(data.positions)) {
+          return data.positions.map((position: Position) => {
+            const isClosed = position.isClosed ?? position.quantity === 0
+            const realizedPnL =
+              position.realizedPnL ?? (isClosed ? position.unrealizedPnL ?? 0 : 0)
+
+            return {
+              ...position,
+              status: position.status ?? (isClosed ? "CLOSED" : "OPEN"),
+              isClosed,
+              realizedPnL,
+              bookedPnL: position.bookedPnL ?? realizedPnL
+            }
+          })
       }
       return []
     } catch (err) {
