@@ -73,11 +73,16 @@ export function useInstrumentSearch(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSearchRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeTabRef = useRef<SearchTab>(activeTab);
+  // keep ref in sync
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   /**
    * Perform search based on active tab
@@ -96,13 +101,55 @@ export function useInstrumentSearch(
     setError(null);
 
     try {
-      // map tab -> milli mode
-      const mode: MilliMode = tab === 'equity' ? 'eq' : tab === 'commodities' ? 'commodities' : 'fno'
-      const exchange = tab === 'equity' ? DEFAULT_EQUITY_EXCHANGE : (tab === 'commodities' ? DEFAULT_MCX_EXCHANGE : undefined)
-      // Use suggest for fast typeahead UX (no client-side limit)
-      const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
-      setResults(searchResults)
-      setLoading(false)
+      if (tab === 'commodities') {
+        // Use internal MCX proxy that forwards symbol query to Vedpragya
+        const url = `/api/market-data/mcx?symbol=${encodeURIComponent(query)}&limit=20&offset=0&ltp_only=true&include_ltp=true`;
+        const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: abortControllerRef.current?.signal });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(`MCX search failed (${res.status}): ${errText || res.statusText}`);
+        }
+        const data = await res.json();
+        const items: any[] = data?.data?.instruments || [];
+        const mapped: MilliInstrument[] = items.map((inst: any) => {
+          // Normalize fields to common shape expected by UI
+          const strikeVal = typeof inst?.strike_price === 'string' ? parseFloat(inst.strike_price) : inst?.strike_price;
+          const lotVal = typeof inst?.lot_size === 'string' ? parseFloat(inst.lot_size) : inst?.lot_size;
+          return {
+            token: Number(inst?.token),
+            instrumentToken: Number(inst?.token),
+            symbol: String(inst?.symbol || ''),
+            tradingSymbol: String(inst?.symbol || ''),
+            companyName: String(inst?.symbol || ''),
+            exchange: inst?.exchange || DEFAULT_MCX_EXCHANGE,
+            segment: inst?.exchange || DEFAULT_MCX_EXCHANGE,
+            instrumentType: 'FUTCOM',
+            instrument_name: inst?.instrument_name,
+            expiry_date: inst?.expiry_date,
+            expiryDate: inst?.expiry_date,
+            strike_price: isNaN(Number(strikeVal)) ? undefined : Number(strikeVal),
+            strike: isNaN(Number(strikeVal)) ? undefined : Number(strikeVal),
+            tick: inst?.tick ? Number(inst?.tick) : undefined,
+            lot_size: isNaN(Number(lotVal)) ? undefined : Number(lotVal),
+            lotSize: isNaN(Number(lotVal)) ? undefined : Number(lotVal),
+            description: inst?.description,
+            last_price: inst?.last_price != null ? Number(inst.last_price) : undefined,
+            // add passthroughs
+            is_active: inst?.is_active,
+            option_type: inst?.option_type && inst?.option_type !== 'XX' ? inst.option_type : undefined,
+          } as any;
+        });
+        setResults(mapped);
+        setLoading(false);
+        return;
+      }
+
+      // Non-MCX tabs → milli client (fast suggest + later refine)
+      const mode: MilliMode = tab === 'equity' ? 'eq' : 'fno';
+      const exchange = tab === 'equity' ? DEFAULT_EQUITY_EXCHANGE : undefined;
+      const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) });
+      setResults(searchResults);
+      setLoading(false);
 
       // Schedule an idle follow-up full search to refine results (hybrid UX)
       if (idleTimerRef.current) {
@@ -112,6 +159,8 @@ export function useInstrumentSearch(
         // Ignore if query changed during idle
         if (currentSearchRef.current !== query) return
         try {
+          // Skip refinement for commodities (handled via MCX endpoint only)
+          if ((tab as any) === 'commodities') return
           const fullResults = await milliClient.search({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
           if (currentSearchRef.current === query && Array.isArray(fullResults) && fullResults.length > 0) {
             setResults(fullResults)
@@ -220,6 +269,14 @@ export function useInstrumentSearch(
   // SSE live LTP updates for current result set
   useEffect(() => {
     if (typeof window === 'undefined') return
+    // Skip SSE streaming for commodities (MCX) tab for now
+    if ((activeTabRef.current as any) === 'commodities') {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+      return
+    }
     const q = currentSearchRef.current
     if (!q || results.length === 0) {
       if (eventSourceRef.current) {
@@ -246,7 +303,7 @@ export function useInstrumentSearch(
           const payload = JSON.parse(event.data)
           const ltpMap: Record<string, number> = payload?.data || payload || {}
           if (!ltpMap || typeof ltpMap !== 'object') return
-          setResults(prev => prev.map(item => {
+          setResults((prev: MilliInstrument[]) => prev.map((item: any) => {
             const tokenKey = String(item.token ?? item.instrumentToken ?? '')
             const ltp = ltpMap[tokenKey]
             return ltp ? { ...item, last_price: ltp } : item

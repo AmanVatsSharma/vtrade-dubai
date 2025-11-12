@@ -211,6 +211,18 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                  ex.includes('MCX') ? 'MCX_FO' :
                  ex.includes('NSE') ? 'NSE' : 'NSE')
               
+              // MCX description formatting
+              const rawDesc = (instrument as any)?.description as string | undefined
+              const cleanedDesc = rawDesc
+                ? rawDesc.replace(/^MCX_FO\s+/i, '').replace(/\s+XX$/i, '')
+                : undefined
+              const displayTitle = activeTab === 'commodities'
+                ? (cleanedDesc || `${instrument.symbol} ${((instrument as any)?.instrument_name || '')} ${formatCompactExpiry(instrument.expiry_date || (instrument as any).expiry || (instrument as any).expiryDate)}`.trim())
+                : instrument.symbol
+              const strikeNum = typeof (instrument as any)?.strike_price === 'string'
+                ? parseFloat((instrument as any).strike_price as any)
+                : (instrument as any)?.strike_price
+              
               const stock: Stock = {
                 id: `token-${instrument.token}`,
                 instrumentId: instrument.exchange,
@@ -218,16 +230,18 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                 exchange: instrument.exchange,
                 ticker: instrument.symbol,
                 symbol: instrument.symbol,
-                name: instrument.name || instrument.symbol,
+                name: activeTab === 'commodities'
+                  ? (cleanedDesc || rawDesc || instrument.name || instrument.symbol)
+                  : (instrument.name || instrument.symbol),
                 ltp: instrument.last_price || 0,
                 last_price: instrument.last_price,
                 change: 0,
                 changePercent: 0,
                 expiry_date: instrument.expiry_date,
                 expiry: instrument.expiry_date,
-                strike_price: instrument.strike_price,
-                strikePrice: instrument.strike_price,
-                option_type: instrument.option_type,
+                strike_price: strikeNum as any,
+                strikePrice: strikeNum as any,
+                option_type: activeTab === 'commodities' ? undefined : instrument.option_type,
                 lot_size: instrument.lot_size,
                 lotSize: instrument.lot_size,
                 segment, // Add segment field
@@ -246,7 +260,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                     {/* First Row: Symbol + Badges */}
                     <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                       <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">
-                        {instrument.symbol}
+                        {displayTitle}
                       </span>
                       
                       {/* Professional Exchange Badge */}
