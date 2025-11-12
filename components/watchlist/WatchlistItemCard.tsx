@@ -322,7 +322,7 @@ export function WatchlistItemCard({
                 {/* First Row: Symbol + Exchange Badge + Type Badges */}
                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                   <span className="font-semibold text-base text-foreground truncate">
-                    {item.symbol}
+                    {(isFutures || isMCX) ? (item.name || item.symbol) : item.symbol}
                   </span>
                   
                   {/* Professional Exchange Badge */}

@@ -211,14 +211,17 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                  ex.includes('MCX') ? 'MCX_FO' :
                  ex.includes('NSE') ? 'NSE' : 'NSE')
               
-              // MCX description formatting
+              // Description formatting (MCX and Futures)
               const rawDesc = (instrument as any)?.description as string | undefined
               const cleanedDesc = rawDesc
-                ? rawDesc.replace(/^MCX_FO\s+/i, '').replace(/\s+XX$/i, '')
+                ? rawDesc
+                    .replace(/^(MCX_FO|NSE_FO)\s+/i, '')
+                    .replace(/\s+XX$/i, '')
                 : undefined
-              const displayTitle = activeTab === 'commodities'
-                ? (cleanedDesc || `${instrument.symbol} ${((instrument as any)?.instrument_name || '')} ${formatCompactExpiry(instrument.expiry_date || (instrument as any).expiry || (instrument as any).expiryDate)}`.trim())
-                : instrument.symbol
+              const displayTitle =
+                (activeTab === 'commodities' || activeTab === 'futures')
+                  ? (cleanedDesc || `${instrument.symbol} ${((instrument as any)?.instrument_name || '')} ${formatCompactExpiry(instrument.expiry_date || (instrument as any).expiry || (instrument as any).expiryDate)}`.trim())
+                  : instrument.symbol
               const strikeNum = typeof (instrument as any)?.strike_price === 'string'
                 ? parseFloat((instrument as any).strike_price as any)
                 : (instrument as any)?.strike_price
@@ -230,7 +233,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                 exchange: instrument.exchange,
                 ticker: instrument.symbol,
                 symbol: instrument.symbol,
-                name: activeTab === 'commodities'
+                name: (activeTab === 'commodities' || activeTab === 'futures')
                   ? (cleanedDesc || rawDesc || instrument.name || instrument.symbol)
                   : (instrument.name || instrument.symbol),
                 ltp: instrument.last_price || 0,
@@ -241,7 +244,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                 expiry: instrument.expiry_date,
                 strike_price: strikeNum as any,
                 strikePrice: strikeNum as any,
-                option_type: activeTab === 'commodities' ? undefined : instrument.option_type,
+                option_type: (activeTab === 'commodities' || activeTab === 'futures') ? undefined : instrument.option_type,
                 lot_size: instrument.lot_size,
                 lotSize: instrument.lot_size,
                 segment, // Add segment field

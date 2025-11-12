@@ -38,3 +38,6 @@ next-env.d.ts
 # Generated files (auto-generated, don't edit manually)
 generated/
 prisma/generated/
+
+
+git-switch-account.sh

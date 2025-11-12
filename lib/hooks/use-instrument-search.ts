@@ -143,6 +143,46 @@ export function useInstrumentSearch(
         setLoading(false);
         return;
       }
+      if (tab === 'futures') {
+        // Use internal FUTURES proxy (NSE_FO FUTSTK)
+        const url = `/api/market-data/futures?symbol=${encodeURIComponent(query)}&limit=20&offset=0&ltp_only=true&include_ltp=true`;
+        const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: abortControllerRef.current?.signal });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(`Futures search failed (${res.status}): ${errText || res.statusText}`);
+        }
+        const data = await res.json();
+        const items: any[] = data?.data?.instruments || [];
+        const mapped: MilliInstrument[] = items.map((inst: any) => {
+          const strikeVal = typeof inst?.strike_price === 'string' ? parseFloat(inst.strike_price) : inst?.strike_price;
+          const lotVal = typeof inst?.lot_size === 'string' ? parseFloat(inst?.lot_size) : inst?.lot_size;
+          return {
+            token: Number(inst?.token),
+            instrumentToken: Number(inst?.token),
+            symbol: String(inst?.symbol || ''),
+            tradingSymbol: String(inst?.symbol || ''),
+            companyName: String(inst?.symbol || ''),
+            exchange: 'NSE_FO',
+            segment: 'NSE_FO',
+            instrumentType: 'FUTSTK',
+            instrument_name: inst?.instrument_name,
+            expiry_date: inst?.expiry_date,
+            expiryDate: inst?.expiry_date,
+            strike_price: isNaN(Number(strikeVal)) ? undefined : Number(strikeVal),
+            strike: isNaN(Number(strikeVal)) ? undefined : Number(strikeVal),
+            tick: inst?.tick ? Number(inst?.tick) : undefined,
+            lot_size: isNaN(Number(lotVal)) ? undefined : Number(lotVal),
+            lotSize: isNaN(Number(lotVal)) ? undefined : Number(lotVal),
+            description: inst?.description,
+            last_price: inst?.last_price != null ? Number(inst.last_price) : undefined,
+            is_active: inst?.is_active,
+            option_type: inst?.option_type && inst?.option_type !== 'XX' ? inst.option_type : undefined,
+          } as any;
+        });
+        setResults(mapped);
+        setLoading(false);
+        return;
+      }
 
       // Non-MCX tabs → milli client (fast suggest + later refine)
       const mode: MilliMode = tab === 'equity' ? 'eq' : 'fno';
@@ -160,7 +200,7 @@ export function useInstrumentSearch(
         if (currentSearchRef.current !== query) return
         try {
           // Skip refinement for commodities (handled via MCX endpoint only)
-          if ((tab as any) === 'commodities') return
+          if ((tab as any) === 'commodities' || (tab as any) === 'futures') return
           const fullResults = await milliClient.search({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
           if (currentSearchRef.current === query && Array.isArray(fullResults) && fullResults.length > 0) {
             setResults(fullResults)
