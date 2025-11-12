@@ -16,8 +16,8 @@ function getDefaultLeverage(segment: string, productType: string): number {
     if (prod === 'MIS' || prod === 'INTRADAY') return 200
     if (prod === 'CNC' || prod === 'DELIVERY') return 50
   }
-  if (seg === 'NFO' || seg === 'FNO') return 100
-  if (seg === 'MCX') return 50
+  if (seg === 'NFO' || seg === 'FNO' || seg === 'NSE_FO') return 100
+  if (seg === 'MCX' || seg === 'MCX_FO') return 50
   return 1
 }
 

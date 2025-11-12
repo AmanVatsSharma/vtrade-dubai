@@ -188,7 +188,7 @@ export class OrderExecutionService {
 
         // Enforce lot multiple validation for derivatives (NFO/FNO/MCX)
         const segForValidation = (stockRecord.segment || normalizedSegment || '').toUpperCase()
-        if (segForValidation === 'NFO' || segForValidation === 'FNO' || segForValidation === 'MCX') {
+        if (segForValidation === 'NFO' || segForValidation === 'FNO' || segForValidation === 'NSE_FO' || segForValidation === 'MCX' || segForValidation === 'MCX_FO') {
           const lot = Number(stockRecord.lot_size || normalizedLotSize || 1)
           if (lot > 1) {
             if (input.quantity % lot !== 0) {

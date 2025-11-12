@@ -106,6 +106,46 @@ async function seedRiskConfig() {
       }
     })
 
+    // Insert NSE_FO DELIVERY config (alias for NFO)
+    await prisma.riskConfig.upsert({
+      where: {
+        segment_productType: {
+          segment: 'NSE_FO',
+          productType: 'DELIVERY'
+        }
+      },
+      update: {},
+      create: {
+        segment: 'NSE_FO',
+        productType: 'DELIVERY',
+        leverage: 100,
+        brokerageFlat: 20,
+        brokerageRate: null,
+        brokerageCap: null,
+        active: true
+      }
+    })
+
+    // Insert MCX_FO DELIVERY config (alias for MCX derivatives)
+    await prisma.riskConfig.upsert({
+      where: {
+        segment_productType: {
+          segment: 'MCX_FO',
+          productType: 'DELIVERY'
+        }
+      },
+      update: {},
+      create: {
+        segment: 'MCX_FO',
+        productType: 'DELIVERY',
+        leverage: 50,
+        brokerageFlat: 20,
+        brokerageRate: null,
+        brokerageCap: null,
+        active: true
+      }
+    })
+
     console.log('✅ Risk config seeded successfully!')
     
     // Verify the data

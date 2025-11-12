@@ -42,7 +42,7 @@ function normalizeStockData(raw: any | null) {
   const exchange = (clone.exchange || clone.segment || 'NSE')?.toString().toUpperCase()
   const segment = (clone.segment || clone.exchange || 'NSE')?.toString().toUpperCase()
   const instrumentId = clone.instrumentId || (exchange && token != null ? `${exchange}-${token}` : undefined)
-  const lotSize = clone.lot_size ?? clone.lotSize ?? (segment === 'NFO' ? clone.lotSize : undefined)
+  const lotSize = clone.lot_size ?? clone.lotSize ?? ((segment === 'NFO' || segment === 'FNO' || segment === 'NSE_FO' || segment === 'MCX' || segment === 'MCX_FO') ? clone.lotSize : undefined)
 
   return {
     ...clone,
@@ -92,7 +92,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
     setSelectedStock(normalized)
     if (normalized) {
       setPrice(normalized.ltp ?? null)
-      if (normalized.segment === "NFO" || normalized.segment === "FNO" || normalized.segment === "MCX") {
+      if (normalized.segment === "NFO" || normalized.segment === "FNO" || normalized.segment === "NSE_FO" || normalized.segment === "MCX" || normalized.segment === "MCX_FO") {
         setCurrentOrderType("DELIVERY")
         const baseLot = normalized.lot_size || 1
         setLots(1)
@@ -107,7 +107,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
 
   // Derived helpers
   const segmentUpper = (selectedStock?.segment || selectedStock?.exchange || "NSE")?.toUpperCase()
-  const isDerivatives = segmentUpper === "NFO" || segmentUpper === "FNO" || segmentUpper === "MCX"
+  const isDerivatives = segmentUpper === "NFO" || segmentUpper === "FNO" || segmentUpper === "NSE_FO" || segmentUpper === "MCX" || segmentUpper === "MCX_FO"
   const lotSize = selectedStock?.lot_size || 1
   const units = isDerivatives ? Math.max(1, lots) * lotSize : quantity
 
@@ -209,7 +209,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
       stt = turnover * 0.001 // 0.1% on delivery
     } else if (segment === "NSE" && productType === "MIS") {
       stt = turnover * 0.00025 // 0.025% on intraday
-    } else if (segment === "NFO") {
+    } else if (segment === "NFO" || segment === "NSE_FO") {
       stt = turnover * 0.0001 // 0.01% on F&O
     }
 
@@ -517,7 +517,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
           {/* Order Type */}
           <Tabs value={currentOrderType} onValueChange={setCurrentOrderType}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="MIS" disabled={selectedStock.segment === "NFO" || selectedStock.segment === "FNO"}>
+              <TabsTrigger value="MIS" disabled={selectedStock.segment === "NFO" || selectedStock.segment === "FNO" || selectedStock.segment === "NSE_FO"}>
                 Intraday (MIS)
               </TabsTrigger>
               <TabsTrigger value="CNC">Delivery (CNC)</TabsTrigger>

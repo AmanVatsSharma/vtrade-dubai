@@ -149,13 +149,13 @@ export class MarginCalculator {
     }
 
     // NFO F&O
-    if (normalizedSegment === 'NFO' || normalizedSegment === 'FNO') {
+    if (normalizedSegment === 'NFO' || normalizedSegment === 'FNO' || normalizedSegment === 'NSE_FO') {
       console.log("📊 [MARGIN-CALCULATOR] NFO leverage: 100")
       return 100 // 1% margin (100x leverage)
     }
 
     // MCX Commodities
-    if (normalizedSegment === 'MCX') {
+    if (normalizedSegment === 'MCX' || normalizedSegment === 'MCX_FO') {
       console.log("📊 [MARGIN-CALCULATOR] MCX leverage: 50")
       return 50
     }
@@ -250,7 +250,7 @@ export class MarginCalculator {
     }
 
     // F&O: 0.0125% on sell side for options, 0.01% for futures
-    if (normalizedSegment === 'NFO') {
+    if (normalizedSegment === 'NFO' || normalizedSegment === 'NSE_FO') {
       return turnover * 0.0001
     }
 
