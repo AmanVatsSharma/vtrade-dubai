@@ -101,6 +101,33 @@ export function useInstrumentSearch(
     setError(null);
 
     try {
+      if (tab === 'equity') {
+        // Use internal EQUITIES proxy (NSE_EQ)
+        const url = `/api/market-data/equities?q=${encodeURIComponent(query)}&exchange=NSE_EQ&limit=20&ltp_only=true`;
+        const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: abortControllerRef.current?.signal });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(`Equities search failed (${res.status}): ${errText || res.statusText}`);
+        }
+        const data = await res.json();
+        const items: any[] = data?.data?.instruments || [];
+        const mapped: MilliInstrument[] = items.map((inst: any) => ({
+          token: Number(inst?.token),
+          instrumentToken: Number(inst?.token),
+          symbol: String(inst?.symbol || ''),
+          tradingSymbol: String(inst?.symbol || ''),
+          companyName: String(inst?.symbol || ''),
+          exchange: 'NSE_EQ',
+          segment: 'NSE',
+          instrumentType: 'EQUITY',
+          description: inst?.description,
+          last_price: inst?.last_price != null ? Number(inst.last_price) : undefined,
+          is_active: inst?.is_active,
+        } as any));
+        setResults(mapped);
+        setLoading(false);
+        return;
+      }
       if (tab === 'commodities') {
         // Use internal MCX proxy that forwards symbol query to Vedpragya
         const url = `/api/market-data/mcx?symbol=${encodeURIComponent(query)}&limit=20&offset=0&ltp_only=true&include_ltp=true`;
@@ -199,8 +226,8 @@ export function useInstrumentSearch(
         // Ignore if query changed during idle
         if (currentSearchRef.current !== query) return
         try {
-          // Skip refinement for commodities (handled via MCX endpoint only)
-          if ((tab as any) === 'commodities' || (tab as any) === 'futures') return
+          // Skip refinement for equities (using proxy), commodities, and futures
+          if ((tab as any) === 'equity' || (tab as any) === 'commodities' || (tab as any) === 'futures') return
           const fullResults = await milliClient.search({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
           if (currentSearchRef.current === query && Array.isArray(fullResults) && fullResults.length > 0) {
             setResults(fullResults)

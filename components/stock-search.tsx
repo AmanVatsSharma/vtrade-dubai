@@ -211,15 +211,16 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                  ex.includes('MCX') ? 'MCX_FO' :
                  ex.includes('NSE') ? 'NSE' : 'NSE')
               
-              // Description formatting (MCX and Futures)
+              // Description formatting (Equity, MCX, Futures)
               const rawDesc = (instrument as any)?.description as string | undefined
               const cleanedDesc = rawDesc
                 ? rawDesc
-                    .replace(/^(MCX_FO|NSE_FO)\s+/i, '')
+                    .replace(/^(MCX_FO|NSE_FO|NSE_EQ)\s+/i, '')
                     .replace(/\s+XX$/i, '')
+                    .replace(/\s+EQUITIES$/i, '')
                 : undefined
               const displayTitle =
-                (activeTab === 'commodities' || activeTab === 'futures')
+                (activeTab === 'commodities' || activeTab === 'futures' || activeTab === 'equity')
                   ? (cleanedDesc || `${instrument.symbol} ${((instrument as any)?.instrument_name || '')} ${formatCompactExpiry(instrument.expiry_date || (instrument as any).expiry || (instrument as any).expiryDate)}`.trim())
                   : instrument.symbol
               const strikeNum = typeof (instrument as any)?.strike_price === 'string'
@@ -233,7 +234,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                 exchange: instrument.exchange,
                 ticker: instrument.symbol,
                 symbol: instrument.symbol,
-                name: (activeTab === 'commodities' || activeTab === 'futures')
+                name: (activeTab === 'commodities' || activeTab === 'futures' || activeTab === 'equity')
                   ? (cleanedDesc || rawDesc || instrument.name || instrument.symbol)
                   : (instrument.name || instrument.symbol),
                 ltp: instrument.last_price || 0,
