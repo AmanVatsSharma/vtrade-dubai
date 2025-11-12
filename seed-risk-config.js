@@ -86,6 +86,26 @@ async function seedRiskConfig() {
       }
     })
 
+    // Insert MCX DELIVERY config
+    await prisma.riskConfig.upsert({
+      where: {
+        segment_productType: {
+          segment: 'MCX',
+          productType: 'DELIVERY'
+        }
+      },
+      update: {},
+      create: {
+        segment: 'MCX',
+        productType: 'DELIVERY',
+        leverage: 50,
+        brokerageFlat: 20,
+        brokerageRate: null,
+        brokerageCap: null,
+        active: true
+      }
+    })
+
     console.log('✅ Risk config seeded successfully!')
     
     // Verify the data

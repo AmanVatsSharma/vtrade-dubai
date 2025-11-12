@@ -178,6 +178,25 @@ export class OrderExecutionService {
 
       // Step 5: Execute in transaction (atomic operation)
       const result = await executeInTransaction(async (tx) => {
+        // Resolve stock first to validate lot multiples for derivatives
+        const stockRecord = await this.ensureStockForOrder(tx, {
+          ...input,
+          segment: normalizedSegment,
+          productType: normalizedProductType,
+          lotSize: normalizedLotSize
+        })
+
+        // Enforce lot multiple validation for derivatives (NFO/FNO/MCX)
+        const segForValidation = (stockRecord.segment || normalizedSegment || '').toUpperCase()
+        if (segForValidation === 'NFO' || segForValidation === 'FNO' || segForValidation === 'MCX') {
+          const lot = Number(stockRecord.lot_size || normalizedLotSize || 1)
+          if (lot > 1) {
+            if (input.quantity % lot !== 0) {
+              throw new Error(`Quantity must be a multiple of lot size (${lot}) for ${segForValidation}`)
+            }
+          }
+        }
+
         // Block margin
         console.log("🔒 [ORDER-EXECUTION-SERVICE] Blocking margin:", marginCalc.requiredMargin)
         const blockResult = await this.fundService.blockMargin(
@@ -196,13 +215,6 @@ export class OrderExecutionService {
 
         // Create order
         console.log("📝 [ORDER-EXECUTION-SERVICE] Creating order record")
-
-        const stockRecord = await this.ensureStockForOrder(tx, {
-          ...input,
-          segment: normalizedSegment,
-          productType: normalizedProductType,
-          lotSize: normalizedLotSize
-        })
 
         const order = await this.orderRepo.create(
           {

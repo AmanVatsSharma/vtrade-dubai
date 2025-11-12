@@ -65,11 +65,18 @@ function normalizeStockData(raw: any | null) {
 export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, drawer, session }: OrderDialogProps) {
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY")
   const [quantity, setQuantity] = useState(1)
+  const [lots, setLots] = useState(1)
   const [price, setPrice] = useState<number | null>(null)
   const [currentOrderType, setCurrentOrderType] = useState("CNC")
   const [loading, setLoading] = useState(false)
   const [selectedStock, setSelectedStock] = useState<any>(() => normalizeStockData(stock))
   const [isMarket, setIsMarket] = useState(true)
+  const [riskConfig, setRiskConfig] = useState<{
+    leverage: number
+    brokerageFlat: number | null
+    brokerageRate: number | null
+    brokerageCap: number | null
+  } | null>(null)
 
   const { quotes } = useMarketData()
   const q = selectedStock ? quotes?.[selectedStock.instrumentId] : null
@@ -85,69 +92,115 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
     setSelectedStock(normalized)
     if (normalized) {
       setPrice(normalized.ltp ?? null)
-      if (normalized.segment === "NFO") {
+      if (normalized.segment === "NFO" || normalized.segment === "FNO" || normalized.segment === "MCX") {
         setCurrentOrderType("DELIVERY")
-        setQuantity(normalized.lot_size || 1)
+        const baseLot = normalized.lot_size || 1
+        setLots(1)
+        setQuantity(baseLot)
       } else {
         setQuantity(1)
+        setLots(1)
         setCurrentOrderType("CNC")
       }
     }
   }, [stock])
 
+  // Derived helpers
+  const segmentUpper = (selectedStock?.segment || selectedStock?.exchange || "NSE")?.toUpperCase()
+  const isDerivatives = segmentUpper === "NFO" || segmentUpper === "FNO" || segmentUpper === "MCX"
+  const lotSize = selectedStock?.lot_size || 1
+  const units = isDerivatives ? Math.max(1, lots) * lotSize : quantity
+
+  // Fetch risk config from server to mirror backend
+  useEffect(() => {
+    let ignore = false
+    async function load() {
+      if (!selectedStock) return
+      const prod = currentOrderType.toUpperCase()
+      const seg = segmentUpper
+      try {
+        const res = await fetch(`/api/risk/config?segment=${encodeURIComponent(seg)}&productType=${encodeURIComponent(prod)}`, { cache: 'no-store' })
+        if (!res.ok) throw new Error(`Failed to load risk config ${res.status}`)
+        const data = await res.json()
+        if (!ignore && data?.success && data?.data) {
+          setRiskConfig({
+            leverage: Number(data.data.leverage) || 1,
+            brokerageFlat: data.data.brokerageFlat ?? null,
+            brokerageRate: data.data.brokerageRate ?? null,
+            brokerageCap: data.data.brokerageCap ?? null
+          })
+        }
+      } catch (e) {
+        // Silent fail; UI will fallback to defaults
+        if (!ignore) setRiskConfig(null)
+      }
+    }
+    load()
+    return () => { ignore = true }
+  }, [selectedStock, currentOrderType, segmentUpper])
+
   const availableMargin = portfolio?.account?.availableMargin || 0
 
   // Margin calculation logic - matches backend MarginCalculator
   const marginRequired = useMemo(() => {
-    if (!selectedStock || !price || quantity <= 0) return 0
-    const turnover = quantity * price
+    if (!selectedStock || !price || units <= 0) return 0
+    const turnover = units * price
 
     // Calculate leverage based on segment and product type
-    let leverage = 1
-    const segment = (selectedStock.segment || selectedStock.exchange || "NSE").toUpperCase()
-    const productType = currentOrderType.toUpperCase()
-
-    if (segment === "NSE" || segment === "NSE_EQ") {
-      if (productType === "MIS" || productType === "INTRADAY") {
-        leverage = 200 // 0.5% margin
-      } else if (productType === "CNC" || productType === "DELIVERY") {
-        leverage = 50 // 2% margin
+    let leverage = riskConfig?.leverage ?? (() => {
+      const productType = currentOrderType.toUpperCase()
+      if (segmentUpper === "NSE" || segmentUpper === "NSE_EQ") {
+        if (productType === "MIS" || productType === "INTRADAY") return 200
+        if (productType === "CNC" || productType === "DELIVERY") return 50
+      } else if (segmentUpper === "NFO" || segmentUpper === "FNO") {
+        return 100
+      } else if (segmentUpper === "MCX") {
+        return 50
       }
-    } else if (segment === "NFO" || segment === "FNO") {
-      leverage = 100 // 1% margin
-    } else if (segment === "MCX") {
-      leverage = 50
-    }
+      return 1
+    })()
 
     const requiredMargin = Math.floor(turnover / leverage)
     return requiredMargin
-  }, [selectedStock, quantity, price, currentOrderType])
+  }, [selectedStock, units, price, currentOrderType, riskConfig, segmentUpper])
 
   // Brokerage calculation - matches backend logic exactly
   const brokerage = useMemo(() => {
-    if (!selectedStock || !price || quantity <= 0) return 0
-    const turnover = quantity * price
-    const segment = (selectedStock.segment || selectedStock.exchange || "NSE").toUpperCase()
+    if (!selectedStock || !price || units <= 0) return 0
+    const turnover = units * price
+    const segment = segmentUpper
 
-    // NSE Equity: 0.03% or ₹20 per order, whichever is lower
+    // Prefer DB-configured brokerage
+    if (riskConfig) {
+      if (riskConfig.brokerageFlat != null) {
+        return Number(riskConfig.brokerageFlat)
+      }
+      if (riskConfig.brokerageRate != null) {
+        const rate = Number(riskConfig.brokerageRate)
+        let br = turnover * rate
+        if (riskConfig.brokerageCap != null) {
+          br = Math.min(br, Number(riskConfig.brokerageCap))
+        }
+        return br
+      }
+    }
+
+    // Fallbacks mirroring MarginCalculator defaults
     if (segment === "NSE" || segment === "NSE_EQ") {
       return Math.min(20, turnover * 0.0003)
     }
-    
-    // NFO F&O: Flat ₹20 per order
     if (segment === "NFO" || segment === "FNO") {
       return 20
     }
-    
-    // Default: ₹20 per order
+    // MCX and others default to flat 20
     return 20
-  }, [selectedStock, quantity, price])
+  }, [selectedStock, units, price, riskConfig, segmentUpper])
 
   // Calculate additional charges (STT, transaction charges, GST, stamp duty)
   const additionalCharges = useMemo(() => {
-    if (!selectedStock || !price || quantity <= 0) return 0
-    const turnover = quantity * price
-    const segment = (selectedStock.segment || selectedStock.exchange || "NSE").toUpperCase()
+    if (!selectedStock || !price || units <= 0) return 0
+    const turnover = units * price
+    const segment = segmentUpper
     const productType = currentOrderType.toUpperCase()
 
     // STT calculation
@@ -180,7 +233,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const isMarketBlocked = !allowDevOrders && sessionStatus !== 'open'
 
   const handleSubmit = async () => {
-    if (!selectedStock || quantity <= 0) {
+    if (!selectedStock || units <= 0) {
       toast({ title: "Invalid Order", description: "Check quantity and price.", variant: "destructive" })
       return
     }
@@ -229,7 +282,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         optimisticUpdateOrder({
           id: tempOrderId,
           symbol: selectedStock.symbol,
-          quantity: orderSide === "BUY" ? quantity : -quantity,
+          quantity: orderSide === "BUY" ? units : -units,
           orderType: isMarket ? "MARKET" : "LIMIT",
           orderSide,
           price: orderPrice,
@@ -272,7 +325,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         userEmail: session?.user?.email,
         stockId: selectedStock.stockId,
         symbol: selectedStock.symbol,
-        quantity,
+        quantity: units,
         price: orderPrice,
         orderType: isMarket ? "MARKET" : "LIMIT",
         orderSide,
@@ -464,18 +517,18 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
           {/* Order Type */}
           <Tabs value={currentOrderType} onValueChange={setCurrentOrderType}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="MIS" disabled={selectedStock.segment === "NFO"}>
+              <TabsTrigger value="MIS" disabled={selectedStock.segment === "NFO" || selectedStock.segment === "FNO"}>
                 Intraday (MIS)
               </TabsTrigger>
               <TabsTrigger value="CNC">Delivery (CNC)</TabsTrigger>
             </TabsList>
           </Tabs>
 
-          {/* F&O Info */}
-          {selectedStock.segment === "NFO" && (
+          {/* Derivatives Info */}
+          {isDerivatives && (
             <div className="flex items-center justify-between p-2 rounded-md bg-yellow-50 border text-sm">
               <Package className="h-4 w-4 mr-1" />
-              Lot Size: {selectedStock.lot_size}
+              Lot Size: {lotSize}
               {selectedStock.expiry && <span className="ml-2">• Exp: {selectedStock.expiry}</span>}
             </div>
           )}
@@ -483,22 +536,34 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
           {/* Qty / Price */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Quantity</Label>
-              <Input
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                min={selectedStock.segment === "NFO" ? selectedStock.lot_size : 1}
-                step={selectedStock.segment === "NFO" ? selectedStock.lot_size : 1}
-                // Enforce lot multiples for F&O
-                onBlur={() => {
-                  if (selectedStock.segment === "NFO" && selectedStock.lot_size) {
-                    const lots = Math.max(1, Math.round(quantity / selectedStock.lot_size))
-                    setQuantity(lots * selectedStock.lot_size)
-                  }
-                }}
-              disabled={isMarketBlocked}
-              />
+              {isDerivatives ? (
+                <>
+                  <Label>Lots</Label>
+                  <Input
+                    type="number"
+                    value={lots}
+                    onChange={(e) => setLots(Math.max(1, Number(e.target.value)))}
+                    min={1}
+                    step={1}
+                    disabled={isMarketBlocked}
+                  />
+                  <div className="text-[11px] text-gray-500 mt-1">
+                    {lots} lot{lots > 1 ? 's' : ''} → {units} units
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Label>Quantity</Label>
+                  <Input
+                    type="number"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    min={1}
+                    step={1}
+                    disabled={isMarketBlocked}
+                  />
+                </>
+              )}
             </div>
             <div>
               <Label>Price</Label>
@@ -544,7 +609,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
           <div className="space-y-2 text-xs bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
             <div className="flex justify-between">
               <span className="text-gray-600">Order Value</span>
-              <span className="font-mono">₹{((price || 0) * quantity).toFixed(2)}</span>
+              <span className="font-mono">₹{((price || 0) * units).toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Required Margin</span>
