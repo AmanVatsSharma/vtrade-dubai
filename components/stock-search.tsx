@@ -214,10 +214,16 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
               // Description formatting (Equity, MCX, Futures)
               const rawDesc = (instrument as any)?.description as string | undefined
               const cleanedDesc = rawDesc
-                ? rawDesc
-                    .replace(/^(MCX_FO|NSE_FO|NSE_EQ)\s+/i, '')
-                    .replace(/\s+XX$/i, '')
-                    .replace(/\s+EQUITIES$/i, '')
+                ? (() => {
+                    let s = rawDesc
+                      .replace(/^(MCX_FO|NSE_FO|NSE_EQ)\s+/i, '')
+                      .replace(/\s+XX$/i, '')
+                    // Keep trailing 'EQUITIES' for Equity tab titles
+                    if (activeTab !== 'equity') {
+                      s = s.replace(/\s+EQUITIES$/i, '')
+                    }
+                    return s
+                  })()
                 : undefined
               const displayTitle =
                 (activeTab === 'commodities' || activeTab === 'futures' || activeTab === 'equity')
