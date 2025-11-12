@@ -360,6 +360,11 @@ export const withAddWatchlistItemTransaction = async (
       exchange: data.exchange 
     })
 
+    // Normalize exchange/segment for MCX so instrumentId becomes 'MCX_FO-{token}'
+    const exchangeNormalized =
+      (data.exchange || '').includes('MCX') ? 'MCX_FO' : data.exchange
+    const segmentNormalized = data.segment || exchangeNormalized
+
     // Verify watchlist ownership
     const watchlist = await tx.watchlist.findFirst({
       where: {
@@ -412,8 +417,8 @@ export const withAddWatchlistItemTransaction = async (
     const stockRecord = await ensureStockRecord(tx, {
       token: data.token,
       symbol: data.symbol,
-      exchange: data.exchange,
-      segment: data.segment,
+      exchange: exchangeNormalized,
+      segment: segmentNormalized,
       name: data.name,
       ltp: data.ltp,
       close: data.close,
@@ -431,8 +436,8 @@ export const withAddWatchlistItemTransaction = async (
         stockId: stockRecord.id,
         token: data.token,
         symbol: data.symbol,
-        exchange: data.exchange,
-        segment: data.segment,
+        exchange: exchangeNormalized,
+        segment: segmentNormalized,
         name: data.name,
         ltp: data.ltp ?? 0,
         close: data.close ?? 0,
