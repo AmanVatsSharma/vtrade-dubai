@@ -1,3 +1,11 @@
+/**
+ * @file position-tracking.tsx
+ * @module components/position-tracking
+ * @description Dashboard widget that surfaces live and booked positions with rich analytics.
+ * @author BharatERP
+ * @created 2025-11-06
+ */
+
 "use client"
 
 import { useState, useMemo, useCallback, useRef } from "react"
@@ -19,7 +27,7 @@ import { closePosition, updateStopLoss, updateTarget } from "@/lib/hooks/use-tra
 import { useSession } from "next-auth/react"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { cn } from "@/lib/utils"
-import { formatExpiryDateIST, formatDateIST } from "@/lib/date-utils"
+import { formatExpiryDateIST } from "@/lib/date-utils"
 
 // Types
 interface Position {
@@ -31,6 +39,8 @@ interface Position {
   stock?: {
     instrumentId?: string;
   };
+  status?: "OPEN" | "CLOSED";
+  isClosed?: boolean;
   stopLoss?: number;
   target?: number;
   segment?: string;
@@ -39,6 +49,9 @@ interface Position {
   optionType?: string;
   lotSize?: number;
   unrealizedPnL: number;
+  realizedPnL?: number;
+  bookedPnL?: number;
+  dayPnL?: number;
 }
 
 interface Quote { 
@@ -126,14 +139,16 @@ const SwipeablePositionCard = ({
   // Calculate P&L
   const isFutures = position.segment === "NFO" && !position.optionType
   const isOption = position.segment === "NFO" && !!position.optionType
-  const isClosed = position.quantity === 0
+  const isClosed = position.isClosed ?? position.quantity === 0
+
+  const bookedPnL = position.bookedPnL ?? position.realizedPnL ?? position.unrealizedPnL ?? 0
 
   let displayPnL: number
   let displayPnLPercent: number
   let currentPrice: number
 
   if (isClosed) {
-    displayPnL = position.unrealizedPnL ?? 0
+    displayPnL = bookedPnL
     displayPnLPercent = position.averagePrice !== 0 ? (displayPnL / position.averagePrice) * 100 : 0
     currentPrice = position.averagePrice
   } else {
@@ -146,6 +161,7 @@ const SwipeablePositionCard = ({
   }
 
   const isProfitable = displayPnL >= 0
+  const liveIndicatorColor = isClosed ? "bg-gray-400" : "bg-green-500"
 
   const handleDragEnd = async (_: any, info: PanInfo) => {
     const threshold = 100
@@ -208,34 +224,38 @@ const SwipeablePositionCard = ({
                 </motion.h3>
                 
                 {/* Position Type Badges */}
-                <div className="flex gap-1">
-                  {isFutures && (
-                    <Badge className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 text-xs px-2 py-0.5">
-                      FUT
-                    </Badge>
-                  )}
-                  {isOption && (
-                    <Badge className="bg-gradient-to-r from-amber-500 to-amber-600 text-white border-0 text-xs px-2 py-0.5">
-                      {position.optionType}
-                    </Badge>
-                  )}
-                  {position.quantity > 0 ? (
-                    <Badge className="bg-gradient-to-r from-green-500 to-green-600 text-white border-0 text-xs px-2 py-0.5">
-                      LONG
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 text-xs px-2 py-0.5">
-                      SHORT
-                    </Badge>
-                  )}
-                </div>
+                  <div className="flex gap-1">
+                    {isFutures && !isClosed && (
+                      <Badge className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 text-xs px-2 py-0.5">
+                        FUT
+                      </Badge>
+                    )}
+                    {isOption && !isClosed && (
+                      <Badge className="bg-gradient-to-r from-amber-500 to-amber-600 text-white border-0 text-xs px-2 py-0.5">
+                        {position.optionType}
+                      </Badge>
+                    )}
+                    {isClosed ? (
+                      <Badge className="bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 text-xs px-2 py-0.5">
+                        BOOKED
+                      </Badge>
+                    ) : position.quantity > 0 ? (
+                      <Badge className="bg-gradient-to-r from-green-500 to-green-600 text-white border-0 text-xs px-2 py-0.5">
+                        LONG
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white border-0 text-xs px-2 py-0.5">
+                        SHORT
+                      </Badge>
+                    )}
+                  </div>
 
-                {/* Live indicator */}
-                <motion.div
-                  className="w-2 h-2 bg-green-500 rounded-full"
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
+                  {/* Live indicator */}
+                  <motion.div
+                    className={`w-2 h-2 ${liveIndicatorColor} rounded-full`}
+                    animate={{ scale: isClosed ? 1 : [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: isClosed ? 0 : Infinity }}
+                  />
               </div>
 
               {/* P&L Display */}
@@ -392,17 +412,24 @@ const SwipeablePositionCard = ({
               </div>
             )}
 
-            {/* Closed Position Indicator */}
-            {isClosed && (
-              <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-                <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-                  CLOSED
-                </Badge>
-                <span className="text-xs text-gray-500">
-                  Booked P&L • {formatDateIST(new Date())}
-                </span>
-              </div>
-            )}
+              {/* Closed Position Indicator */}
+              {isClosed && (
+                <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <Badge
+                    className={cn(
+                      "text-xs px-2 py-0.5",
+                      isProfitable
+                        ? "bg-gradient-to-r from-green-500 to-green-600 text-white"
+                        : "bg-gradient-to-r from-red-500 to-red-600 text-white"
+                    )}
+                  >
+                    {isProfitable ? "PROFIT BOOKED" : "LOSS BOOKED"}
+                  </Badge>
+                  <span className="text-xs text-gray-500">
+                    Booked • ₹{Math.abs(bookedPnL).toFixed(2)}
+                  </span>
+                </div>
+              )}
           </CardContent>
         </Card>
       </motion.div>
@@ -429,66 +456,83 @@ export function PositionTracking({
   const [loading, setLoading] = useState<string | null>(null)
 
   // Calculate P&L Summary - Use display_price for live animated updates
-  const { totalPnL, dayPnL, winRate, totalPositions } = useMemo(() => {
+  const { totalPnL, dayPnL, winRate, totalPositions, closedPositions, bookedPnL } = useMemo(() => {
     let total = 0
     let day = 0
     let winners = 0
     let activePositions = 0
+    let closedCount = 0
+    let booked = 0
 
     positions.forEach((pos) => {
-      if (pos.quantity === 0) {
-        total += pos.unrealizedPnL ?? 0
-        day += pos.unrealizedPnL ?? 0
-        if (pos.unrealizedPnL > 0) winners++
-      } else {
-        const quoteKey = getQuoteKeyForPosition(pos)
-        const quote = quoteKey ? quotes[quoteKey] : null
-        // Use display_price for live animated position updates
-        const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
-        const pnl = (ltp - pos.averagePrice) * pos.quantity
-        total += pnl
-        day += pnl
-        if (pnl > 0) winners++
-        activePositions++
+      const isClosed = pos.isClosed ?? pos.quantity === 0
+      if (isClosed) {
+        const realized = pos.bookedPnL ?? pos.realizedPnL ?? pos.unrealizedPnL ?? 0
+        total += realized
+        day += realized
+        booked += realized
+        if (realized > 0) winners++
+        closedCount++
+        return
       }
+
+      const quoteKey = getQuoteKeyForPosition(pos)
+      const quote = quoteKey ? quotes[quoteKey] : null
+      // Use display_price for live animated position updates
+      const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
+      const pnl = (ltp - pos.averagePrice) * pos.quantity
+      total += pnl
+      day += pnl
+      if (pnl > 0) winners++
+      activePositions++
     })
 
     const winRate = positions.length > 0 ? (winners / positions.length) * 100 : 0
 
-    return { 
-      totalPnL: total, 
-      dayPnL: day, 
+    return {
+      totalPnL: total,
+      dayPnL: day,
       winRate,
-      totalPositions: activePositions
+      totalPositions: activePositions,
+      closedPositions: closedCount,
+      bookedPnL: booked
     }
   }, [positions, quotes])
 
   // Filter positions - Use display_price for live filtering
   const filteredPositions = useMemo(() => {
     return positions.filter(pos => {
-      switch (activeFilter) {
-        case 'long':
-          return pos.quantity > 0
-        case 'short':
-          return pos.quantity < 0
-        case 'profit':
-          if (pos.quantity === 0) return pos.unrealizedPnL > 0
-          const quoteKey = getQuoteKeyForPosition(pos)
-          const quote = quoteKey ? quotes[quoteKey] : null
-          const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
-          return (ltp - pos.averagePrice) * pos.quantity > 0
-        case 'loss':
-          if (pos.quantity === 0) return pos.unrealizedPnL < 0
-          const quoteKeyLoss = getQuoteKeyForPosition(pos)
-          const quoteLoss = quoteKeyLoss ? quotes[quoteKeyLoss] : null
-          const ltpLoss = (((quoteLoss as any)?.display_price ?? quoteLoss?.last_trade_price) ?? pos.averagePrice)
-          return (ltpLoss - pos.averagePrice) * pos.quantity < 0
-        case 'today':
-          // Filter for today's positions (this would need actual date logic)
-          return true
-        default:
-          return true
-      }
+        switch (activeFilter) {
+          case 'long':
+            return pos.quantity > 0
+          case 'short':
+            return pos.quantity < 0
+          case 'profit': {
+            if (pos.isClosed ?? pos.quantity === 0) {
+              const realized = pos.bookedPnL ?? pos.realizedPnL ?? pos.unrealizedPnL ?? 0
+              return realized > 0
+            }
+            const quoteKey = getQuoteKeyForPosition(pos)
+            const quote = quoteKey ? quotes[quoteKey] : null
+            const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
+            return (ltp - pos.averagePrice) * pos.quantity > 0
+          }
+          case 'loss': {
+            if (pos.isClosed ?? pos.quantity === 0) {
+              const realized = pos.bookedPnL ?? pos.realizedPnL ?? pos.unrealizedPnL ?? 0
+              return realized < 0
+            }
+            const quoteKeyLoss = getQuoteKeyForPosition(pos)
+            const quoteLoss = quoteKeyLoss ? quotes[quoteKeyLoss] : null
+            const ltpLoss = (((quoteLoss as any)?.display_price ?? quoteLoss?.last_trade_price) ?? pos.averagePrice)
+            return (ltpLoss - pos.averagePrice) * pos.quantity < 0
+          }
+          case 'today':
+            // Filter for today's positions (this would need actual date logic)
+            return true
+          default:
+            return true
+        }
     })
   }, [positions, quotes, activeFilter])
 
@@ -644,93 +688,111 @@ export function PositionTracking({
               >
                 {totalPnL >= 0 ? "+" : ""}₹{Math.abs(totalPnL).toFixed(2)}
               </motion.p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Booked: {bookedPnL >= 0 ? "+" : "-"}₹{Math.abs(bookedPnL).toFixed(2)}
+                </p>
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
       {/* Quick Stats Bar */}
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-4 px-2"
-      >
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1">
-            <BarChart3 className="w-3 h-3 text-gray-500" />
-            <span className="font-medium">{totalPositions} Active</span>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between mb-4 px-2"
+        >
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1">
+              <BarChart3 className="w-3 h-3 text-gray-500" />
+              <span className="font-medium">{totalPositions} Active</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Percent className="w-3 h-3 text-gray-500" />
+              <span className="font-medium">{winRate.toFixed(0)}% Win</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-gray-500" />
+              <span className="font-medium">{closedPositions} Booked</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Percent className="w-3 h-3 text-gray-500" />
-            <span className="font-medium">{winRate.toFixed(0)}% Win</span>
-          </div>
-        </div>
-        <Badge className="bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 text-xs">
-          Live
-        </Badge>
-      </motion.div>
+          <Badge className="bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 text-xs">
+            Live
+          </Badge>
+        </motion.div>
 
-      {/* Compact Filter Tabs */}
-      <div className="mb-4 overflow-x-auto scrollbar-hide">
-        <div className="flex gap-2 min-w-max px-1">
-          {POSITION_FILTERS.map((filter, index) => {
-            const Icon = filter.icon
-            const count = filter.id === 'all' 
-              ? positions.length 
-              : positions.filter(p => {
-                  switch (filter.id) {
-                    case 'long': return p.quantity > 0
-                    case 'short': return p.quantity < 0
-                    case 'profit': 
-                      if (p.quantity === 0) return p.unrealizedPnL > 0
-            const quoteKey = getQuoteKeyForPosition(p)
-            const q = quoteKey ? quotes[quoteKey] : null
-            const ltp = (q as any)?.display_price ?? q?.last_trade_price ?? p.averagePrice
-                      return (ltp - p.averagePrice) * p.quantity > 0
-                    case 'loss':
-                      if (p.quantity === 0) return p.unrealizedPnL < 0
-                      const quoteKeyLoss = getQuoteKeyForPosition(p)
-                      const ql = quoteKeyLoss ? quotes[quoteKeyLoss] : null
-                      const ltpl = (ql as any)?.display_price ?? ql?.last_trade_price ?? p.averagePrice
-                      return (ltpl - p.averagePrice) * p.quantity < 0
-                    default: return true
-                  }
-                }).length
-            
-            return (
-              <motion.button
-                key={filter.id}
-                onClick={() => setActiveFilter(filter.id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium",
-                  "transition-all duration-200",
-                  activeFilter === filter.id 
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg" 
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                )}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {filter.label}
-                {count > 0 && (
-                  <span className={cn(
-                    "px-1.5 py-0.5 rounded-full text-xs",
-                    activeFilter === filter.id 
-                      ? "bg-white/20 text-white" 
-                      : "bg-gray-200 dark:bg-gray-700"
-                  )}>
-                    {count}
-                  </span>
-                )}
-              </motion.button>
-            )
-          })}
+        {/* Compact Filter Tabs */}
+        <div className="mb-4 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-2 min-w-max px-1">
+            {POSITION_FILTERS.map((filter, index) => {
+              const Icon = filter.icon
+              const count = filter.id === 'all'
+                ? positions.length
+                : positions.filter(p => {
+                    switch (filter.id) {
+                      case 'long':
+                        return p.quantity > 0
+                      case 'short':
+                        return p.quantity < 0
+                      case 'profit': {
+                        if (p.isClosed ?? p.quantity === 0) {
+                          const realized = p.bookedPnL ?? p.realizedPnL ?? p.unrealizedPnL ?? 0
+                          return realized > 0
+                        }
+                        const quoteKey = getQuoteKeyForPosition(p)
+                        const q = quoteKey ? quotes[quoteKey] : null
+                        const ltp = (q as any)?.display_price ?? q?.last_trade_price ?? p.averagePrice
+                        return (ltp - p.averagePrice) * p.quantity > 0
+                      }
+                      case 'loss': {
+                        if (p.isClosed ?? p.quantity === 0) {
+                          const realized = p.bookedPnL ?? p.realizedPnL ?? p.unrealizedPnL ?? 0
+                          return realized < 0
+                        }
+                        const quoteKeyLoss = getQuoteKeyForPosition(p)
+                        const ql = quoteKeyLoss ? quotes[quoteKeyLoss] : null
+                        const ltpl = (ql as any)?.display_price ?? ql?.last_trade_price ?? p.averagePrice
+                        return (ltpl - p.averagePrice) * p.quantity < 0
+                      }
+                      default:
+                        return true
+                    }
+                  }).length
+
+              return (
+                <motion.button
+                  key={filter.id}
+                  onClick={() => setActiveFilter(filter.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium",
+                    "transition-all duration-200",
+                    activeFilter === filter.id
+                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  )}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {filter.label}
+                  {count > 0 && (
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded-full text-xs",
+                      activeFilter === filter.id
+                        ? "bg-white/20 text-white"
+                        : "bg-gray-200 dark:bg-gray-700"
+                    )}>
+                      {count}
+                    </span>
+                  )}
+                </motion.button>
+              )
+            })}
+          </div>
         </div>
-      </div>
 
       {/* Positions List with Stagger Animation */}
       <motion.div 
@@ -747,8 +809,18 @@ export function PositionTracking({
           }
         }}
       >
-        <AnimatePresence mode="popLayout">
-          {filteredPositions.map((position) => {
+          <AnimatePresence mode="popLayout">
+            {filteredPositions
+              .slice()
+              .sort((a, b) => {
+                const aClosed = a.isClosed ?? a.quantity === 0
+                const bClosed = b.isClosed ?? b.quantity === 0
+                if (aClosed === bClosed) {
+                  return 0
+                }
+                return aClosed ? 1 : -1
+              })
+              .map((position) => {
             const quoteKey = getQuoteKeyForPosition(position)
             const quote = quoteKey ? quotes[quoteKey] : null
             
@@ -763,7 +835,7 @@ export function PositionTracking({
                 isLoading={loading === position.id}
               />
             )
-          })}
+              })}
         </AnimatePresence>
       </motion.div>
 

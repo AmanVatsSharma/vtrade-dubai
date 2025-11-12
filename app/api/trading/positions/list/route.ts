@@ -1,46 +1,87 @@
 /**
- * Positions List API
- * 
- * Returns list of positions for a user (for real-time polling)
+ * @file route.ts
+ * @module api/trading/positions/list
+ * @description Positions list endpoint (open + closed) for dashboard streaming.
+ * @author BharatERP
+ * @created 2025-11-06
  */
 
-export const runtime = 'nodejs';
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { auth } from '@/auth'
+/**
+ * Positions List API
+ *
+ * Returns list of positions (open and closed) for a user so that the
+ * dashboard can highlight booked profits after the quantity reaches zero.
+ */
+
+export const runtime = "nodejs"
+
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { auth } from "@/auth"
+
+type ApiPositionPayload = {
+  id: string
+  symbol: string
+  quantity: number
+  averagePrice: number
+  unrealizedPnL: number
+  realizedPnL: number
+  bookedPnL: number
+  dayPnL: number
+  stopLoss: number | null
+  target: number | null
+  createdAt: string
+  status: "OPEN" | "CLOSED"
+  isClosed: boolean
+  currentPrice: number
+  currentValue: number
+  investedValue: number
+  stock: {
+    symbol: string | null
+    name: string | null
+    ltp: number | null
+    instrumentId: string | null
+    segment: string | null
+  } | null
+}
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const userId = searchParams.get('userId')
-    
+    const userId = searchParams.get("userId")
+
+    console.info("📡 [API-POSITIONS-LIST] Incoming request", { requestedUserId: userId })
+
     // Get session for security
     const session = await auth()
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.warn("⚠️ [API-POSITIONS-LIST] Unauthorized access attempt")
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    
+
     // Ensure user can only fetch their own data
     if (userId && userId !== session.user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      console.warn("🚫 [API-POSITIONS-LIST] Forbidden request", {
+        sessionUserId: session.user.id,
+        requestedUserId: userId
+      })
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-    
+
     // Get trading account
     const tradingAccount = await prisma.tradingAccount.findUnique({
       where: { userId: session.user.id }
     })
-    
+
     if (!tradingAccount) {
-      return NextResponse.json({ positions: [] })
+      console.info("ℹ️ [API-POSITIONS-LIST] No trading account found, returning empty list")
+      return NextResponse.json({ success: true, positions: [] })
     }
-    
-    // Fetch open positions only
+
+    // Fetch all positions (open + closed) so UI can show booked profits
     const positions = await prisma.position.findMany({
       where: {
-        tradingAccountId: tradingAccount.id,
-        quantity: {
-          not: 0
-        }
+        tradingAccountId: tradingAccount.id
       },
       include: {
         Stock: {
@@ -54,34 +95,73 @@ export async function GET(req: Request) {
         }
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: "desc"
       }
     })
-    
-    return NextResponse.json({
-      success: true,
-      positions: positions.map(position => ({
+
+    const openPositions: ApiPositionPayload[] = []
+    const closedPositions: ApiPositionPayload[] = []
+
+    positions.forEach((position) => {
+      const isClosed = position.quantity === 0
+      const averagePrice = Number(position.averagePrice)
+      const bookedPnL = Number(position.unrealizedPnL ?? 0)
+      const livePnL = Number(position.dayPnL ?? 0)
+
+      const mappedPosition: ApiPositionPayload = {
         id: position.id,
         symbol: position.symbol,
         quantity: position.quantity,
-        averagePrice: Number(position.averagePrice),
+        averagePrice,
         unrealizedPnL: Number(position.unrealizedPnL),
-        dayPnL: Number(position.dayPnL),
+        realizedPnL: bookedPnL,
+        bookedPnL,
+        dayPnL: livePnL,
         stopLoss: position.stopLoss ? Number(position.stopLoss) : null,
         target: position.target ? Number(position.target) : null,
         createdAt: position.createdAt.toISOString(),
-        stock: position.Stock,
-        // Calculate current value
-        currentPrice: position.Stock?.ltp || Number(position.averagePrice),
-        currentValue: position.quantity * (position.Stock?.ltp || Number(position.averagePrice)),
-        investedValue: position.quantity * Number(position.averagePrice)
-      }))
+        status: isClosed ? "CLOSED" : "OPEN",
+        isClosed,
+        currentPrice: position.Stock?.ltp || averagePrice,
+        currentValue: (position.Stock?.ltp || averagePrice) * position.quantity,
+        investedValue: averagePrice * position.quantity,
+        stock: position.Stock
+          ? {
+              symbol: position.Stock.symbol ?? null,
+              name: position.Stock.name ?? null,
+              ltp: position.Stock.ltp ?? null,
+              instrumentId: position.Stock.instrumentId ?? null,
+              segment: position.Stock.segment ?? null
+            }
+          : null
+      }
+
+      if (isClosed) {
+        closedPositions.push(mappedPosition)
+      } else {
+        openPositions.push(mappedPosition)
+      }
+    })
+
+    const orderedPositions = [...openPositions, ...closedPositions]
+
+    console.info("✅ [API-POSITIONS-LIST] Positions fetched", {
+      openCount: openPositions.length,
+      closedCount: closedPositions.length
+    })
+
+    return NextResponse.json({
+      success: true,
+      positions: orderedPositions
     })
   } catch (error: any) {
-    console.error('❌ [API-POSITIONS-LIST] Error:', error)
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Failed to fetch positions'
-    }, { status: 500 })
+    console.error("❌ [API-POSITIONS-LIST] Error:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || "Failed to fetch positions"
+      },
+      { status: 500 }
+    )
   }
 }
