@@ -245,7 +245,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                             {/* Action Buttons */}
                                             <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
                                                 <Button 
-                                                    onClick={() => window.open('tel:+916307656991')}
+                                                    onClick={() => window.open('tel:+91903969492')}
                                                     className="bg-white/95 hover:bg-white text-blue-900 font-medium px-6"
                                                 >
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -254,7 +254,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                                     Schedule a Call
                                                 </Button>
                                                 <Button 
-                                                    onClick={() => window.open('https://wa.me/916307656991')}
+                                                    onClick={() => window.open('https://wa.me/91903969492')}
                                                     className="bg-green-500 hover:bg-green-600 text-white font-medium px-6"
                                                 >
                                                     <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
