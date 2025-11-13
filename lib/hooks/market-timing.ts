@@ -1,11 +1,14 @@
 /**
  * @file market-timing.ts
+ * @module market-timing
  * @description Central helpers to determine Indian market (NSE) session status in IST.
  * - Open: Mon–Fri, 09:15–15:30 IST
  * - Pre-Open (blocked for orders): Mon–Fri, 09:00–09:15 IST
- * - Closed: Otherwise (weekends/holidays/after-hours)
+ * - Closed: Otherwise (weekends/holidays/after-hours/force-closed)
  *
  * All calculations are based on Asia/Kolkata timezone (IST).
+ * @author BharatERP
+ * @created 2025-01-27
  */
 
 import { getCurrentISTDate } from "@/lib/date-utils"
@@ -19,6 +22,48 @@ const NSE_HOLIDAYS_YYYYMMDD = new Set<string>([
   // "2025-01-26", // Republic Day
   // "2025-03-14", // Holi (example)
 ])
+
+// Cache for force closed setting (client-side, updated from API)
+let cachedForceClosed: boolean | null = null
+let forceClosedCacheTimestamp: number = 0
+const FORCE_CLOSED_CACHE_TTL_MS = 5000 // 5 seconds
+
+/**
+ * Get market force closed status (client-side cache)
+ * This is updated by calling setMarketForceClosed()
+ * 
+ * @returns boolean - True if market is force closed
+ */
+function getMarketForceClosed(): boolean {
+  const now = Date.now()
+  
+  // Return cached value if still valid
+  if (cachedForceClosed !== null && (now - forceClosedCacheTimestamp) < FORCE_CLOSED_CACHE_TTL_MS) {
+    return cachedForceClosed
+  }
+
+  // Default to false if cache expired (will be refreshed by API call)
+  return false
+}
+
+/**
+ * Set market force closed status (called from settings component)
+ * 
+ * @param forceClosed - True if market should be force closed
+ */
+export function setMarketForceClosed(forceClosed: boolean): void {
+  console.log(`[MARKET-TIMING] Setting force_closed: ${forceClosed}`)
+  cachedForceClosed = forceClosed
+  forceClosedCacheTimestamp = Date.now()
+}
+
+/**
+ * Invalidate force closed cache
+ */
+export function invalidateForceClosedCache(): void {
+  cachedForceClosed = null
+  forceClosedCacheTimestamp = 0
+}
 
 /** Format a Date (IST) to YYYY-MM-DD */
 const formatYyyyMmDd = (d: Date): string => {
@@ -56,6 +101,12 @@ export function isNSEHoliday(date?: Date): boolean {
 /** Returns true during pre-open window (Mon–Fri, 09:00–09:15 IST). */
 export function isPreOpen(date?: Date): boolean {
   try {
+    // Check force closed first (highest priority)
+    if (getMarketForceClosed()) {
+      console.log('[MARKET-TIMING] Market is force closed - blocking pre-open')
+      return false
+    }
+
     const d = date ? new Date(date) : nowIST()
     const day = d.getDay() // Sun=0 .. Sat=6
     if (day === 0 || day === 6) return false
@@ -73,6 +124,12 @@ export function isPreOpen(date?: Date): boolean {
 /** Returns true when regular session is open (Mon–Fri, 09:15–15:30 IST). */
 export function isMarketOpen(date?: Date): boolean {
   try {
+    // Check force closed first (highest priority)
+    if (getMarketForceClosed()) {
+      console.log('[MARKET-TIMING] Market is force closed - blocking orders')
+      return false
+    }
+
     const d = date ? new Date(date) : nowIST()
     const day = d.getDay()
     if (day === 0 || day === 6) return false
@@ -90,6 +147,12 @@ export function isMarketOpen(date?: Date): boolean {
 /** Returns the current market session in IST. */
 export function getMarketSession(date?: Date): MarketSession {
   try {
+    // Check force closed first (highest priority)
+    if (getMarketForceClosed()) {
+      console.log('[MARKET-TIMING] Market is force closed')
+      return "closed"
+    }
+
     const d = date ? new Date(date) : nowIST()
     const day = d.getDay()
     if (day === 0 || day === 6) return "closed"

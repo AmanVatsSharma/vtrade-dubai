@@ -58,13 +58,24 @@ The Admin Console is a comprehensive dashboard for platform administrators to ma
 - [x] Transaction history
 - [x] Real-time fund status updates
 
-### ✅ **5. Settings (NEW)**
+### ✅ **5. Settings**
 - [x] Upload payment QR code
 - [x] Set UPI ID for payments
 - [x] AWS S3 integration for image storage
 - [x] System-wide configuration
 - [x] Profile image upload
 - [x] Real admin data in header
+- [x] **Maintenance Mode Control** (NEW)
+  - [x] Enable/disable maintenance mode from admin console
+  - [x] Custom maintenance message
+  - [x] Set expected end time
+  - [x] Admin bypass toggle
+  - [x] Database-backed configuration (replaces environment variables)
+- [x] **Market Controls** (FIXED)
+  - [x] Force market closed toggle (now properly respected)
+  - [x] NSE holidays management
+  - [x] Real-time market session display
+  - [x] Database-backed force closed setting
 
 ### ✅ **6. AWS S3 Integration**
 - [x] S3 client configuration
@@ -200,7 +211,39 @@ GET /api/admin/me
 PATCH /api/admin/me
 ```
 
-### 4. **Existing APIs (Fixed)**
+### 4. **Maintenance Mode API** (NEW)
+```typescript
+GET /api/maintenance/status
+POST /api/maintenance/toggle
+GET /api/maintenance/config
+```
+**Toggle Request Body:**
+```json
+{
+  "enabled": true,
+  "message": "Custom maintenance message",
+  "endTime": "2025-01-27T18:00:00Z",
+  "allowAdminBypass": true
+}
+```
+
+### 5. **Market Status API** (NEW)
+```typescript
+GET /api/market/status
+```
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "forceClosed": false,
+    "session": "open",
+    "isOpen": true
+  }
+}
+```
+
+### 6. **Existing APIs (Fixed)**
 ```typescript
 GET /api/admin/stats
 GET /api/admin/users
@@ -218,11 +261,19 @@ GET /api/admin/activity
 
 ### Admin Console Components
 
-1. **`<Settings />`** - NEW
+1. **`<Settings />`** - UPDATED
    - Payment QR code upload
    - UPI ID configuration
    - Profile image upload
    - System settings management
+   - **Maintenance Mode Tab** (NEW)
+     - Enable/disable maintenance mode
+     - Custom message and end time
+     - Admin bypass control
+   - **Market Controls Tab** (FIXED)
+     - Force market closed toggle
+     - NSE holidays management
+     - Real-time session display
 
 2. **`<Header />`** - UPDATED
    - Real admin user data
@@ -550,6 +601,21 @@ if (!allowedTypes.includes(file.type)) {
 ---
 
 ## 📝 **Change Log**
+
+### v2.1 - 2025-01-27 - Maintenance Mode & Market Controls Update
+- ✅ **Maintenance Mode Migration**: Migrated from environment variables to database-backed configuration
+  - Added Maintenance Mode tab in admin console settings
+  - Database storage in `SystemSettings` table (category: `MAINTENANCE`)
+  - Caching mechanism (5-second TTL) for performance
+  - Backward compatibility with environment variable fallback
+  - Edge runtime compatibility via API route wrapper
+- ✅ **Market Controls Fix**: Fixed force closed toggle to properly work
+  - Updated market timing functions to check `market_force_closed` first
+  - Created server-side market timing helpers with DB access
+  - Added client-side cache for force closed status
+  - Market controls now work correctly in UI and order processing
+- ✅ **New APIs**: Added maintenance and market status endpoints
+- ✅ **Documentation**: Updated with new features and APIs
 
 ### v2.0 - Current Release
 - ✅ Fixed authentication issues

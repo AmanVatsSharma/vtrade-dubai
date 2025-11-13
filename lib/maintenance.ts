@@ -1,9 +1,16 @@
 /**
- * Maintenance Mode Utilities
- * 
- * Centralized maintenance mode configuration and utilities
- * Provides type-safe access to maintenance settings
+ * @file maintenance.ts
+ * @module maintenance
+ * @description Maintenance mode utilities with database-backed configuration
+ * Supports both edge runtime (middleware) and server runtime
+ * @author BharatERP
+ * @created 2025-01-27
  */
+
+// In-memory cache for maintenance config (works in both edge and server runtime)
+let cachedConfig: MaintenanceConfig | null = null
+let cacheTimestamp: number = 0
+const CACHE_TTL_MS = 5000 // 5 seconds
 
 export interface MaintenanceConfig {
   isEnabled: boolean;
@@ -20,34 +27,89 @@ export interface MaintenanceStatus {
 }
 
 /**
- * Get current maintenance mode configuration
- * Reads configuration from environment variables
+ * Get maintenance config from environment variables (fallback)
  * 
- * @returns MaintenanceConfig - Current maintenance configuration
+ * @returns MaintenanceConfig - Configuration from environment variables
  */
-export function getMaintenanceConfig(): MaintenanceConfig {
-  console.log('[MaintenanceConfig] Reading maintenance configuration from environment variables');
+function getMaintenanceConfigFromEnv(): MaintenanceConfig {
+  console.log('[MaintenanceConfig] Reading from environment variables (fallback)');
   
-  // Read maintenance mode from environment variable (defaults to false if not set)
   const isEnabled = process.env.MAINTENANCE_MODE === 'true';
   const message = process.env.MAINTENANCE_MESSAGE || 
     "We're performing scheduled maintenance to improve your experience. We'll be back shortly!";
   const endTime = process.env.MAINTENANCE_END_TIME ?? '24Hrs';
   const allowAdminBypass = process.env.MAINTENANCE_ALLOW_ADMIN_BYPASS !== 'false';
 
-  const config: MaintenanceConfig = {
+  return {
     isEnabled,
     message,
     endTime,
     allowAdminBypass
   };
+}
 
-  console.log('[MaintenanceConfig] Configuration loaded from environment:', config);
-  return config;
+/**
+ * Get current maintenance mode configuration
+ * Reads from cache first, then falls back to environment variables
+ * For server-side code, use getMaintenanceConfigAsync() instead
+ * 
+ * @returns MaintenanceConfig - Current maintenance configuration
+ */
+export function getMaintenanceConfig(): MaintenanceConfig {
+  const now = Date.now();
+  
+  // Return cached config if still valid
+  if (cachedConfig && (now - cacheTimestamp) < CACHE_TTL_MS) {
+    console.log('[MaintenanceConfig] Returning cached configuration');
+    return cachedConfig;
+  }
+
+  // Fallback to environment variables
+  const envConfig = getMaintenanceConfigFromEnv();
+  
+  // Update cache with env config (will be overridden by async fetch if available)
+  cachedConfig = envConfig;
+  cacheTimestamp = now;
+  
+  console.log('[MaintenanceConfig] Using environment configuration (fallback)');
+  return envConfig;
+}
+
+/**
+ * Get maintenance config asynchronously from database (server-side only)
+ * Updates the cache for subsequent sync calls
+ * 
+ * @returns Promise<MaintenanceConfig> - Current maintenance configuration from DB
+ */
+export async function getMaintenanceConfigAsync(): Promise<MaintenanceConfig> {
+  // Try to use server-side DB helper if available
+  try {
+    // Dynamic import to avoid edge runtime issues
+    const { getMaintenanceConfigFromDB } = await import('@/lib/server/maintenance');
+    const dbConfig = await getMaintenanceConfigFromDB();
+    
+    // Update cache
+    cachedConfig = dbConfig;
+    cacheTimestamp = Date.now();
+    
+    console.log('[MaintenanceConfig] Configuration loaded from database');
+    return dbConfig;
+  } catch (error: any) {
+    console.warn('[MaintenanceConfig] Failed to load from DB, using fallback:', error.message);
+    
+    // Fallback to environment variables
+    const envConfig = getMaintenanceConfigFromEnv();
+    cachedConfig = envConfig;
+    cacheTimestamp = Date.now();
+    
+    return envConfig;
+  }
 }
 
 /**
  * Check if maintenance mode is currently active
+ * Uses cached config or environment variables
+ * For server-side, use isMaintenanceModeActiveAsync() for DB-backed check
  * 
  * @returns boolean - True if maintenance mode is active
  */
@@ -58,12 +120,40 @@ export function isMaintenanceModeActive(): boolean {
 }
 
 /**
+ * Check if maintenance mode is active (async, reads from DB)
+ * Updates cache for subsequent sync calls
+ * 
+ * @returns Promise<boolean> - True if maintenance mode is active
+ */
+export async function isMaintenanceModeActiveAsync(): Promise<boolean> {
+  const config = await getMaintenanceConfigAsync();
+  return config.isEnabled;
+}
+
+/**
  * Get maintenance status for API responses
+ * Uses cached config or environment variables
  * 
  * @returns MaintenanceStatus - Current maintenance status
  */
 export function getMaintenanceStatus(): MaintenanceStatus {
   const config = getMaintenanceConfig();
+  
+  return {
+    isMaintenanceMode: config.isEnabled,
+    message: config.message || 'System maintenance in progress',
+    endTime: config.endTime,
+    lastChecked: new Date()
+  };
+}
+
+/**
+ * Get maintenance status asynchronously (reads from DB)
+ * 
+ * @returns Promise<MaintenanceStatus> - Current maintenance status
+ */
+export async function getMaintenanceStatusAsync(): Promise<MaintenanceStatus> {
+  const config = await getMaintenanceConfigAsync();
   
   return {
     isMaintenanceMode: config.isEnabled,
@@ -94,6 +184,16 @@ export function canBypassMaintenance(userRole?: string): boolean {
   
   console.log('[MaintenanceMode] Bypass check:', { userRole, canBypass, allowedRoles });
   return canBypass;
+}
+
+/**
+ * Invalidate the maintenance config cache
+ * Forces next call to refresh from DB/env
+ */
+export function invalidateMaintenanceCache(): void {
+  console.log('[MaintenanceConfig] Invalidating cache');
+  cachedConfig = null;
+  cacheTimestamp = 0;
 }
 
 /**

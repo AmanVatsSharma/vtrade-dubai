@@ -38,7 +38,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
-import { getMarketSession, setNSEHolidays } from "@/lib/hooks/market-timing"
+import { getMarketSession, setNSEHolidays, setMarketForceClosed } from "@/lib/hooks/market-timing"
 import Image from "next/image"
 
 interface SystemSetting {
@@ -75,6 +75,13 @@ export function Settings() {
   const [holidaysCsv, setHolidaysCsv] = useState<string>("")
   const [marketControlsSaving, setMarketControlsSaving] = useState<boolean>(false)
   
+  // Maintenance mode settings
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(false)
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string>("")
+  const [maintenanceEndTime, setMaintenanceEndTime] = useState<string>("")
+  const [maintenanceAllowBypass, setMaintenanceAllowBypass] = useState<boolean>(true)
+  const [maintenanceSaving, setMaintenanceSaving] = useState<boolean>(false)
+  
   // File input refs
   const qrFileInputRef = useRef<HTMLInputElement>(null)
   const profileFileInputRef = useRef<HTMLInputElement>(null)
@@ -105,7 +112,10 @@ export function Settings() {
           } else if (setting.key === 'payment_upi_id') {
             setUpiId(setting.value)
           } else if (setting.key === 'market_force_closed') {
-            setForceClosed(setting.value === 'true')
+            const forceClosedValue = setting.value === 'true'
+            setForceClosed(forceClosedValue)
+            // Update the market timing cache
+            setMarketForceClosed(forceClosedValue)
           } else if (setting.key === 'market_holidays_csv') {
             setHolidaysCsv(setting.value)
             try {
@@ -117,6 +127,14 @@ export function Settings() {
             } catch (e) {
               console.warn('[SETTINGS] Failed to apply holidays from settings', e)
             }
+          } else if (setting.key === 'maintenance_mode_enabled') {
+            setMaintenanceEnabled(setting.value === 'true')
+          } else if (setting.key === 'maintenance_message') {
+            setMaintenanceMessage(setting.value)
+          } else if (setting.key === 'maintenance_end_time') {
+            setMaintenanceEndTime(setting.value)
+          } else if (setting.key === 'maintenance_allow_admin_bypass') {
+            setMaintenanceAllowBypass(setting.value !== 'false')
           }
         })
       }
@@ -134,6 +152,7 @@ export function Settings() {
 
   useEffect(() => {
     fetchSettings()
+    fetchMaintenanceSettings()
   }, [])
 
   /**
@@ -309,6 +328,84 @@ export function Settings() {
   }
 
   /**
+   * Fetch maintenance settings
+   */
+  const fetchMaintenanceSettings = async () => {
+    console.log("📥 [SETTINGS] Fetching maintenance settings...")
+    try {
+      const response = await fetch('/api/admin/settings?category=MAINTENANCE')
+      const data = await response.json()
+
+      if (data.success && data.settings) {
+        console.log(`✅ [SETTINGS] Loaded ${data.settings.length} maintenance settings`)
+        
+        data.settings.forEach((setting: SystemSetting) => {
+          if (setting.key === 'maintenance_mode_enabled') {
+            setMaintenanceEnabled(setting.value === 'true')
+          } else if (setting.key === 'maintenance_message') {
+            setMaintenanceMessage(setting.value)
+          } else if (setting.key === 'maintenance_end_time') {
+            setMaintenanceEndTime(setting.value)
+          } else if (setting.key === 'maintenance_allow_admin_bypass') {
+            setMaintenanceAllowBypass(setting.value !== 'false')
+          }
+        })
+      }
+    } catch (error: any) {
+      console.error("❌ [SETTINGS] Error fetching maintenance settings:", error)
+    }
+  }
+
+  /**
+   * Save maintenance settings
+   */
+  const saveMaintenanceSettings = async () => {
+    console.log("💾 [SETTINGS] Saving maintenance settings...", {
+      enabled: maintenanceEnabled,
+      hasMessage: !!maintenanceMessage,
+      endTime: maintenanceEndTime,
+      allowBypass: maintenanceAllowBypass
+    })
+    setMaintenanceSaving(true)
+    try {
+      const response = await fetch('/api/maintenance/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: maintenanceEnabled,
+          message: maintenanceMessage || undefined,
+          endTime: maintenanceEndTime || undefined,
+          allowAdminBypass: maintenanceAllowBypass
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save maintenance settings')
+      }
+
+      console.log("✅ [SETTINGS] Maintenance settings saved successfully")
+      toast({
+        title: "✅ Saved",
+        description: "Maintenance mode settings updated successfully"
+      })
+
+      // Refresh settings
+      await fetchMaintenanceSettings()
+    } catch (error: any) {
+      console.error("❌ [SETTINGS] Save maintenance settings failed:", error)
+      toast({
+        title: "❌ Save Failed",
+        description: error.message || "Unable to save maintenance settings",
+        variant: "destructive"
+      })
+    } finally {
+      setMaintenanceSaving(false)
+    }
+  }
+
+  /**
    * Save market controls
    */
   const saveMarketControls = async () => {
@@ -337,7 +434,10 @@ export function Settings() {
       if (!r2.ok) throw new Error('Failed to save market_holidays_csv')
 
       // Apply to runtime helper immediately
-      try { setNSEHolidays(normalized.split(',').filter(Boolean)) } catch {}
+      try { 
+        setNSEHolidays(normalized.split(',').filter(Boolean))
+        setMarketForceClosed(forceClosed)
+      } catch {}
 
       toast({ title: '✅ Saved', description: 'Market controls updated successfully' })
     } catch (e: any) {
@@ -395,6 +495,10 @@ export function Settings() {
             <TabsTrigger value="market">
               <SettingsIcon className="w-4 h-4 mr-2" />
               Market Controls
+            </TabsTrigger>
+            <TabsTrigger value="maintenance">
+              <SettingsIcon className="w-4 h-4 mr-2" />
+              Maintenance Mode
             </TabsTrigger>
           </TabsList>
 
@@ -560,6 +664,97 @@ export function Settings() {
                 <div className="flex justify-end">
                   <Button onClick={saveMarketControls} disabled={marketControlsSaving} className="bg-primary text-primary-foreground">
                     {marketControlsSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>) : (<>Save Controls</>)}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Maintenance Mode Tab */}
+          <TabsContent value="maintenance">
+            <Card className="bg-card border-border shadow-sm neon-border">
+              <CardHeader>
+                <CardTitle className="text-xl font-bold text-primary">Maintenance Mode</CardTitle>
+                <CardDescription>
+                  Control platform maintenance mode. When enabled, all users except admins will see the maintenance page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Enable/Disable Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-md bg-muted/50">
+                  <div>
+                    <Label className="text-foreground font-medium text-lg">Enable Maintenance Mode</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      When enabled, all non-admin users will be redirected to the maintenance page
+                    </p>
+                  </div>
+                  <Switch 
+                    checked={maintenanceEnabled} 
+                    onCheckedChange={setMaintenanceEnabled}
+                    className="data-[state=checked]:bg-orange-500"
+                  />
+                </div>
+
+                {/* Maintenance Message */}
+                <div className="space-y-2">
+                  <Label className="text-foreground font-medium">Maintenance Message</Label>
+                  <textarea
+                    value={maintenanceMessage}
+                    onChange={(e) => setMaintenanceMessage(e.target.value)}
+                    className="w-full min-h-[100px] text-sm p-3 rounded-md border bg-muted/50 border-border focus:border-primary"
+                    placeholder="We're performing scheduled maintenance to improve your experience. We'll be back shortly!"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This message will be displayed to users during maintenance
+                  </p>
+                </div>
+
+                {/* End Time */}
+                <div className="space-y-2">
+                  <Label className="text-foreground font-medium">Expected End Time</Label>
+                  <Input
+                    value={maintenanceEndTime}
+                    onChange={(e) => setMaintenanceEndTime(e.target.value)}
+                    placeholder="2025-01-27T18:00:00Z or '24Hrs'"
+                    className="bg-muted/50 border-border focus:border-primary"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    ISO timestamp or descriptive text (e.g., "24Hrs", "2 hours")
+                  </p>
+                </div>
+
+                {/* Admin Bypass Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-md bg-muted/50">
+                  <div>
+                    <Label className="text-foreground font-medium">Allow Admin Bypass</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Allow ADMIN and SUPER_ADMIN users to access the platform during maintenance
+                    </p>
+                  </div>
+                  <Switch 
+                    checked={maintenanceAllowBypass} 
+                    onCheckedChange={setMaintenanceAllowBypass}
+                  />
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end pt-4">
+                  <Button
+                    onClick={saveMaintenanceSettings}
+                    disabled={maintenanceSaving}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    {maintenanceSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Maintenance Settings
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
