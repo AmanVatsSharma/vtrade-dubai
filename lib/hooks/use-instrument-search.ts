@@ -79,9 +79,16 @@ export function useInstrumentSearch(
   const eventSourceRef = useRef<EventSource | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTabRef = useRef<SearchTab>(activeTab);
+  const requestIdRef = useRef<number>(0);
+  const lastSuccessfulResultsRef = useRef<MilliInstrument[]>([]);
+  const tabChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sseQuery, setSseQuery] = useState<string>('');
+  const [sseTab, setSseTab] = useState<SearchTab>(activeTab);
+  
   // keep ref in sync
   useEffect(() => {
     activeTabRef.current = activeTab;
+    setSseTab(activeTab); // Update SSE tab state for effect dependency
   }, [activeTab]);
 
   /**
@@ -91,6 +98,9 @@ export function useInstrumentSearch(
     query: string,
     tab: SearchTab
   ) => {
+    // Generate unique request ID for deduplication
+    const currentRequestId = ++requestIdRef.current;
+    
     // Cancel previous request if any
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -124,8 +134,12 @@ export function useInstrumentSearch(
           last_price: inst?.last_price != null ? Number(inst.last_price) : undefined,
           is_active: inst?.is_active,
         } as any));
-        setResults(mapped);
-        setLoading(false);
+        // Only update if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setResults(mapped);
+          lastSuccessfulResultsRef.current = mapped;
+          setLoading(false);
+        }
         return;
       }
       if (tab === 'commodities') {
@@ -166,8 +180,12 @@ export function useInstrumentSearch(
             option_type: inst?.option_type && inst?.option_type !== 'XX' ? inst.option_type : undefined,
           } as any;
         });
-        setResults(mapped);
-        setLoading(false);
+        // Only update if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setResults(mapped);
+          lastSuccessfulResultsRef.current = mapped;
+          setLoading(false);
+        }
         return;
       }
       if (tab === 'futures') {
@@ -206,42 +224,77 @@ export function useInstrumentSearch(
             option_type: inst?.option_type && inst?.option_type !== 'XX' ? inst.option_type : undefined,
           } as any;
         });
-        setResults(mapped);
-        setLoading(false);
+        // Only update if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          setResults(mapped);
+          lastSuccessfulResultsRef.current = mapped;
+          setLoading(false);
+        }
         return;
       }
 
       // Non-MCX tabs → milli client (fast suggest + later refine)
-      const mode: MilliMode = tab === 'equity' ? 'eq' : 'fno';
-      const exchange = tab === 'equity' ? DEFAULT_EQUITY_EXCHANGE : undefined;
+      // At this point, tab can only be 'options' (equity, commodities, futures handled above)
+      const mode: MilliMode = 'fno';
+      const exchange = undefined;
       const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) });
-      setResults(searchResults);
-      setLoading(false);
+      
+      // Only update if this is still the latest request
+      if (currentRequestId === requestIdRef.current) {
+        setResults(searchResults);
+        lastSuccessfulResultsRef.current = searchResults;
+        setLoading(false);
+      }
 
       // Schedule an idle follow-up full search to refine results (hybrid UX)
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current)
       }
+      const idleRequestId = currentRequestId
       idleTimerRef.current = setTimeout(async () => {
-        // Ignore if query changed during idle
-        if (currentSearchRef.current !== query) return
+        // Ignore if query changed during idle or if a newer request started
+        if (currentSearchRef.current !== query || idleRequestId !== requestIdRef.current) return
         try {
           // Skip refinement for equities (using proxy), commodities, and futures
           if ((tab as any) === 'equity' || (tab as any) === 'commodities' || (tab as any) === 'futures') return
           const fullResults = await milliClient.search({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
-          if (currentSearchRef.current === query && Array.isArray(fullResults) && fullResults.length > 0) {
+          // Only update if still the latest request and query hasn't changed
+          if (currentSearchRef.current === query && idleRequestId === requestIdRef.current && Array.isArray(fullResults) && fullResults.length > 0) {
             setResults(fullResults)
+            lastSuccessfulResultsRef.current = fullResults
           }
         } catch {
           // ignore background refinement errors
         }
       }, Math.max(400, Math.min(600, debounceMs + 250)))
     } catch (err: any) {
-      if (err instanceof Error && !err.message.includes('aborted')) {
+      // Only handle error if this is still the latest request
+      if (currentRequestId !== requestIdRef.current) return
+      
+      if (err instanceof Error) {
+        // Don't clear results on abort (user cancelled)
+        if (err.message.includes('aborted')) {
+          setLoading(false)
+          return
+        }
+        // On actual error, preserve last successful results instead of clearing
         setError(err.message)
+        setLoading(false)
+        // Only clear results if we have no previous successful results
+        if (lastSuccessfulResultsRef.current.length === 0) {
+          setResults([])
+        } else {
+          // Restore last successful results
+          setResults(lastSuccessfulResultsRef.current)
+        }
+      } else {
+        setLoading(false)
+        if (lastSuccessfulResultsRef.current.length === 0) {
+          setResults([])
+        } else {
+          setResults(lastSuccessfulResultsRef.current)
+        }
       }
-      setLoading(false)
-      setResults([])
     }
   }, []);
 
@@ -249,10 +302,11 @@ export function useInstrumentSearch(
    * Debounced search function
    */
   const search = useCallback((query: string) => {
-    console.log('🔍 [USE-INSTRUMENT-SEARCH] Search called', { query, activeTab });
+    console.log('🔍 [USE-INSTRUMENT-SEARCH] Search called', { query, activeTab: activeTabRef.current });
     
     // Update current search
     currentSearchRef.current = query;
+    setSseQuery(query); // Update SSE query state for effect dependency
     
     // Clear existing timer
     if (debounceTimer.current) {
@@ -265,15 +319,17 @@ export function useInstrumentSearch(
     // If query is empty, clear immediately
     if (!query.trim()) {
       setResults([]);
+      lastSuccessfulResultsRef.current = [];
+      setSseQuery(''); // Clear SSE query
       setError(null);
       return;
     }
     
-    // Set up debounced search
+    // Set up debounced search - use activeTabRef.current instead of closure activeTab
     debounceTimer.current = setTimeout(() => {
-      performSearch(query, activeTab);
+      performSearch(query, activeTabRef.current);
     }, debounceMs);
-  }, [activeTab, debounceMs, performSearch]);
+  }, [debounceMs, performSearch]);
 
   /**
    * Clear search results
@@ -288,14 +344,19 @@ export function useInstrumentSearch(
       clearTimeout(idleTimerRef.current)
     }
     
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    setResults([]);
-    setError(null);
-    setLoading(false);
-    currentSearchRef.current = '';
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (tabChangeTimerRef.current) {
+        clearTimeout(tabChangeTimerRef.current);
+      }
+      
+      setResults([]);
+      lastSuccessfulResultsRef.current = [];
+      setSseQuery(''); // Clear SSE query
+      setError(null);
+      setLoading(false);
+      currentSearchRef.current = '';
   }, []);
 
   /**
@@ -316,36 +377,68 @@ export function useInstrumentSearch(
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current)
       }
+      if (tabChangeTimerRef.current) {
+        clearTimeout(tabChangeTimerRef.current)
+      }
     };
   }, []);
 
   /**
-   * Re-search when tab changes
+   * Re-search when tab changes (debounced to avoid race conditions)
    */
   useEffect(() => {
+    // Clear any pending tab change search
+    if (tabChangeTimerRef.current) {
+      clearTimeout(tabChangeTimerRef.current);
+    }
+    
     if (currentSearchRef.current) {
-      console.log('🔄 [USE-INSTRUMENT-SEARCH] Tab changed, re-searching', {
+      console.log('🔄 [USE-INSTRUMENT-SEARCH] Tab changed, scheduling re-search', {
         query: currentSearchRef.current,
         activeTab,
       });
       
-      performSearch(currentSearchRef.current, activeTab);
+      // Debounce tab change search to avoid race conditions
+      tabChangeTimerRef.current = setTimeout(() => {
+        // Cancel any pending debounced searches
+        if (debounceTimer.current) {
+          clearTimeout(debounceTimer.current);
+          debounceTimer.current = null;
+        }
+        if (idleTimerRef.current) {
+          clearTimeout(idleTimerRef.current);
+          idleTimerRef.current = null;
+        }
+        
+        // Only search if query still exists and tab hasn't changed again
+        if (currentSearchRef.current && activeTabRef.current === activeTab) {
+          performSearch(currentSearchRef.current, activeTabRef.current);
+        }
+      }, 300); // 300ms debounce for tab changes
     }
+    
+    return () => {
+      if (tabChangeTimerRef.current) {
+        clearTimeout(tabChangeTimerRef.current);
+        tabChangeTimerRef.current = null;
+      }
+    };
   }, [activeTab, performSearch]);
 
   // SSE live LTP updates for current result set
+  // Changed dependency from results to query+tab to avoid recreating EventSource on every result update
   useEffect(() => {
     if (typeof window === 'undefined') return
     // Skip SSE streaming for commodities (MCX) tab for now
-    if ((activeTabRef.current as any) === 'commodities') {
+    if (sseTab === 'commodities') {
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null
       }
       return
     }
-    const q = currentSearchRef.current
-    if (!q || results.length === 0) {
+    const q = sseQuery
+    if (!q) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null
@@ -355,11 +448,21 @@ export function useInstrumentSearch(
 
     try {
       const url = milliClient.buildStreamURL({ q, ltp_only: true })
+      // Only recreate EventSource if query or tab actually changed
+      const currentUrl = eventSourceRef.current ? (eventSourceRef.current as any)._url : null
+      if (currentUrl === url && eventSourceRef.current && eventSourceRef.current.readyState === EventSource.OPEN) {
+        // EventSource already open for this query, don't recreate
+        return
+      }
+      
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null
       }
+      
       const es = new EventSource(url)
+      // Store URL for comparison
+      ;(es as any)._url = url
       eventSourceRef.current = es
 
       es.onopen = () => {
@@ -370,11 +473,16 @@ export function useInstrumentSearch(
           const payload = JSON.parse(event.data)
           const ltpMap: Record<string, number> = payload?.data || payload || {}
           if (!ltpMap || typeof ltpMap !== 'object') return
-          setResults((prev: MilliInstrument[]) => prev.map((item: any) => {
-            const tokenKey = String(item.token ?? item.instrumentToken ?? '')
-            const ltp = ltpMap[tokenKey]
-            return ltp ? { ...item, last_price: ltp } : item
-          }))
+          // Use functional setState to update results without triggering SSE recreation
+          setResults((prev: MilliInstrument[]) => {
+            // Only update if we still have results (don't update if results were cleared)
+            if (prev.length === 0) return prev
+            return prev.map((item: any) => {
+              const tokenKey = String(item.token ?? item.instrumentToken ?? '')
+              const ltp = ltpMap[tokenKey]
+              return ltp ? { ...item, last_price: ltp } : item
+            })
+          })
         } catch {}
       }
 
@@ -397,7 +505,7 @@ export function useInstrumentSearch(
         eventSourceRef.current = null
       }
     }
-  }, [results])
+  }, [sseQuery, sseTab]) // Depend on query and tab state, not results
 
   return {
     results,

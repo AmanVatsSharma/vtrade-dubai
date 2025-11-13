@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Plus, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,7 +46,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
   const [addingStockId, setAddingStockId] = useState<string | number | null>(null)
   
   // Use the new search hook
-  const { results, loading, error, search } = useInstrumentSearch({
+  const { results, loading, error, search, clear } = useInstrumentSearch({
     activeTab,
     debounceMs: 300,
   })
@@ -63,6 +63,15 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
     setQuery(newQuery)
     search(newQuery)
   }
+  
+  // Cleanup on unmount or dialog close
+  useEffect(() => {
+    return () => {
+      // Clear search state when component unmounts
+      clear()
+      setQuery("")
+    }
+  }, [clear])
 
   const handleAddStock = async (stock: Stock) => {
     setAddingStockId(stock.id)
