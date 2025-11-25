@@ -183,12 +183,26 @@ export class PositionRepository {
             optionType: true,
             expiry: true
           }
+        },
+        orders: {
+          select: {
+            id: true,
+            productType: true,
+            orderSide: true,
+            status: true,
+            createdAt: true
+          },
+          orderBy: {
+            createdAt: 'desc' as const
+          },
+          take: 10 // Get recent orders to determine product type
         }
       }
     })
 
     if (position) {
       console.log("✅ [POSITION-REPO] Position found")
+      console.log("📦 [POSITION-REPO] Position has", position.orders?.length || 0, "orders")
     } else {
       console.log("⚠️ [POSITION-REPO] Position not found")
     }

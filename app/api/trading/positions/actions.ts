@@ -33,7 +33,7 @@ export async function closePositionWithFundManagement(
   console.log("📊 [POSITION-ACTIONS] Fetching position data...")
   const { data: posRes, error: positionError } = await supabase
     .from("positions")
-    .select("id,tradingAccountId,symbol,quantity,averagePrice,unrealizedPnL,dayPnL,stock:Stock(segment, instrumentId)")
+    .select("id,tradingAccountId,symbol,quantity,averagePrice,unrealizedPnL,dayPnL,stock:Stock(segment, instrumentId),orders:orders(id,productType,orderSide,status,createdAt)")
     .eq("id", positionId)
     .single()
 
@@ -91,26 +91,65 @@ export async function closePositionWithFundManagement(
   // 4) Compute margin to release based on simple policy (can be moved to risk_config)
   const turnover = Math.abs(quantity) * avg
   const segment = posRes.stock?.[0]?.segment
-  const productType = undefined // optional: infer from last executed order if needed
+  
+  // Get productType from orders that created this position
+  let productType: string | undefined = undefined
+  if (posRes.orders && Array.isArray(posRes.orders) && posRes.orders.length > 0) {
+    // For long positions (quantity > 0), find the BUY order
+    // For short positions (quantity < 0), find the SELL order
+    const targetSide = quantity > 0 ? 'BUY' : 'SELL'
+    const relevantOrder = posRes.orders.find(
+      (order: any) => order.orderSide === targetSide && order.status === 'EXECUTED'
+    )
+    
+    if (relevantOrder && relevantOrder.productType) {
+      productType = relevantOrder.productType
+      console.log("✅ [POSITION-ACTIONS] Found productType from order:", {
+        orderId: relevantOrder.id,
+        productType,
+        orderSide: relevantOrder.orderSide
+      })
+    } else {
+      // Fallback: use the most recent executed order's productType
+      const executedOrder = posRes.orders.find((order: any) => order.status === 'EXECUTED')
+      if (executedOrder && executedOrder.productType) {
+        productType = executedOrder.productType
+        console.log("✅ [POSITION-ACTIONS] Using productType from most recent executed order:", productType)
+      } else {
+        console.warn("⚠️ [POSITION-ACTIONS] No executed order found, will use default margin calculation")
+      }
+    }
+  } else {
+    console.warn("⚠️ [POSITION-ACTIONS] Position has no orders, will use default margin calculation")
+  }
   
   console.log("🔍 [POSITION-ACTIONS] Computing margin to release:", {
     turnover,
     segment,
-    productType
+    productType: productType || 'DEFAULT (will use full margin for delivery)'
   })
   
   function computeRequiredMargin(seg: string | undefined, t: number, pt?: string) {
     const isEquity = seg === 'NSE' || seg === 'NSE_EQ'
     const isFno = seg === 'NFO'
+    
+    // If productType is MIS/INTRADAY, use leverage (10% for equity, 20% for F&O)
+    // If productType is CNC/DELIVERY or undefined, release full margin (100%)
     if (pt === 'INTRADAY' || pt === 'MIS') {
-      if (isEquity) return t * 0.1
-      if (isFno) return t * 0.2
+      if (isEquity) return t * 0.1 // 10% margin for intraday equity
+      if (isFno) return t * 0.2 // 20% margin for F&O
       return t * 0.1
     }
+    // For CNC/DELIVERY or when productType is unknown, release full margin
     return t
   }
   const releasedMargin = Math.floor(computeRequiredMargin(segment, turnover, productType))
-  console.log("💸 [POSITION-ACTIONS] Margin to release:", releasedMargin)
+  console.log("💸 [POSITION-ACTIONS] Margin to release:", {
+    releasedMargin,
+    productType: productType || 'DEFAULT',
+    turnover,
+    percentage: productType === 'MIS' || productType === 'INTRADAY' ? '10%' : '100%'
+  })
 
   // 5) Update position to qty 0 and store realized P&L in fields
   console.log("💾 [POSITION-ACTIONS] Updating position to closed state...")

@@ -145,9 +145,50 @@ export class PositionManagementService {
       const turnover = Math.abs(quantity) * avgPrice
       const segment = position.Stock?.segment || 'NSE'
       
+      // Get productType from orders that created this position
+      // Look for the most recent BUY order (for long positions) or SELL order (for short positions)
+      let productType = 'MIS' // Default fallback
+      
+      if (position.orders && position.orders.length > 0) {
+        // For long positions (quantity > 0), find the BUY order
+        // For short positions (quantity < 0), find the SELL order
+        const targetSide = quantity > 0 ? 'BUY' : 'SELL'
+        const relevantOrder = position.orders.find(
+          order => order.orderSide === targetSide && order.status === 'EXECUTED'
+        )
+        
+        if (relevantOrder && relevantOrder.productType) {
+          productType = relevantOrder.productType
+          console.log("✅ [POSITION-MGMT-SERVICE] Found productType from order:", {
+            orderId: relevantOrder.id,
+            productType,
+            orderSide: relevantOrder.orderSide
+          })
+        } else {
+          // Fallback: use the most recent executed order's productType
+          const executedOrder = position.orders.find(order => order.status === 'EXECUTED')
+          if (executedOrder && executedOrder.productType) {
+            productType = executedOrder.productType
+            console.log("✅ [POSITION-MGMT-SERVICE] Using productType from most recent executed order:", productType)
+          } else {
+            console.warn("⚠️ [POSITION-MGMT-SERVICE] No executed order found, using default productType: MIS")
+          }
+        }
+      } else {
+        console.warn("⚠️ [POSITION-MGMT-SERVICE] Position has no orders, using default productType: MIS")
+      }
+      
+      console.log("🔍 [POSITION-MGMT-SERVICE] Calculating margin release with:", {
+        segment,
+        productType,
+        quantity: Math.abs(quantity),
+        avgPrice,
+        turnover
+      })
+      
       const marginCalc = await this.marginCalculator.calculateMargin(
         segment,
-        'MIS', // Simplified - should get from position metadata
+        productType,
         Math.abs(quantity),
         avgPrice,
         position.Stock?.lot_size || 1
@@ -155,7 +196,12 @@ export class PositionManagementService {
 
       const marginToRelease = marginCalc.requiredMargin
 
-      console.log("💸 [POSITION-MGMT-SERVICE] Margin to release:", marginToRelease)
+      console.log("💸 [POSITION-MGMT-SERVICE] Margin to release:", {
+        marginToRelease,
+        productType,
+        leverage: marginCalc.leverage,
+        turnover
+      })
 
       // Step 5: Execute in transaction
       const result = await executeInTransaction(async (tx) => {
