@@ -1,23 +1,24 @@
 /**
- * Error Boundary Component
- * 
- * Catches and handles errors gracefully in the UI:
- * - Prevents entire app crash
- * - Shows user-friendly error message
- * - Logs error for debugging
- * - Provides retry functionality
+ * @file error-boundary.tsx
+ * @module components
+ * @description Error Boundary Component - Catches and handles React component errors gracefully
+ * @author BharatERP
+ * @created 2024-12-19
  */
 
 "use client"
 
 import React, { Component, ReactNode } from 'react'
-import { Button } from '@/components/ui/button'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { TradingErrorDisplay } from '@/components/trading/TradingErrorDisplay'
 
 interface Props {
   children: ReactNode
   fallback?: ReactNode
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void
+  /**
+   * Whether to show technical details (default: false in production)
+   */
+  showTechnicalDetails?: boolean
 }
 
 interface State {
@@ -26,6 +27,16 @@ interface State {
   errorInfo: React.ErrorInfo | null
 }
 
+/**
+ * ErrorBoundary Component
+ * 
+ * Catches and handles errors gracefully in the UI:
+ * - Prevents entire app crash
+ * - Shows professional trading-focused error message
+ * - Logs error for debugging
+ * - Provides retry functionality
+ * - Integrates with global error handlers
+ */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
@@ -62,6 +73,11 @@ export class ErrorBoundary extends Component<Props, State> {
     if (typeof window !== 'undefined' && (window as any).logError) {
       (window as any).logError(error, errorInfo)
     }
+
+    // Report to error tracking service (if available)
+    if (typeof window !== 'undefined' && (window as any).reportError) {
+      (window as any).reportError(error, `React Error Boundary: ${errorInfo.componentStack}`)
+    }
   }
 
   handleReset = () => {
@@ -79,58 +95,14 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback
       }
 
-      // Default error UI
+      // Use professional TradingErrorDisplay component
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-          <div className="max-w-md w-full bg-card border border-destructive/20 rounded-lg p-6 space-y-4">
-            <div className="flex items-center space-x-3 text-destructive">
-              <AlertCircle className="h-8 w-8" />
-              <h2 className="text-2xl font-bold">Something went wrong</h2>
-            </div>
-            
-            <p className="text-muted-foreground">
-              We're sorry, but something unexpected happened. 
-              Please try refreshing the page or contact support if the problem persists.
-            </p>
-
-            {this.state.error && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded p-3">
-                <p className="text-sm font-mono text-destructive">
-                  {this.state.error.message}
-                </p>
-              </div>
-            )}
-
-            <div className="flex space-x-3">
-              <Button 
-                onClick={this.handleReset}
-                className="flex-1"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Try Again
-              </Button>
-              
-              <Button 
-                onClick={() => window.location.reload()}
-                variant="outline"
-                className="flex-1"
-              >
-                Refresh Page
-              </Button>
-            </div>
-
-            {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                  Technical Details (Development Only)
-                </summary>
-                <pre className="mt-2 text-xs bg-muted p-3 rounded overflow-auto max-h-40">
-                  {this.state.errorInfo.componentStack}
-                </pre>
-              </details>
-            )}
-          </div>
-        </div>
+        <TradingErrorDisplay
+          error={this.state.error}
+          errorInfo={this.state.errorInfo}
+          onRetry={this.handleReset}
+          showTechnicalDetails={this.props.showTechnicalDetails}
+        />
       )
     }
 

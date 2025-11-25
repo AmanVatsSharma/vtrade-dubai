@@ -270,15 +270,15 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     if (process.env.NODE_ENV === 'development') {
       console.log('TradingDashboard Debug:', {
         tradingAccountId,
-        realtimeOrders: realtimeOrdersData?.length || 0,
-        realtimePositions: realtimePositionsData?.length || 0,
+        realtimeOrders: orders?.length || 0,
+        realtimePositions: positions?.length || 0,
         hasRealtimeAccount: !!realtimeAccountData,
         currentTab,
         anyLoading,
         error
       })
     }
-  }, [tradingAccountId, realtimeOrdersData, realtimePositionsData, realtimeAccountData, currentTab, anyLoading, error])
+  }, [tradingAccountId, orders, positions, realtimeAccountData, currentTab, anyLoading, error])
 
   // Error state
   if (error) {

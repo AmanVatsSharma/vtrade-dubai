@@ -6,6 +6,7 @@ import SessionProvider from "@/components/providers/SessionProvider";
 import ApolloProviderWrapper from "@/components/apollo-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { GlobalErrorHandler } from "@/components/trading/GlobalErrorHandler";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,20 +26,21 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <SessionProvider>
-          <ApolloProviderWrapper>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-
-              {children}
-              <Toaster />
-            </ThemeProvider>
-          </ApolloProviderWrapper>
-        </SessionProvider>
+        <GlobalErrorHandler>
+          <SessionProvider>
+            <ApolloProviderWrapper>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+              >
+                {children}
+                <Toaster />
+              </ThemeProvider>
+            </ApolloProviderWrapper>
+          </SessionProvider>
+        </GlobalErrorHandler>
       </body>
     </html>
   );

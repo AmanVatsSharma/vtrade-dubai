@@ -1,6 +1,7 @@
 "use client"
 
 import TradingDashboard from "@/components/trading/TradingDashboard"
+import { ErrorBoundary } from "@/components/error-boundary"
 import { Suspense } from "react"
 
 // Loading component for Suspense fallback
@@ -15,8 +16,10 @@ const DashboardLoading = () => (
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<DashboardLoading />}>
-      <TradingDashboard />
-    </Suspense>
+    <ErrorBoundary showTechnicalDetails={process.env.NODE_ENV === 'development'}>
+      <Suspense fallback={<DashboardLoading />}>
+        <TradingDashboard />
+      </Suspense>
+    </ErrorBoundary>
   )
 }
