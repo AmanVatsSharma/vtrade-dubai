@@ -382,6 +382,7 @@ export function useEnhancedWatchlists(userId?: string) {
     isError: !!error,
     error: error || null,
     refetch,
+    mutate, // Expose mutate for optimistic updates
     createWatchlist,
     updateWatchlist,
     deleteWatchlist,
@@ -390,8 +391,65 @@ export function useEnhancedWatchlists(userId?: string) {
 
 // Hook for Single Watchlist Operations
 export function useWatchlistItems(watchlistId?: string) {
+  const { refetch: refetchWatchlists, mutate: mutateWatchlists } = useEnhancedWatchlists()
+
   const addItem = useCallback(async (input: AddWatchlistItemInput) => {
     if (!watchlistId) throw new Error("Watchlist ID required")
+
+    // Generate temporary ID for optimistic update
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    // Create optimistic item
+    const optimisticItem: WatchlistItemData = {
+      id: tempId,
+      watchlistItemId: tempId,
+      instrumentId: input.token && input.exchange 
+        ? `${input.exchange}-${input.token}` 
+        : input.stockId || tempId,
+      symbol: input.symbol || 'Loading...',
+      name: input.name || 'Loading...',
+      ltp: 0,
+      close: 0,
+      exchange: input.exchange || 'NSE',
+      segment: input.segment || input.exchange || 'NSE',
+      strikePrice: input.strikePrice,
+      optionType: input.optionType,
+      expiry: input.expiry,
+      lotSize: input.lotSize,
+      notes: input.notes,
+      alertPrice: input.alertPrice,
+      alertType: input.alertType,
+      sortOrder: 0,
+      createdAt: new Date().toISOString(),
+      token: input.token,
+    }
+
+    // Optimistic update: immediately add to UI
+    mutateWatchlists(
+      (currentData: WatchlistsResponse | undefined) => {
+        if (!currentData) return currentData
+        
+        const watchlists = currentData.watchlists.map((wl: any) => {
+          if (wl.id === watchlistId) {
+            return {
+              ...wl,
+              items: [...(wl.items || []), optimisticItem]
+            }
+          }
+          return wl
+        })
+        
+        return { watchlists }
+      },
+      false // Don't revalidate immediately
+    )
+
+    // Show instant feedback
+    toast({ 
+      title: "Stock Added", 
+      description: `${input.symbol || 'Stock'} added to watchlist.`,
+      duration: 2000
+    })
 
     try {
       const response = await fetch(`/api/watchlists/${watchlistId}/items`, {
@@ -403,13 +461,18 @@ export function useWatchlistItems(watchlistId?: string) {
       })
 
       if (!response.ok) {
+        // Revert optimistic update on error
+        mutateWatchlists()
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to add item')
       }
 
-      toast({ title: "Stock Added", description: "Successfully added to watchlist." })
+      // Revalidate to get real data (this will replace optimistic item with real one)
+      await mutateWatchlists()
     } catch (error) {
       console.error("Error adding item:", error)
+      // Revert optimistic update on error
+      await mutateWatchlists()
       toast({
         title: "Failed to Add Stock",
         description: error instanceof Error ? error.message : "Could not add stock to watchlist.",
@@ -417,7 +480,7 @@ export function useWatchlistItems(watchlistId?: string) {
       })
       throw error
     }
-  }, [watchlistId])
+  }, [watchlistId, mutateWatchlists])
 
   const updateItem = useCallback(async (itemId: string, input: UpdateWatchlistItemInput) => {
     try {

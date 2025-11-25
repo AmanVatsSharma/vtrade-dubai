@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { usePortfolio, useOrdersAndPositions } from "@/lib/hooks/use-trading-data"
 import { useMarketData } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
 import { WebSocketMarketDataProvider } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
 import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
@@ -131,67 +130,69 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   const [selectedStockForOrder, setSelectedStockForOrder] = useState<Stock | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Data hooks
-  const { portfolio, isLoading: isPortfolioLoading, isRefreshing: isPortfolioRefreshing, mutate: refreshPortfolio, error: portfolioError } = usePortfolio(userId)
-  const { 
-    orders: initialOrders, 
-    positions: initialPositions, 
-    isLoading: isOrdersPositionsLoading, 
-    isRefreshing: isOrdersPositionsRefreshing,
-    isError: isOrdersPositionsError, 
-    mutate: refreshOrdersPositions,
-    error: ordersPositionsError
-  } = useOrdersAndPositions(userId)
+  // Data hooks - Use only realtime hooks to avoid duplicate fetching
+  // All hooks use SWR with deduplication, so same API calls are cached
   const { quotes, isLoading: isQuotesLoading, isConnected: wsConnectionState } = useMarketData()
 
   // Check if WebSocket is connected (for market data)
   const isWebSocketConnected = wsConnectionState === 'connected'
 
-  // Get trading account ID early to avoid hoisting issues
-  const tradingAccountId = useMemo(() => {
-    // Prefer session-provided tradingAccountId; fallback to portfolio-derived
-    return (session?.user as any)?.tradingAccountId || (portfolio as any)?.account?.id || null
-  }, [session, portfolio])
-
-  // Realtime subscriptions (use userId for API calls)
+  // Realtime hooks - Single source of truth for all trading data
   const { 
-    orders: realtimeOrdersData, 
+    orders, 
     isLoading: isRealtimeOrdersLoading,
-    error: realtimeOrdersError 
+    error: realtimeOrdersError,
+    mutate: mutateOrders,
+    refresh: refreshOrders
   } = useRealtimeOrders(userId)
+  
   const { 
-    positions: realtimePositionsData, 
+    positions, 
     isLoading: isRealtimePositionsLoading,
-    error: realtimePositionsError 
+    error: realtimePositionsError,
+    mutate: mutatePositions,
+    refresh: refreshPositions
   } = useRealtimePositions(userId)
+  
   const { 
     account: realtimeAccountData, 
     isLoading: isRealtimeAccountLoading,
-    error: realtimeAccountError 
+    error: realtimeAccountError,
+    mutate: mutateAccount,
+    refresh: refreshAccount
   } = useRealtimeAccount(userId)
 
-  // Unified data (realtime takes precedence)
-  const orders = useMemo(() => {
-    return !isRealtimeOrdersLoading ? (realtimeOrdersData || []) : initialOrders
-  }, [realtimeOrdersData, initialOrders, isRealtimeOrdersLoading])
+  // Get trading account ID from realtime account data
+  const tradingAccountId = useMemo(() => {
+    return (session?.user as any)?.tradingAccountId || realtimeAccountData?.id || null
+  }, [session, realtimeAccountData])
 
-  const positions = useMemo(() => {
-    return !isRealtimePositionsLoading ? (realtimePositionsData || []) : initialPositions
-  }, [realtimePositionsData, initialPositions, isRealtimePositionsLoading])
+  // Portfolio data structure for compatibility
+  const portfolio = useMemo(() => {
+    if (!realtimeAccountData) return null
+    return {
+      account: {
+        id: realtimeAccountData.id,
+        totalValue: realtimeAccountData.balance || (realtimeAccountData.availableMargin + realtimeAccountData.usedMargin),
+        availableMargin: realtimeAccountData.availableMargin,
+        usedMargin: realtimeAccountData.usedMargin,
+        balance: realtimeAccountData.balance,
+        client_id: realtimeAccountData.clientId || ""
+      }
+    }
+  }, [realtimeAccountData])
 
-  const accountUnified = useMemo(() => {
-    return realtimeAccountData ? { account: realtimeAccountData } : portfolio
-  }, [realtimeAccountData, portfolio])
+  const accountUnified = portfolio
 
   // Error handling
   useEffect(() => {
-    const errors = [portfolioError, ordersPositionsError].filter(Boolean)
+    const errors = [realtimeOrdersError, realtimePositionsError, realtimeAccountError].filter(Boolean)
     if (errors.length > 0) {
       setError(errors[0]?.message || "An error occurred while loading trading data")
     } else {
       setError(null)
     }
-  }, [portfolioError, ordersPositionsError])
+  }, [realtimeOrdersError, realtimePositionsError, realtimeAccountError])
 
   // Event handlers
   const handleSelectStock: StockSelectHandler = useCallback((stock: Stock) => {
@@ -199,10 +200,14 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     setOrderDialogOpen(true)
   }, [])
 
-  const handleRefreshAllData: RefreshHandler = useCallback(() => {
+  const handleRefreshAllData: RefreshHandler = useCallback(async () => {
     try {
-      refreshPortfolio()
-      refreshOrdersPositions()
+      // Refresh all data in parallel
+      await Promise.all([
+        refreshOrders(),
+        refreshPositions(),
+        refreshAccount()
+      ])
       toast({ title: "Refreshed", description: "Trading data updated." })
     } catch (err) {
       toast({ 
@@ -211,7 +216,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
         variant: "destructive"
       })
     }
-  }, [refreshPortfolio, refreshOrdersPositions])
+  }, [refreshOrders, refreshPositions, refreshAccount])
 
   const handleRetry: RetryHandler = useCallback(() => {
     setError(null)
@@ -223,10 +228,14 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     setSelectedStockForOrder(null)
   }, [])
 
-  const handleOrderPlaced: OrderPlacedHandler = useCallback(() => {
-    refreshOrdersPositions()
-    refreshPortfolio()
-  }, [refreshOrdersPositions, refreshPortfolio])
+  const handleOrderPlaced: OrderPlacedHandler = useCallback(async () => {
+    // Refresh orders, positions, and account after order placement
+    await Promise.all([
+      refreshOrders(),
+      refreshPositions(),
+      refreshAccount()
+    ])
+  }, [refreshOrders, refreshPositions, refreshAccount])
 
   // P&L calculations
   const { totalPnL, dayPnL }: PnLData = useMemo(() => {
@@ -247,8 +256,8 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   }, [positions, quotes])
 
   // Loading state (do not block UI render; use only for subtle indicators)
-  const anyLoading = isPortfolioLoading || isOrdersPositionsLoading || isQuotesLoading
-  const anyRefreshing = isPortfolioRefreshing || isOrdersPositionsRefreshing
+  const anyLoading = isRealtimeOrdersLoading || isRealtimePositionsLoading || isRealtimeAccountLoading || isQuotesLoading
+  const anyRefreshing = false // SWR handles refreshing internally
 
   useEffect(() => {
     if (anyRefreshing) {
@@ -301,7 +310,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
         return (
           <OrderManagement 
             orders={orders} 
-            onOrderUpdate={refreshOrdersPositions} 
+            onOrderUpdate={refreshOrders} 
           />
         )
       case "positions":
@@ -328,7 +337,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
             <PositionTracking 
               positions={positions} 
               quotes={quotes} 
-              onPositionUpdate={refreshOrdersPositions} 
+              onPositionUpdate={refreshPositions} 
               tradingAccountId={tradingAccountId} 
             />
           </div>

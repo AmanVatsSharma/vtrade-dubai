@@ -11,6 +11,7 @@ import { useQuery } from "@apollo/client/react"
 import { gql } from "@apollo/client/core"
 import client from "@/lib/graphql/apollo-client"
 import { useMemo } from "react"
+import useSWR from 'swr'
 // Use client-safe literal types instead of importing Prisma enums at runtime
 export type ClientOrderType = "MARKET" | "LIMIT"
 export type ClientOrderSide = "BUY" | "SELL"
@@ -503,21 +504,29 @@ async function createOrUpdatePosition(apolloClient: any, executedOrder: { tradin
 // -----------------------------
 
 export function usePortfolio(userId?: string, userName?: string | null, userEmail?: string | null) {
-  const { data, refetch, loading, error } = useQuery<any>(GET_ACCOUNT_BY_USER, { 
-    variables: { userId: userId ?? "" }, 
-    skip: !userId, 
-    errorPolicy: "all",
-    notifyOnNetworkStatusChange: true,
-  })
+  // Use SWR with Prisma-based API instead of GraphQL
+  const { data, error, isLoading, mutate } = useSWR<any>(
+    userId ? `/api/trading/account?userId=${userId}` : null,
+    async (url: string) => {
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Failed to fetch account')
+      return res.json()
+    },
+    {
+      refreshInterval: 0,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+    }
+  )
 
-  const account = data?.trading_accountsCollection?.edges?.[0]?.node
+  const account = data?.account
   const balance = toNumber(account?.balance)
   const usedMargin = toNumber(account?.usedMargin)
   const availableMargin = toNumber(account?.availableMargin)
   const totalValue = balance || (availableMargin + usedMargin)
-  const client_id = account?.client_id || ""
-  const isInitialLoading = loading && !data
-  const isRefreshing = loading && !!data
+  const client_id = account?.clientId || ""
+  const isInitialLoading = isLoading && !data
+  const isRefreshing = isLoading && !!data
 
   return {
     portfolio: account ? { account: { id: account.id, totalValue, availableMargin, usedMargin, balance, client_id } } : null,
@@ -525,7 +534,7 @@ export function usePortfolio(userId?: string, userName?: string | null, userEmai
     isRefreshing,
     isError: !!error,
     error,
-    mutate: refetch
+    mutate
   }
 }
 
@@ -664,8 +673,16 @@ export function useUserWatchlist(userId?: string) {
 
 
 function useAccountId(userId?: string) {
-  const { data } = useQuery<any>(GET_ACCOUNT_BY_USER, { variables: { userId: userId ?? "" }, skip: !userId })
-  return data?.trading_accountsCollection?.edges?.[0]?.node?.id as string | undefined
+  // Use SWR with Prisma-based API instead of GraphQL
+  const { data } = useSWR<any>(
+    userId ? `/api/trading/account?userId=${userId}` : null,
+    async (url: string) => {
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) return null
+      return res.json()
+    }
+  )
+  return data?.account?.id as string | undefined
 }
 
 export function useOrders(userId?: string, tradingAccountIdOverride?: string) {
@@ -716,44 +733,57 @@ export function usePositions(userId?: string, tradingAccountIdOverride?: string)
 }
 
 export function useOrdersAndPositions(userId?: string, tradingAccountIdOverride?: string) {
-  const tradingAccountId = tradingAccountIdOverride || useAccountId(userId)
-  const { data, loading, error, refetch } = useQuery<any>(GET_ORDERS_AND_POSITIONS, {
-    variables: { tradingAccountId: tradingAccountId ?? "" },
-    skip: !tradingAccountId,
-    errorPolicy: "all",
-    notifyOnNetworkStatusChange: true,
-  })
+  // Use SWR with Prisma-based APIs instead of GraphQL
+  // Fetch orders and positions separately for better performance
+  const { data: ordersData, error: ordersError, isLoading: ordersLoading, mutate: mutateOrders } = useSWR<any>(
+    userId ? `/api/trading/orders/list?userId=${userId}` : null,
+    async (url: string) => {
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Failed to fetch orders')
+      return res.json()
+    },
+    {
+      refreshInterval: 0,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+    }
+  )
 
-  const orders = useMemo(() => data?.ordersCollection?.edges?.map((e: any) => ({
-    ...e.node,
-    price: e.node.price != null ? toNumber(e.node.price) : null,
-    averagePrice: e.node.averagePrice != null ? toNumber(e.node.averagePrice) : null
-  })) ?? [], [data])
+  const { data: positionsData, error: positionsError, isLoading: positionsLoading, mutate: mutatePositions } = useSWR<any>(
+    userId ? `/api/trading/positions/list?userId=${userId}` : null,
+    async (url: string) => {
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) throw new Error('Failed to fetch positions')
+      return res.json()
+    },
+    {
+      refreshInterval: 0,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+    }
+  )
 
-  const positions = useMemo(() => data?.positionsCollection?.edges?.map((e: any) => ({
-    ...e.node,
-    averagePrice: toNumber(e.node.averagePrice),
-    stopLoss: e.node.stopLoss != null ? toNumber(e.node.stopLoss) : undefined,
-    target: e.node.target != null ? toNumber(e.node.target) : undefined,
-    instrumentId: e.node.stock?.instrumentId,
-    segment: e.node.stock?.segment,
-    strikePrice: e.node.stock?.strikePrice != null ? toNumber(e.node.stock.strikePrice) : undefined,
-    optionType: e.node.stock?.optionType,
-    expiry: e.node.stock?.expiry,
-    lotSize: e.node.stock?.lot_size
-  })) ?? [], [data])
+  const orders = useMemo(() => ordersData?.orders ?? [], [ordersData])
+  const positions = useMemo(() => positionsData?.positions ?? [], [positionsData])
 
-  // Do not mark as loading due to missing accountId; render with empty arrays
-  const isInitialLoading = loading && !data
-  const isRefreshing = loading && !!data
+  const isLoading = (ordersLoading || positionsLoading) && (!ordersData && !positionsData)
+  const isRefreshing = (ordersLoading || positionsLoading) && (!!ordersData || !!positionsData)
+  const error = ordersError || positionsError
+
+  const mutate = useMemo(() => {
+    return async () => {
+      await Promise.all([mutateOrders(), mutatePositions()])
+    }
+  }, [mutateOrders, mutatePositions])
+
   return {
     orders,
     positions,
-    isLoading: isInitialLoading,
+    isLoading,
     isRefreshing,
     isError: !!error,
     error,
-    mutate: refetch
+    mutate
   }
 }
 

@@ -159,13 +159,14 @@ function validatePositionId(positionId: any): positionId is string {
 export function useRealtimePositions(userId: string | undefined | null): UseRealtimePositionsReturn {
   const retryCountRef = useRef(0)
   const maxRetries = 3
+  const lastSyncRef = useRef<number>(Date.now())
   
-  // Initial data fetch only (no polling)
+  // Initial data fetch - polling handled by adaptive useEffect below
   const { data, error, isLoading, mutate } = useSWR<PositionsResponse>(
     userId ? `/api/trading/positions/list?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: 0, // No polling - SSE will trigger updates
+      refreshInterval: 0, // Disabled - we use adaptive manual polling instead
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,
@@ -181,12 +182,13 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
           console.log('✅ [REALTIME-POSITIONS] Recovered from error')
           retryCountRef.current = 0
         }
+        lastSyncRef.current = Date.now()
       }
     }
   )
 
   // Shared SSE connection for real-time updates
-  useSharedSSE(userId, useCallback((message) => {
+  const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
     // Handle position-related events
     if (message.event === 'position_opened' || 
         message.event === 'position_closed' || 
@@ -195,8 +197,36 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
       mutate().catch(err => {
         console.error('❌ [REALTIME-POSITIONS] Refresh after event failed:', err)
       })
+      lastSyncRef.current = Date.now() // Update last sync time on event
     }
   }, [mutate]))
+
+  // Adaptive polling: adjust interval based on SSE connection state
+  // If SSE is connected: poll every 10 seconds (safety net)
+  // If SSE is disconnected: poll every 3 seconds (more aggressive)
+  useEffect(() => {
+    if (!userId) return
+    
+    const adaptiveInterval = isConnected ? 10000 : 3000
+    const syncInterval = setInterval(() => {
+      mutate().catch(err => {
+        console.error('❌ [REALTIME-POSITIONS] Periodic sync failed:', err)
+      })
+    }, adaptiveInterval)
+
+    return () => clearInterval(syncInterval)
+  }, [userId, isConnected, mutate])
+
+  // Log sync status periodically
+  useEffect(() => {
+    const syncCheckInterval = setInterval(() => {
+      const timeSinceLastSync = Date.now() - lastSyncRef.current
+      const syncStatus = isConnected ? 'SSE+Poll' : 'Poll-only'
+      console.log(`🔄 [REALTIME-POSITIONS] Sync check - ${syncStatus}, last sync: ${Math.round(timeSinceLastSync / 1000)}s ago`)
+    }, 30000) // Log every 30 seconds
+
+    return () => clearInterval(syncCheckInterval)
+  }, [isConnected])
 
   // Refresh function
   const refresh = useCallback(async () => {
@@ -298,13 +328,13 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
   }, [mutate])
 
   // Optimistic update for closing position with validation
-  const optimisticClosePosition = useCallback((positionId: string) => {
+  const optimisticClosePosition = useCallback((positionId: string, exitPrice?: number) => {
     if (!validatePositionId(positionId)) {
       console.error('❌ [REALTIME-POSITIONS] Cannot close position: Invalid position ID')
       return
     }
     
-    console.log("⚡ [REALTIME-POSITIONS] Optimistic close:", positionId)
+    console.log("⚡ [REALTIME-POSITIONS] Optimistic close:", positionId, exitPrice ? `@ ₹${exitPrice}` : '')
     
     try {
       mutate(
@@ -321,29 +351,35 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
           
           return {
             ...currentData,
-              positions: currentData.positions.map((p: Position) =>
-                p.id === positionId
-                  ? {
-                      ...p,
-                      quantity: 0,
-                      status: "CLOSED",
-                      isClosed: true,
-                      realizedPnL: p.realizedPnL ?? p.unrealizedPnL ?? 0,
-                      bookedPnL: p.bookedPnL ?? p.realizedPnL ?? p.unrealizedPnL ?? 0
-                    }
-                  : p
-              ) // Keep closed positions (qty 0) to show as booked
+              positions: currentData.positions.map((p: Position) => {
+                if (p.id !== positionId) return p
+                
+                // Calculate booked P&L based on exit price or current unrealized P&L
+                const finalExitPrice = exitPrice ?? p.currentPrice ?? p.averagePrice
+                const bookedPnL = (finalExitPrice - p.averagePrice) * Math.abs(p.quantity)
+                
+                return {
+                  ...p,
+                  quantity: 0,
+                  status: "CLOSED",
+                  isClosed: true,
+                  realizedPnL: bookedPnL,
+                  bookedPnL: bookedPnL,
+                  currentPrice: finalExitPrice,
+                  currentValue: 0, // Position closed, value is 0
+                }
+              }) // Keep closed positions (qty 0) to show as booked
           }
         },
-        false
+        false // Don't revalidate immediately - let server response update it
       )
       
-      // Revalidate after delay
+      // Revalidate after a short delay to get server-confirmed data
       setTimeout(() => {
         mutate().catch(err => {
           console.error('❌ [REALTIME-POSITIONS] Delayed revalidation failed:', err)
         })
-      }, 500)
+      }, 1000) // Slightly longer delay to allow server processing
     } catch (error) {
       console.error('❌ [REALTIME-POSITIONS] Optimistic close failed:', error)
     }

@@ -148,13 +148,14 @@ function validateAccount(account: any): account is TradingAccount {
 export function useRealtimeAccount(userId: string | undefined | null): UseRealtimeAccountReturn {
   const retryCountRef = useRef(0)
   const maxRetries = 3
+  const lastSyncRef = useRef<number>(Date.now())
   
-  // Initial data fetch only (no polling)
+  // Initial data fetch - polling handled by adaptive useEffect below
   const { data, error, isLoading, mutate } = useSWR<AccountResponse>(
     userId ? `/api/trading/account?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: 0, // No polling - SSE will trigger updates
+      refreshInterval: 0, // Disabled - we use adaptive manual polling instead
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,
@@ -170,12 +171,13 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
           console.log('✅ [REALTIME-ACCOUNT] Recovered from error')
           retryCountRef.current = 0
         }
+        lastSyncRef.current = Date.now()
       }
     }
   )
 
   // Shared SSE connection for real-time updates
-  useSharedSSE(userId, useCallback((message) => {
+  const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
     // Handle account-related events
     if (message.event === 'balance_updated' || 
         message.event === 'margin_blocked' || 
@@ -184,8 +186,36 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
       mutate().catch(err => {
         console.error('❌ [REALTIME-ACCOUNT] Refresh after event failed:', err)
       })
+      lastSyncRef.current = Date.now() // Update last sync time on event
     }
   }, [mutate]))
+
+  // Adaptive polling: adjust interval based on SSE connection state
+  // If SSE is connected: poll every 10 seconds (safety net)
+  // If SSE is disconnected: poll every 3 seconds (more aggressive)
+  useEffect(() => {
+    if (!userId) return
+    
+    const adaptiveInterval = isConnected ? 10000 : 3000
+    const syncInterval = setInterval(() => {
+      mutate().catch(err => {
+        console.error('❌ [REALTIME-ACCOUNT] Periodic sync failed:', err)
+      })
+    }, adaptiveInterval)
+
+    return () => clearInterval(syncInterval)
+  }, [userId, isConnected, mutate])
+
+  // Log sync status periodically
+  useEffect(() => {
+    const syncCheckInterval = setInterval(() => {
+      const timeSinceLastSync = Date.now() - lastSyncRef.current
+      const syncStatus = isConnected ? 'SSE+Poll' : 'Poll-only'
+      console.log(`🔄 [REALTIME-ACCOUNT] Sync check - ${syncStatus}, last sync: ${Math.round(timeSinceLastSync / 1000)}s ago`)
+    }, 30000) // Log every 30 seconds
+
+    return () => clearInterval(syncCheckInterval)
+  }, [isConnected])
 
   // Refresh function
   const refresh = useCallback(async () => {

@@ -547,8 +547,13 @@ export function PositionTracking({
         const quoteKey = position ? getQuoteKeyForPosition(position) : null
         const currentLtp = quoteKey ? (quotes[quoteKey] as any)?.display_price ?? quotes[quoteKey]?.last_trade_price : undefined
         
-        // Optimistic close: remove the position immediately
-        try { optimisticClosePosition(positionId) } catch {}
+        // Optimistic close: immediately show as closed with booked profit
+        try { 
+          optimisticClosePosition(positionId, currentLtp) 
+          console.log("⚡ [POSITION-TRACKING] Optimistic close applied", { positionId, exitPrice: currentLtp })
+        } catch (e) {
+          console.error("❌ [POSITION-TRACKING] Optimistic close failed:", e)
+        }
         
         await closePosition(
           positionId, 

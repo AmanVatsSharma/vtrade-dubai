@@ -123,13 +123,14 @@ function validateOrder(order: any): order is Partial<Order> {
 export function useRealtimeOrders(userId: string | undefined | null): UseRealtimeOrdersReturn {
   const retryCountRef = useRef(0)
   const maxRetries = 3
+  const lastSyncRef = useRef<number>(Date.now())
   
-  // Initial data fetch only (no polling)
+  // Initial data fetch - polling handled by adaptive useEffect below
   const { data, error, isLoading, mutate } = useSWR<OrdersResponse>(
     userId ? `/api/trading/orders/list?userId=${userId}` : null,
     fetcher,
     {
-      refreshInterval: 0, // No polling - SSE will trigger updates
+      refreshInterval: 0, // Disabled - we use adaptive manual polling instead
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 1000,
@@ -145,12 +146,13 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
           console.log('✅ [REALTIME-ORDERS] Recovered from error')
           retryCountRef.current = 0
         }
+        lastSyncRef.current = Date.now()
       }
     }
   )
 
   // Shared SSE connection for real-time updates
-  const { isConnected } = useSharedSSE(userId, useCallback((message) => {
+  const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
     // Handle order-related events
     if (message.event === 'order_placed' || 
         message.event === 'order_executed' || 
@@ -159,8 +161,39 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
       mutate().catch(err => {
         console.error('❌ [REALTIME-ORDERS] Refresh after event failed:', err)
       })
+      lastSyncRef.current = Date.now() // Update last sync time on event
     }
   }, [mutate]))
+
+  // Adaptive polling: adjust interval based on SSE connection state
+  // If SSE is connected: poll every 10 seconds (safety net)
+  // If SSE is disconnected: poll every 3 seconds (more aggressive)
+  useEffect(() => {
+    if (!userId) return
+    
+    // Update SWR config dynamically based on SSE state
+    // SWR doesn't support dynamic refreshInterval, so we'll use a workaround
+    // by manually calling mutate at intervals
+    const adaptiveInterval = isConnected ? 10000 : 3000
+    const syncInterval = setInterval(() => {
+      mutate().catch(err => {
+        console.error('❌ [REALTIME-ORDERS] Periodic sync failed:', err)
+      })
+    }, adaptiveInterval)
+
+    return () => clearInterval(syncInterval)
+  }, [userId, isConnected, mutate])
+
+  // Log sync status periodically
+  useEffect(() => {
+    const syncCheckInterval = setInterval(() => {
+      const timeSinceLastSync = Date.now() - lastSyncRef.current
+      const syncStatus = isConnected ? 'SSE+Poll' : 'Poll-only'
+      console.log(`🔄 [REALTIME-ORDERS] Sync check - ${syncStatus}, last sync: ${Math.round(timeSinceLastSync / 1000)}s ago`)
+    }, 30000) // Log every 30 seconds
+
+    return () => clearInterval(syncCheckInterval)
+  }, [isConnected])
 
   // Refresh function to call after placing order
   const refresh = useCallback(async () => {
