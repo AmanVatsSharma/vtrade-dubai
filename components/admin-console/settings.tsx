@@ -34,8 +34,14 @@ import {
   RefreshCw,
   QrCode,
   CreditCard,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  DollarSign,
+  Edit
 } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { getMarketSession, setNSEHolidays, setMarketForceClosed } from "@/lib/hooks/market-timing"
@@ -82,11 +88,105 @@ export function Settings() {
   const [maintenanceAllowBypass, setMaintenanceAllowBypass] = useState<boolean>(true)
   const [maintenanceSaving, setMaintenanceSaving] = useState<boolean>(false)
   
+  // Brokerage settings
+  const [brokerageConfigs, setBrokerageConfigs] = useState<any[]>([])
+  const [loadingBrokerages, setLoadingBrokerages] = useState(false)
+  const [showBrokerageDialog, setShowBrokerageDialog] = useState(false)
+  const [selectedBrokerageConfig, setSelectedBrokerageConfig] = useState<any>(null)
+  const [brokerageForm, setBrokerageForm] = useState({
+    segment: '',
+    productType: '',
+    brokerageFlat: null as number | null,
+    brokerageRate: null as number | null,
+    brokerageCap: null as number | null,
+  })
+  
   // File input refs
   const qrFileInputRef = useRef<HTMLInputElement>(null)
   const profileFileInputRef = useRef<HTMLInputElement>(null)
 
   console.log("⚙️ [SETTINGS] Component rendered")
+
+  /**
+   * Fetch brokerage configurations
+   */
+  const fetchBrokerageConfigs = async () => {
+    console.log("💰 [SETTINGS] Fetching brokerage configs...")
+    setLoadingBrokerages(true)
+    try {
+      const response = await fetch('/api/admin/risk/config')
+      if (response.ok) {
+        const data = await response.json()
+        setBrokerageConfigs(data.configs || [])
+        console.log("✅ [SETTINGS] Brokerage configs loaded:", data.configs?.length)
+      }
+    } catch (error) {
+      console.error("❌ [SETTINGS] Error fetching brokerage configs:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load brokerage configurations",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingBrokerages(false)
+    }
+  }
+
+  /**
+   * Save brokerage configuration
+   */
+  const saveBrokerageConfig = async () => {
+    if (!brokerageForm.segment || !brokerageForm.productType) {
+      toast({
+        title: "Validation Error",
+        description: "Segment and Product Type are required",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setLoadingBrokerages(true)
+    try {
+      const url = selectedBrokerageConfig
+        ? `/api/admin/risk/config/${selectedBrokerageConfig.id}`
+        : '/api/admin/risk/config'
+      const method = selectedBrokerageConfig ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(brokerageForm)
+      })
+
+      if (response.ok) {
+        toast({
+          title: "✅ Success",
+          description: selectedBrokerageConfig ? "Brokerage updated" : "Brokerage created",
+        })
+        setShowBrokerageDialog(false)
+        setSelectedBrokerageConfig(null)
+        setBrokerageForm({
+          segment: '',
+          productType: '',
+          brokerageFlat: null,
+          brokerageRate: null,
+          brokerageCap: null,
+        })
+        fetchBrokerageConfigs()
+      } else {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save brokerage')
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save brokerage configuration",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingBrokerages(false)
+    }
+  }
 
   /**
    * Fetch current settings
@@ -153,6 +253,7 @@ export function Settings() {
   useEffect(() => {
     fetchSettings()
     fetchMaintenanceSettings()
+    fetchBrokerageConfigs()
   }, [])
 
   /**
@@ -488,6 +589,10 @@ export function Settings() {
               <CreditCard className="w-4 h-4 mr-2" />
               Payment Settings
             </TabsTrigger>
+            <TabsTrigger value="brokerage">
+              <DollarSign className="w-4 h-4 mr-2" />
+              Brokerage
+            </TabsTrigger>
             <TabsTrigger value="general">
               <SettingsIcon className="w-4 h-4 mr-2" />
               General
@@ -598,6 +703,265 @@ export function Settings() {
                     )}
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Brokerage Settings Tab */}
+          <TabsContent value="brokerage">
+            <Card className="bg-card border-border shadow-sm neon-border">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl font-bold text-primary">Platform Brokerage Configuration</CardTitle>
+                    <CardDescription>
+                      Manage brokerage rates by segment and product type. Changes apply to all new orders.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchBrokerageConfigs}
+                      disabled={loadingBrokerages}
+                      className="border-primary/50 text-primary hover:bg-primary/10"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loadingBrokerages ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                    <Dialog open={showBrokerageDialog} onOpenChange={setShowBrokerageDialog}>
+                      <DialogTrigger asChild>
+                        <Button 
+                          className="bg-primary text-primary-foreground hover:bg-primary/90"
+                          onClick={() => {
+                            setSelectedBrokerageConfig(null)
+                            setBrokerageForm({
+                              segment: '',
+                              productType: '',
+                              brokerageFlat: null,
+                              brokerageRate: null,
+                              brokerageCap: null,
+                            })
+                          }}
+                        >
+                          <DollarSign className="w-4 h-4 mr-2" />
+                          Add Brokerage Config
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>
+                            {selectedBrokerageConfig ? 'Edit Brokerage Configuration' : 'Create Brokerage Configuration'}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label>Segment *</Label>
+                            <Select
+                              value={brokerageForm.segment}
+                              onValueChange={(value) => setBrokerageForm({ ...brokerageForm, segment: value })}
+                              disabled={!!selectedBrokerageConfig}
+                            >
+                              <SelectTrigger className="bg-background border-border">
+                                <SelectValue placeholder="Select segment" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="NSE">NSE (Equity)</SelectItem>
+                                <SelectItem value="NFO">NFO (F&O)</SelectItem>
+                                <SelectItem value="MCX">MCX (Commodity)</SelectItem>
+                                <SelectItem value="BSE">BSE</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Product Type *</Label>
+                            <Select
+                              value={brokerageForm.productType}
+                              onValueChange={(value) => setBrokerageForm({ ...brokerageForm, productType: value })}
+                              disabled={!!selectedBrokerageConfig}
+                            >
+                              <SelectTrigger className="bg-background border-border">
+                                <SelectValue placeholder="Select product type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="MIS">MIS (Intraday)</SelectItem>
+                                <SelectItem value="CNC">CNC (Delivery)</SelectItem>
+                                <SelectItem value="NRML">NRML (Carry Forward)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                            <p className="text-xs text-blue-500/80 mb-2 font-medium">Brokerage Type:</p>
+                            <p className="text-xs text-blue-500/60">
+                              Choose either Flat (fixed amount) OR Rate (percentage). If both are set, Flat takes priority.
+                            </p>
+                          </div>
+                          <div>
+                            <Label>Brokerage Flat (₹)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={brokerageForm.brokerageFlat || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseFloat(e.target.value) : null
+                                setBrokerageForm({ ...brokerageForm, brokerageFlat: value })
+                              }}
+                              placeholder="e.g., 20 for ₹20 flat per order"
+                              className="bg-background border-border"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Fixed brokerage amount per order</p>
+                          </div>
+                          <div>
+                            <Label>Brokerage Rate (%)</Label>
+                            <Input
+                              type="number"
+                              step="0.0001"
+                              min="0"
+                              max="100"
+                              value={brokerageForm.brokerageRate || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseFloat(e.target.value) : null
+                                setBrokerageForm({ ...brokerageForm, brokerageRate: value })
+                              }}
+                              placeholder="e.g., 0.03 for 0.03% of turnover"
+                              className="bg-background border-border"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Percentage of order turnover (e.g., 0.03 = 0.03%)</p>
+                          </div>
+                          <div>
+                            <Label>Brokerage Cap (₹)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={brokerageForm.brokerageCap || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseFloat(e.target.value) : null
+                                setBrokerageForm({ ...brokerageForm, brokerageCap: value })
+                              }}
+                              placeholder="e.g., 20 for maximum ₹20"
+                              className="bg-background border-border"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Maximum brokerage when using rate-based calculation</p>
+                          </div>
+                          <Button 
+                            onClick={saveBrokerageConfig} 
+                            disabled={loadingBrokerages || !brokerageForm.segment || !brokerageForm.productType}
+                            className="w-full bg-primary hover:bg-primary/90"
+                          >
+                            {loadingBrokerages ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-4 h-4 mr-2" />
+                                {selectedBrokerageConfig ? 'Update Configuration' : 'Create Configuration'}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingBrokerages ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    Loading brokerage configurations...
+                  </div>
+                ) : brokerageConfigs.length === 0 ? (
+                  <Alert className="bg-yellow-500/10 border-yellow-500/50">
+                    <DollarSign className="h-4 w-4 text-yellow-500" />
+                    <AlertTitle className="text-yellow-500">No Brokerage Configurations</AlertTitle>
+                    <AlertDescription className="text-yellow-500/80">
+                      No brokerage configurations found. Create one to set platform-wide brokerage rates.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border">
+                          <TableHead>Segment</TableHead>
+                          <TableHead>Product Type</TableHead>
+                          <TableHead>Brokerage Type</TableHead>
+                          <TableHead>Brokerage Value</TableHead>
+                          <TableHead>Cap</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Last Updated</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {brokerageConfigs.map((config) => (
+                          <TableRow key={config.id} className="border-border">
+                            <TableCell className="font-medium text-foreground">{config.segment}</TableCell>
+                            <TableCell>{config.productType}</TableCell>
+                            <TableCell>
+                              {config.brokerageFlat ? (
+                                <Badge className="bg-blue-400/20 text-blue-400 border-blue-400/30">Flat</Badge>
+                              ) : config.brokerageRate ? (
+                                <Badge className="bg-green-400/20 text-green-400 border-green-400/30">Rate</Badge>
+                              ) : (
+                                <Badge className="bg-gray-400/20 text-gray-400 border-gray-400/30">Default</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {config.brokerageFlat ? (
+                                <span className="font-mono">₹{config.brokerageFlat.toFixed(2)}</span>
+                              ) : config.brokerageRate ? (
+                                <span className="font-mono">{config.brokerageRate.toFixed(4)}%</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {config.brokerageCap ? (
+                                <span className="font-mono">₹{config.brokerageCap.toFixed(2)}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {config.active ? (
+                                <Badge className="bg-green-400/20 text-green-400 border-green-400/30">Active</Badge>
+                              ) : (
+                                <Badge className="bg-gray-400/20 text-gray-400 border-gray-400/30">Inactive</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {new Date(config.updatedAt).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBrokerageConfig(config)
+                                  setBrokerageForm({
+                                    segment: config.segment,
+                                    productType: config.productType,
+                                    brokerageFlat: config.brokerageFlat,
+                                    brokerageRate: config.brokerageRate,
+                                    brokerageCap: config.brokerageCap,
+                                  })
+                                  setShowBrokerageDialog(true)
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

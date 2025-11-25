@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
-import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle } from "lucide-react"
+import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface EditUserDialogProps {
@@ -40,9 +40,19 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
     bio: ""
   })
   const [originalData, setOriginalData] = useState<any>(null)
+  const [riskLimit, setRiskLimit] = useState<any>(null)
+  const [baseConfigs, setBaseConfigs] = useState<any[]>([])
+  const [leverageMultiplier, setLeverageMultiplier] = useState<number | null>(null)
+  const [loadingRiskLimit, setLoadingRiskLimit] = useState(false)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
 
-  // Load user data when dialog opens
+  // Load current user role and user data when dialog opens
   useEffect(() => {
+    // Get current user role from localStorage
+    const storedRole = window.localStorage.getItem('session_user_role')
+    setCurrentUserRole(storedRole)
+    console.log("🔐 [EDIT-USER-DIALOG] Current user role:", storedRole)
+
     if (open && user) {
       console.log("📝 [EDIT-USER-DIALOG] Loading user data:", user)
       const data = {
@@ -56,8 +66,38 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
       }
       setFormData(data)
       setOriginalData(data)
+      
+      // Load risk limit data
+      loadRiskLimit()
     }
   }, [open, user])
+
+  const loadRiskLimit = async () => {
+    if (!user?.id) return
+    
+    setLoadingRiskLimit(true)
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/risk-limit`)
+      if (response.ok) {
+        const data = await response.json()
+        console.log("📊 [EDIT-USER-DIALOG] Risk limit loaded:", data)
+        setRiskLimit(data.riskLimit)
+        setBaseConfigs(data.baseConfigs || [])
+        
+        // Calculate multiplier if risk limit exists
+        if (data.riskLimit && data.baseConfigs?.length > 0) {
+          const avgBaseLeverage = data.baseConfigs.reduce((sum: number, c: any) => sum + c.leverage, 0) / data.baseConfigs.length
+          const multiplier = data.riskLimit.maxLeverage / avgBaseLeverage
+          setLeverageMultiplier(multiplier)
+          console.log("📊 [EDIT-USER-DIALOG] Calculated multiplier:", { avgBaseLeverage, maxLeverage: data.riskLimit.maxLeverage, multiplier })
+        }
+      }
+    } catch (error) {
+      console.error("❌ [EDIT-USER-DIALOG] Error loading risk limit:", error)
+    } finally {
+      setLoadingRiskLimit(false)
+    }
+  }
 
   const hasChanges = () => {
     if (!originalData) return false
@@ -186,6 +226,56 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
     }
   }
 
+  const handleSaveLeverageOverride = async () => {
+    if (leverageMultiplier === null || leverageMultiplier < 0.1) {
+      toast({
+        title: "Invalid Multiplier",
+        description: "Leverage multiplier must be at least 0.1x",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/risk-limit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leverageMultiplier,
+          maxDailyLoss: riskLimit?.maxDailyLoss || 0,
+          maxPositionSize: riskLimit?.maxPositionSize || 0,
+          maxDailyTrades: riskLimit?.maxDailyTrades || 0
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to update leverage override")
+      }
+
+      const result = await response.json()
+      console.log("✅ [EDIT-USER-DIALOG] Leverage override updated:", result)
+
+      toast({
+        title: "✅ Success",
+        description: `Leverage override set to ${leverageMultiplier}x of base`,
+      })
+
+      // Reload risk limit to get updated values
+      loadRiskLimit()
+    } catch (error: any) {
+      console.error("❌ [EDIT-USER-DIALOG] Error updating leverage override:", error)
+      toast({
+        title: "❌ Error",
+        description: error.message || "Failed to update leverage override",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto">
@@ -265,17 +355,53 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role" className="text-foreground">Role</Label>
-                  <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
+                  <Select 
+                    value={formData.role} 
+                    onValueChange={(value) => {
+                      // Security check: Only SUPER_ADMIN can assign ADMIN/SUPER_ADMIN roles
+                      if ((value === 'ADMIN' || value === 'SUPER_ADMIN') && currentUserRole !== 'SUPER_ADMIN') {
+                        toast({
+                          title: "⚠️ Security Restriction",
+                          description: "Only Super Admins can assign Admin or Super Admin roles",
+                          variant: "destructive"
+                        })
+                        return
+                      }
+                      setFormData({ ...formData, role: value })
+                    }}
+                    disabled={currentUserRole !== 'SUPER_ADMIN' && (formData.role === 'ADMIN' || formData.role === 'SUPER_ADMIN')}
+                  >
                     <SelectTrigger className="bg-background border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="USER">User</SelectItem>
                       <SelectItem value="MODERATOR">Moderator</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      {/* Only SUPER_ADMIN can see/assign ADMIN and SUPER_ADMIN roles */}
+                      {currentUserRole === 'SUPER_ADMIN' ? (
+                        <>
+                          <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          {/* Show current role if it's ADMIN/SUPER_ADMIN but disable editing */}
+                          {formData.role === 'ADMIN' && (
+                            <SelectItem value="ADMIN" disabled>Admin (Super Admin Only)</SelectItem>
+                          )}
+                          {formData.role === 'SUPER_ADMIN' && (
+                            <SelectItem value="SUPER_ADMIN" disabled>Super Admin (Super Admin Only)</SelectItem>
+                          )}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
+                  {currentUserRole !== 'SUPER_ADMIN' && (formData.role === 'ADMIN' || formData.role === 'SUPER_ADMIN') && (
+                    <p className="text-xs text-yellow-500/80 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Only Super Admins can modify admin roles
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -305,6 +431,104 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
                   placeholder="Enter bio (optional)"
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Leverage Override Section */}
+          <Card className="bg-muted/30 border-border">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-foreground">Leverage Override</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Override user leverage as a multiplier of platform-wide base leverage
+              </p>
+
+              {loadingRiskLimit ? (
+                <div className="text-center py-4 text-muted-foreground">Loading risk settings...</div>
+              ) : (
+                <>
+                  {/* Base Leverage Info */}
+                  {baseConfigs.length > 0 && (
+                    <div className="bg-background/50 p-3 rounded-lg border border-border mb-4">
+                      <p className="text-xs text-muted-foreground mb-2">Platform Base Leverage (by segment):</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {baseConfigs.slice(0, 4).map((config, idx) => (
+                          <div key={idx} className="flex justify-between">
+                            <span className="text-muted-foreground">{config.segment}/{config.productType}:</span>
+                            <span className="font-medium text-foreground">{config.leverage}x</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Leverage Multiplier Input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="leverageMultiplier" className="text-foreground">
+                      Leverage Multiplier (x base)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="leverageMultiplier"
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        max="10"
+                        value={leverageMultiplier !== null ? leverageMultiplier : ''}
+                        onChange={(e) => {
+                          const value = e.target.value ? parseFloat(e.target.value) : null
+                          setLeverageMultiplier(value)
+                        }}
+                        className="bg-background border-border"
+                        placeholder="e.g., 1.5 for 1.5x base"
+                      />
+                      <span className="text-sm text-muted-foreground">x</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {leverageMultiplier !== null && baseConfigs.length > 0 ? (
+                        <>
+                          Effective leverage: <span className="font-medium text-foreground">
+                            {(baseConfigs.reduce((sum, c) => sum + c.leverage, 0) / baseConfigs.length * leverageMultiplier).toFixed(1)}x
+                          </span>
+                        </>
+                      ) : (
+                        "Set multiplier to override user leverage"
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Current Override Display */}
+                  {riskLimit && (
+                    <div className="bg-blue-500/10 p-3 rounded-lg border border-blue-500/30">
+                      <p className="text-xs text-muted-foreground mb-1">Current Override:</p>
+                      <p className="text-sm font-medium text-foreground">
+                        Max Leverage: {riskLimit.maxLeverage}x
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Save Button */}
+                  <Button
+                    onClick={handleSaveLeverageOverride}
+                    disabled={loading || leverageMultiplier === null}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Leverage Override
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
 
