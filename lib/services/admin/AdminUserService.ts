@@ -715,6 +715,108 @@ export class AdminUserService {
   }
 
   /**
+   * Get users managed by a specific Relationship Manager
+   */
+  async getUsersByRM(
+    rmId: string,
+    page: number = 1,
+    limit: number = 50,
+    search?: string
+  ): Promise<{ users: UserSummary[]; total: number; pages: number }> {
+    console.log("👥 [ADMIN-USER-SERVICE] Fetching users by RM:", { rmId, page, limit, search })
+
+    const skip = (page - 1) * limit
+
+    const where: any = {
+      managedById: rmId
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+        { phone: { contains: search, mode: 'insensitive' as const } },
+        { clientId: { contains: search, mode: 'insensitive' as const } }
+      ]
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        include: {
+          tradingAccount: {
+            select: {
+              id: true,
+              balance: true,
+              availableMargin: true,
+              usedMargin: true,
+              _count: {
+                select: {
+                  orders: true,
+                  positions: { where: { quantity: { not: 0 } } }
+                }
+              }
+            }
+          },
+          kyc: {
+            select: {
+              status: true
+            }
+          },
+          deposits: {
+            where: { status: 'COMPLETED' },
+            select: {
+              amount: true
+            }
+          },
+          withdrawals: {
+            where: { status: 'COMPLETED' },
+            select: {
+              amount: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.user.count({ where })
+    ])
+
+    console.log(`✅ [ADMIN-USER-SERVICE] Found ${users.length} users managed by RM ${rmId} (total: ${total})`)
+
+    const userSummaries: UserSummary[] = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      clientId: user.clientId,
+      role: user.role,
+      isActive: user.isActive,
+      kycStatus: user.kyc?.status || 'NOT_SUBMITTED',
+      tradingAccount: user.tradingAccount ? {
+        id: user.tradingAccount.id,
+        balance: user.tradingAccount.balance,
+        availableMargin: user.tradingAccount.availableMargin,
+        usedMargin: user.tradingAccount.usedMargin
+      } : null,
+      createdAt: user.createdAt,
+      stats: {
+        totalOrders: (user.tradingAccount as any)?._count?.orders || 0,
+        activePositions: (user.tradingAccount as any)?._count?.positions || 0,
+        totalDeposits: user.deposits.reduce((sum, d) => sum + Number(d.amount), 0),
+        totalWithdrawals: user.withdrawals.reduce((sum, w) => sum + Number(w.amount), 0)
+      }
+    }))
+
+    return {
+      users: userSummaries,
+      total,
+      pages: Math.ceil(total / limit)
+    }
+  }
+
+  /**
    * Verify user email or phone manually
    */
   async verifyContact(userId: string, type: 'email' | 'phone') {

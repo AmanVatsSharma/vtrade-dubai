@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
-import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp } from "lucide-react"
+import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp, UserCheck } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface EditUserDialogProps {
@@ -45,6 +45,10 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
   const [leverageMultiplier, setLeverageMultiplier] = useState<number | null>(null)
   const [loadingRiskLimit, setLoadingRiskLimit] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
+  const [rms, setRms] = useState<any[]>([])
+  const [selectedRMId, setSelectedRMId] = useState<string | null>(null)
+  const [loadingRMs, setLoadingRMs] = useState(false)
+  const [currentRMId, setCurrentRMId] = useState<string | null>(null)
 
   // Load current user role and user data when dialog opens
   useEffect(() => {
@@ -69,8 +73,74 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
       
       // Load risk limit data
       loadRiskLimit()
+      
+      // Load RM assignment data
+      loadRMData()
     }
   }, [open, user])
+
+  const loadRMData = async () => {
+    if (!user?.id) return
+    
+    setLoadingRMs(true)
+    try {
+      // Fetch current user's RM assignment
+      const userResponse = await fetch(`/api/admin/users/${user.id}`)
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        setCurrentRMId(userData.user?.managedById || null)
+        setSelectedRMId(userData.user?.managedById || null)
+      }
+      
+      // Fetch all RMs for selection
+      const rmsResponse = await fetch('/api/admin/rms')
+      if (rmsResponse.ok) {
+        const rmsData = await rmsResponse.json()
+        setRms(rmsData.rms || [])
+      }
+    } catch (error) {
+      console.error("❌ [EDIT-USER-DIALOG] Error loading RM data:", error)
+    } finally {
+      setLoadingRMs(false)
+    }
+  }
+
+  const handleAssignRM = async () => {
+    if (!user?.id) return
+    
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/assign-rm`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rmId: selectedRMId })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to assign RM")
+      }
+
+      toast({
+        title: "✅ Success",
+        description: selectedRMId ? "RM assigned successfully" : "RM unassigned successfully",
+      })
+
+      setCurrentRMId(selectedRMId)
+      if (onUserUpdated) {
+        onUserUpdated()
+      }
+    } catch (error: any) {
+      console.error("❌ [EDIT-USER-DIALOG] Error assigning RM:", error)
+      toast({
+        title: "❌ Error",
+        description: error.message || "Failed to assign RM",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const loadRiskLimit = async () => {
     if (!user?.id) return
@@ -433,6 +503,72 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
               </div>
             </CardContent>
           </Card>
+
+          {/* RM Assignment Section */}
+          {currentUserRole !== 'MODERATOR' && (
+            <Card className="bg-muted/30 border-border">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <UserCheck className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">Relationship Manager Assignment</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Assign a Relationship Manager to provide personalized support to this user
+                </p>
+
+                {loadingRMs ? (
+                  <div className="text-center py-4 text-muted-foreground">Loading RMs...</div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="rm" className="text-foreground">Select RM</Label>
+                      <Select 
+                        value={selectedRMId || "none"} 
+                        onValueChange={(value) => setSelectedRMId(value === "none" ? null : value)}
+                      >
+                        <SelectTrigger className="bg-background border-border">
+                          <SelectValue placeholder="Select RM" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No RM (Unassign)</SelectItem>
+                          {rms.map((rm) => (
+                            <SelectItem key={rm.id} value={rm.id}>
+                              {rm.name || rm.email || rm.id.slice(0, 8)} ({rm.assignedUsersCount} users)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {currentRMId && (
+                        <p className="text-xs text-muted-foreground">
+                          Current RM: {rms.find(r => r.id === currentRMId)?.name || "N/A"}
+                        </p>
+                      )}
+                    </div>
+
+                    {selectedRMId !== currentRMId && (
+                      <Button
+                        onClick={handleAssignRM}
+                        disabled={loading}
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-4 h-4 mr-2" />
+                            {selectedRMId ? "Assign RM" : "Unassign RM"}
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Leverage Override Section */}
           <Card className="bg-muted/30 border-border">

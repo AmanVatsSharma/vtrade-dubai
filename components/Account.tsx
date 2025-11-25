@@ -5,10 +5,10 @@
  */
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { LogOut, User, DollarSign, Briefcase, Copy, Check, LifeBuoy, ArrowRight } from "lucide-react"
+import { LogOut, User, DollarSign, Briefcase, Copy, Check, LifeBuoy, ArrowRight, Mail, Users, UserPlus, RefreshCw } from "lucide-react"
 import { signOut } from "next-auth/react"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer"
 import { Label } from "@/components/ui/label"
@@ -41,9 +41,61 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
     const formatCurrency = (amount: number) => `₹${(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     const [copied, setCopied] = useState(false)
     const [profileOpen, setProfileOpen] = useState(false)
+    const [rmData, setRmData] = useState<any>(null)
+    const [rmLoading, setRmLoading] = useState(true)
+    const [requestingRM, setRequestingRM] = useState(false)
 
     const account = portfolio?.account;
     const { transactions, isLoading: txLoading } = useTransactions(account?.id)
+
+    // Fetch RM data
+    useEffect(() => {
+        const fetchRM = async () => {
+            setRmLoading(true)
+            try {
+                const response = await fetch('/api/console/user-rm')
+                if (response.ok) {
+                    const data = await response.json()
+                    setRmData(data)
+                }
+            } catch (error) {
+                console.error('Error fetching RM data:', error)
+            } finally {
+                setRmLoading(false)
+            }
+        }
+        fetchRM()
+    }, [])
+
+    const handleRequestRM = async () => {
+        setRequestingRM(true)
+        try {
+            const response = await fetch('/api/console/request-rm', {
+                method: 'POST'
+            })
+            const data = await response.json()
+            if (response.ok) {
+                toast({
+                    title: "Request Submitted",
+                    description: data.message || "Your request has been submitted successfully."
+                })
+            } else {
+                toast({
+                    title: "Error",
+                    description: data.error || "Failed to submit request",
+                    variant: "destructive"
+                })
+            }
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.message || "Failed to submit request",
+                variant: "destructive"
+            })
+        } finally {
+            setRequestingRM(false)
+        }
+    }
 
     // CSV Export
     const exportCSV = () => {
@@ -181,92 +233,135 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
 
                         {/* Premium Relationship Manager Card */}
                         <div className="mt-6">
-                            <div className="relative overflow-hidden rounded-2xl shadow-xl border border-white/20 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-900">
-                                {/* Background Pattern */}
-                                <div className="absolute inset-0 bg-grid-white/[0.05] bg-[length:20px_20px]" />
-                                <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/30" />
-                                
-                                {/* Decorative Elements */}
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl transform translate-x-10 -translate-y-10" />
-                                <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl transform -translate-x-10 translate-y-10" />
-                                
-                                {/* Content */}
-                                <div className="relative p-6 sm:p-8">
-                                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                                        {/* RM Image/Avatar Section */}
-                                        <div className="relative">
-                                            <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-400 to-indigo-600 p-1">
-                                                <div className="h-full w-full rounded-xl bg-white/95 dark:bg-slate-900 relative overflow-hidden">
-                                                    <Image
-                                                        src="/rm_dp-01.webp"
-                                                        alt="Relationship Manager"
-                                                        fill
-                                                        className="object-cover"
-                                                        sizes="96px"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="absolute -bottom-2 -right-2 h-6 w-6 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
-                                                <div className="h-2 w-2 bg-white rounded-full animate-pulse" />
-                                            </div>
-                                        </div>
-
-                                        {/* RM Info Section */}
-                                        <div className="flex-1 text-center sm:text-left">
-                                            <h3 className="text-xl font-bold text-white mb-1">Your Personal Relationship Manager</h3>
-                                            <div className="space-y-2">
-                                                <p className="text-lg font-semibold text-blue-200">Dev Gupta</p>
-                                                <div className="flex flex-col sm:flex-row items-center gap-2 text-sm text-blue-100/80">
-                                                    <div className="flex items-center">
-                                                        <div className="h-2 w-2 rounded-full bg-green-500 mr-2" />
-                                                        <span>Online Now</span>
+                            {rmLoading ? (
+                                <div className="relative overflow-hidden rounded-2xl shadow-xl border border-white/20 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-900 p-8 text-center">
+                                    <p className="text-white/70">Loading RM information...</p>
+                                </div>
+                            ) : rmData?.hasRM && rmData?.rm ? (
+                                <div className="relative overflow-hidden rounded-2xl shadow-xl border border-white/20 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-900">
+                                    {/* Background Pattern */}
+                                    <div className="absolute inset-0 bg-grid-white/[0.05] bg-[length:20px_20px]" />
+                                    <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/30" />
+                                    
+                                    {/* Decorative Elements */}
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl transform translate-x-10 -translate-y-10" />
+                                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl transform -translate-x-10 translate-y-10" />
+                                    
+                                    {/* Content */}
+                                    <div className="relative p-6 sm:p-8">
+                                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                                            {/* RM Image/Avatar Section */}
+                                            <div className="relative">
+                                                <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-400 to-indigo-600 p-1">
+                                                    <div className="h-full w-full rounded-xl bg-white/95 dark:bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                                                        {rmData.rm.image ? (
+                                                            <Image
+                                                                src={rmData.rm.image}
+                                                                alt={rmData.rm.name || "RM"}
+                                                                fill
+                                                                className="object-cover"
+                                                                sizes="96px"
+                                                            />
+                                                        ) : (
+                                                            <span className="text-2xl font-bold text-blue-600">
+                                                                {(rmData.rm.name || "RM").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <span className="hidden sm:inline-block">•</span>
-                                                    <span>Available: Mon-Fri, 9:30 AM - 6:00 PM IST</span>
+                                                </div>
+                                                <div className="absolute -bottom-2 -right-2 h-6 w-6 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
+                                                    <div className="h-2 w-2 bg-white rounded-full animate-pulse" />
                                                 </div>
                                             </div>
 
-                                            {/* Quick Stats */}
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 mb-6">
-                                                <div className="rounded-lg bg-white/10 backdrop-blur-sm p-3">
-                                                    <p className="text-xs text-blue-200/80">Response Time</p>
-                                                    <p className="text-lg font-semibold text-white">&lt; 30 mins</p>
+                                            {/* RM Info Section */}
+                                            <div className="flex-1 text-center sm:text-left">
+                                                <h3 className="text-xl font-bold text-white mb-1">Your Personal Relationship Manager</h3>
+                                                <div className="space-y-2">
+                                                    <p className="text-lg font-semibold text-blue-200">{rmData.rm.name || "N/A"}</p>
+                                                    <div className="flex flex-col sm:flex-row items-center gap-2 text-sm text-blue-100/80">
+                                                        <div className="flex items-center">
+                                                            <div className="h-2 w-2 rounded-full bg-green-500 mr-2" />
+                                                            <span>Available</span>
+                                                        </div>
+                                                        {rmData.rm.email && (
+                                                            <>
+                                                                <span className="hidden sm:inline-block">•</span>
+                                                                <span>{rmData.rm.email}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="rounded-lg bg-white/10 backdrop-blur-sm p-3">
-                                                    <p className="text-xs text-blue-200/80">Experience</p>
-                                                    <p className="text-lg font-semibold text-white">8+ Years</p>
-                                                </div>
-                                                <div className="rounded-lg bg-white/10 backdrop-blur-sm p-3 sm:col-span-1 col-span-2">
-                                                    <p className="text-xs text-blue-200/80">Client Rating</p>
-                                                    <p className="text-lg font-semibold text-white">4.9/5.0 ⭐</p>
-                                                </div>
-                                            </div>
 
-                                            {/* Action Buttons */}
-                                            <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
-                                                <Button 
-                                                    onClick={() => window.open('tel:+91903969492')}
-                                                    className="bg-white/95 hover:bg-white text-blue-900 font-medium px-6"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                                                    </svg>
-                                                    Schedule a Call
-                                                </Button>
-                                                <Button 
-                                                    onClick={() => window.open('https://wa.me/91903969492')}
-                                                    className="bg-green-500 hover:bg-green-600 text-white font-medium px-6"
-                                                >
-                                                    <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-                                                    </svg>
-                                                    Chat on WhatsApp
-                                                </Button>
+                                                {/* Action Buttons */}
+                                                <div className="flex flex-wrap gap-3 justify-center sm:justify-start mt-4">
+                                                    {rmData.rm.phone && (
+                                                        <Button 
+                                                            onClick={() => window.open(`tel:${rmData.rm.phone}`)}
+                                                            className="bg-white/95 hover:bg-white text-blue-900 font-medium px-6"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                                            </svg>
+                                                            Call RM
+                                                        </Button>
+                                                    )}
+                                                    {rmData.rm.phone && (
+                                                        <Button 
+                                                            onClick={() => window.open(`https://wa.me/${rmData.rm.phone.replace(/[^0-9]/g, '')}`)}
+                                                            className="bg-green-500 hover:bg-green-600 text-white font-medium px-6"
+                                                        >
+                                                            <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                                            </svg>
+                                                            Chat on WhatsApp
+                                                        </Button>
+                                                    )}
+                                                    {rmData.rm.email && (
+                                                        <Button 
+                                                            onClick={() => window.open(`mailto:${rmData.rm.email}`)}
+                                                            className="bg-white/95 hover:bg-white text-blue-900 font-medium px-6"
+                                                        >
+                                                            <Mail className="h-4 w-4 mr-2" />
+                                                            Email RM
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="relative overflow-hidden rounded-2xl shadow-xl border border-white/20 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-900">
+                                    <div className="absolute inset-0 bg-grid-white/[0.05] bg-[length:20px_20px]" />
+                                    <div className="relative p-6 sm:p-8 text-center">
+                                        <div className="mb-4">
+                                            <Users className="w-16 h-16 mx-auto text-blue-300/50 mb-4" />
+                                            <h3 className="text-xl font-bold text-white mb-2">No Relationship Manager Assigned</h3>
+                                            <p className="text-blue-100/80 mb-6">
+                                                Get personalized support from a dedicated Relationship Manager
+                                            </p>
+                                        </div>
+                                        <Button
+                                            onClick={handleRequestRM}
+                                            disabled={requestingRM}
+                                            className="bg-white/95 hover:bg-white text-blue-900 font-medium px-8"
+                                        >
+                                            {requestingRM ? (
+                                                <>
+                                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                                    Submitting Request...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <UserPlus className="h-4 w-4 mr-2" />
+                                                    Request a Relationship Manager
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </CardContent>

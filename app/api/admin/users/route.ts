@@ -33,8 +33,27 @@ export async function GET(req: Request) {
     const userRole = searchParams.get('role') as Role | 'all' | null
     const dateFrom = searchParams.get('dateFrom') ? new Date(searchParams.get('dateFrom')!) : undefined
     const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined
+    const rmId = searchParams.get('rmId') || undefined // Filter by Relationship Manager
 
-    console.log("📝 [API-ADMIN-USERS] Request params:", { page, limit, search, status, kycStatus, userRole, dateFrom, dateTo })
+    console.log("📝 [API-ADMIN-USERS] Request params:", { page, limit, search, status, kycStatus, userRole, dateFrom, dateTo, rmId })
+
+    // If MODERATOR role, only show their assigned users
+    if (role === 'MODERATOR') {
+      const rmIdForFilter = session.user.id
+      console.log("🔒 [API-ADMIN-USERS] MODERATOR access - filtering by RM:", rmIdForFilter)
+      
+      const logger = createTradingLogger({
+        clientId: 'ADMIN',
+        userId: session.user.id
+      })
+
+      const adminService = createAdminUserService(logger)
+      
+      // Get users managed by this RM
+      const result = await adminService.getUsersByRM(rmIdForFilter, page, limit, search)
+      
+      return NextResponse.json(result, { status: 200 })
+    }
 
     const logger = createTradingLogger({
       clientId: 'ADMIN',
@@ -45,7 +64,10 @@ export async function GET(req: Request) {
     
     // Use advanced filters if any filter is provided, otherwise use simple getAllUsers
     let result
-    if (status || kycStatus || userRole || dateFrom || dateTo) {
+    if (rmId) {
+      // Filter by RM
+      result = await adminService.getUsersByRM(rmId, page, limit, search)
+    } else if (status || kycStatus || userRole || dateFrom || dateTo) {
       result = await adminService.getUsersWithFilters({
         page,
         limit,

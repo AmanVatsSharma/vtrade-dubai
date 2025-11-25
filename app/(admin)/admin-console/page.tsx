@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { QrCode } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { UserManagement } from "@/components/admin-console/user-management"
+import { RMManagement } from "@/components/admin-console/rm-management"
 import { Dashboard } from "@/components/admin-console/dashboard"
 import { FundManagement } from "@/components/admin-console/fund-management"
 import { LogsTerminal } from "@/components/admin-console/logs-terminal"
@@ -64,6 +65,8 @@ function AdminConsoleInner() {
         return <Dashboard />
       case "users":
         return <UserManagement />
+      case "rms":
+        return <RMManagement />
       case "funds":
         return <FundManagement />
       case "analytics":
