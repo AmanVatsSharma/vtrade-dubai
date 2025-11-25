@@ -1,3 +1,11 @@
+/**
+ * @file user-management.tsx
+ * @module admin-console
+ * @description Enhanced user management component with advanced filters, bulk operations, and comprehensive user management features
+ * @author BharatERP
+ * @created 2025-01-27
+ */
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -9,6 +17,8 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Users,
   Search,
@@ -24,10 +34,18 @@ import {
   Check,
   AlertTriangle,
   RefreshCw,
+  Filter,
+  X,
+  FileCheck,
+  Clock,
+  CheckCircle2,
 } from "lucide-react"
 import { CreateUserDialog } from "./create-user-dialog"
 import { UserStatementDialog } from "./user-statement-dialog"
 import { AddFundsDialog } from "./add-funds-dialog"
+import { EditUserDialog } from "./edit-user-dialog"
+import { KYCManagementDialog } from "./kyc-management-dialog"
+import { UserActivityDialog } from "./user-activity-dialog"
 import { toast } from "@/hooks/use-toast"
 
 // Mock data as fallback
@@ -59,7 +77,21 @@ export function UserManagement() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showStatementDialog, setShowStatementDialog] = useState(false)
   const [showAddFundsDialog, setShowAddFundsDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showKYCDialog, setShowKYCDialog] = useState(false)
+  const [showActivityDialog, setShowActivityDialog] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set())
+  const [showFilters, setShowFilters] = useState(false)
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    status: 'all' as 'active' | 'inactive' | 'all',
+    kycStatus: 'all' as string,
+    role: 'all' as string,
+    dateFrom: '',
+    dateTo: ''
+  })
   
   // Real data states
   const [users, setUsers] = useState(mockUsers)
@@ -74,13 +106,27 @@ export function UserManagement() {
     totalBalance: 2400000
   })
 
+  const buildQueryString = () => {
+    const params = new URLSearchParams()
+    params.set('page', page.toString())
+    params.set('limit', '50')
+    if (searchTerm) params.set('search', searchTerm)
+    if (filters.status !== 'all') params.set('status', filters.status)
+    if (filters.kycStatus !== 'all') params.set('kycStatus', filters.kycStatus)
+    if (filters.role !== 'all') params.set('role', filters.role)
+    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
+    if (filters.dateTo) params.set('dateTo', filters.dateTo)
+    return params.toString()
+  }
+
   const fetchRealData = async () => {
     console.log("🔄 [USER-MANAGEMENT] Fetching real users...")
     setLoading(true)
 
     try {
+      const queryString = buildQueryString()
       const [usersResponse, statsResponse] = await Promise.all([
-        fetch(`/api/admin/users?page=${page}&limit=50&search=${searchTerm}`).catch(e => {
+        fetch(`/api/admin/users?${queryString}`).catch(e => {
           console.error("❌ [USER-MANAGEMENT] Users API failed:", e)
           return null
         }),
@@ -156,7 +202,71 @@ export function UserManagement() {
 
   useEffect(() => {
     fetchRealData()
-  }, [page, searchTerm])
+    setSelectedUsers(new Set()) // Clear selections on data refresh
+  }, [page, searchTerm, filters])
+
+  const handleBulkAction = async (action: 'activate' | 'deactivate') => {
+    if (selectedUsers.size === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select at least one user",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const confirmMessage = `Are you sure you want to ${action === 'activate' ? 'activate' : 'deactivate'} ${selectedUsers.size} user(s)?`
+    if (!confirm(confirmMessage)) return
+
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/users/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userIds: Array.from(selectedUsers),
+          action: 'updateStatus',
+          isActive: action === 'activate'
+        })
+      })
+
+      if (!response.ok) throw new Error("Failed to perform bulk operation")
+
+      toast({
+        title: "✅ Success",
+        description: `${selectedUsers.size} user(s) ${action === 'activate' ? 'activated' : 'deactivated'} successfully`
+      })
+
+      setSelectedUsers(new Set())
+      fetchRealData()
+    } catch (error: any) {
+      toast({
+        title: "❌ Error",
+        description: error.message || "Failed to perform bulk operation",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleUserSelection = (userId: string) => {
+    const newSelection = new Set(selectedUsers)
+    if (newSelection.has(userId)) {
+      newSelection.delete(userId)
+    } else {
+      newSelection.add(userId)
+    }
+    setSelectedUsers(newSelection)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set())
+    } else {
+      setSelectedUsers(new Set(users.map(u => u.id)))
+    }
+  }
 
   const filteredUsers = users.filter(
     (user) =>
@@ -312,7 +422,7 @@ export function UserManagement() {
         transition={{ duration: 0.3, delay: 0.2 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
+          <CardContent className="p-6 space-y-4">
             <div className="flex items-center space-x-4">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -323,6 +433,17 @@ export function UserManagement() {
                   className="pl-10 bg-muted/50 border-border focus:border-primary"
                 />
               </div>
+              <Button 
+                variant="outline" 
+                className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Filter className="w-4 h-4 mr-2" />
+                Filters
+                {(filters.status !== 'all' || filters.kycStatus !== 'all' || filters.role !== 'all' || filters.dateFrom || filters.dateTo) && (
+                  <Badge className="ml-2 bg-primary text-primary-foreground">{Object.values(filters).filter(v => v !== 'all' && v !== '').length}</Badge>
+                )}
+              </Button>
               <Button 
                 variant="outline" 
                 className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
@@ -337,6 +458,132 @@ export function UserManagement() {
                 Export
               </Button>
             </div>
+
+            {/* Advanced Filters */}
+            {showFilters && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-4 border-t border-border"
+              >
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Status</Label>
+                  <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value as any })}>
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">KYC Status</Label>
+                  <Select value={filters.kycStatus} onValueChange={(value) => setFilters({ ...filters, kycStatus: value })}>
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="APPROVED">Approved</SelectItem>
+                      <SelectItem value="REJECTED">Rejected</SelectItem>
+                      <SelectItem value="NOT_SUBMITTED">Not Submitted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Role</Label>
+                  <Select value={filters.role} onValueChange={(value) => setFilters({ ...filters, role: value })}>
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="USER">User</SelectItem>
+                      <SelectItem value="MODERATOR">Moderator</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Date From</Label>
+                  <Input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                    className="bg-background border-border"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Date To</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                      className="bg-background border-border"
+                    />
+                    {(filters.status !== 'all' || filters.kycStatus !== 'all' || filters.role !== 'all' || filters.dateFrom || filters.dateTo) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFilters({ status: 'all', kycStatus: 'all', role: 'all', dateFrom: '', dateTo: '' })}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Bulk Actions */}
+            {selectedUsers.size > 0 && (
+              <div className="flex items-center justify-between pt-4 border-t border-border">
+                <p className="text-sm text-muted-foreground">
+                  {selectedUsers.size} user(s) selected
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkAction('activate')}
+                    disabled={loading}
+                    className="border-green-500/50 text-green-500 hover:bg-green-500/10"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Activate Selected
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkAction('deactivate')}
+                    disabled={loading}
+                    className="border-red-500/50 text-red-500 hover:bg-red-500/10"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Deactivate Selected
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedUsers(new Set())}
+                  >
+                    Clear Selection
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -356,6 +603,12 @@ export function UserManagement() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border">
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedUsers.size === users.length && users.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead className="text-muted-foreground">Client ID</TableHead>
                     <TableHead className="text-muted-foreground">User Details</TableHead>
                     <TableHead className="text-muted-foreground">Balance</TableHead>
@@ -369,11 +622,17 @@ export function UserManagement() {
                   {filteredUsers.map((user, index) => (
                     <motion.tr
                       key={user.id}
-                      className="border-border hover:bg-muted/30 transition-colors"
+                      className={`border-border hover:bg-muted/30 transition-colors ${selectedUsers.has(user.id) ? 'bg-primary/5' : ''}`}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
                     >
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedUsers.has(user.id)}
+                          onCheckedChange={() => toggleUserSelection(user.id)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
                           <code className="text-primary font-mono text-sm bg-primary/10 px-2 py-1 rounded">
@@ -455,20 +714,41 @@ export function UserManagement() {
                           >
                             <Shield className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="h-8 w-8 p-0"
                             onClick={() => {
-                              // TODO: Add edit user functionality
-                              toast({
-                                title: "Coming Soon",
-                                description: "Edit user feature will be available soon"
-                              })
+                              setSelectedUser(user)
+                              setShowEditDialog(true)
                             }}
                             title="Edit User"
                           >
                             <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              setSelectedUser(user)
+                              setShowKYCDialog(true)
+                            }}
+                            title="Manage KYC"
+                          >
+                            <FileCheck className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              setSelectedUser(user)
+                              setShowActivityDialog(true)
+                            }}
+                            title="View Activity"
+                          >
+                            <Clock className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -559,6 +839,29 @@ export function UserManagement() {
       <CreateUserDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
       <UserStatementDialog open={showStatementDialog} onOpenChange={setShowStatementDialog} user={selectedUser} />
       <AddFundsDialog open={showAddFundsDialog} onOpenChange={setShowAddFundsDialog} />
+      <EditUserDialog 
+        open={showEditDialog} 
+        onOpenChange={setShowEditDialog} 
+        user={selectedUser}
+        onUserUpdated={() => {
+          fetchRealData()
+          setShowEditDialog(false)
+        }}
+      />
+      <KYCManagementDialog 
+        open={showKYCDialog} 
+        onOpenChange={setShowKYCDialog} 
+        user={selectedUser}
+        onKYCUpdated={() => {
+          fetchRealData()
+          setShowKYCDialog(false)
+        }}
+      />
+      <UserActivityDialog 
+        open={showActivityDialog} 
+        onOpenChange={setShowActivityDialog} 
+        user={selectedUser}
+      />
     </div>
   )
 }

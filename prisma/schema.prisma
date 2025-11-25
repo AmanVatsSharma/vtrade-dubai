@@ -206,6 +206,12 @@ model User {
   // Owned scoped settings (per-admin/RM)
   ownedSettings SystemSettings[] @relation("UserOwnedSettings")
 
+  // Enterprise features relations
+  riskLimit RiskLimit?
+  riskAlerts RiskAlert[]
+  resolvedAlerts RiskAlert[] @relation("ResolvedAlerts")
+  createdNotifications Notification[] @relation("CreatedNotifications")
+
   @@map("users")
   @@index([managedById])
 }
@@ -678,4 +684,66 @@ enum WithdrawalStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+// Enterprise Features Models
+model RiskLimit {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  maxDailyLoss  Decimal  @default(0) @db.Decimal(18, 2) @map("max_daily_loss")
+  maxPositionSize Decimal @default(0) @db.Decimal(18, 2) @map("max_position_size")
+  maxLeverage   Decimal  @default(1) @db.Decimal(10, 2) @map("max_leverage")
+  maxDailyTrades Int     @default(0) @map("max_daily_trades")
+  status        String   @default("ACTIVE") // ACTIVE, SUSPENDED, WARNING
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("risk_limits")
+  @@index([userId])
+  @@index([status])
+}
+
+model RiskAlert {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // LIMIT_EXCEEDED, LARGE_LOSS, UNUSUAL_ACTIVITY, MARGIN_CALL
+  severity  String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  message   String
+  resolved  Boolean  @default(false)
+  resolvedAt DateTime? @map("resolved_at")
+  resolvedBy String? @map("resolved_by")
+  resolvedByUser User? @relation("ResolvedAlerts", fields: [resolvedBy], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("risk_alerts")
+  @@index([userId])
+  @@index([type])
+  @@index([severity])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+model Notification {
+  id           String   @id @default(uuid())
+  title        String
+  message      String
+  type         String   @default("INFO") // INFO, WARNING, ERROR, SUCCESS
+  priority     String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  target       String   @default("ALL") // ALL, ADMINS, USERS, SPECIFIC
+  targetUserIds String[] @map("target_user_ids")
+  expiresAt    DateTime? @map("expires_at")
+  readBy       String[] @default([]) @map("read_by")
+  createdBy    String? @map("created_by")
+  createdByUser User? @relation("CreatedNotifications", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("notifications")
+  @@index([type])
+  @@index([priority])
+  @@index([target])
+  @@index([createdAt])
+  @@index([expiresAt])
 }

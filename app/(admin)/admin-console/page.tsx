@@ -18,6 +18,12 @@ import { Sidebar } from "@/components/admin-console/sidebar"
 import { Header } from "@/components/admin-console/header"
 import { Settings } from "@/components/admin-console/settings"
 import { FinancialOverview } from "@/components/admin-console/financial-overview"
+import { AdvancedAnalytics } from "@/components/admin-console/advanced-analytics"
+import { AuditTrail } from "@/components/admin-console/audit-trail"
+import { RiskManagement } from "@/components/admin-console/risk-management"
+import { SystemHealth } from "@/components/admin-console/system-health"
+import { FinancialReports } from "@/components/admin-console/financial-reports"
+import { NotificationCenter } from "@/components/admin-console/notification-center"
 import { useRouter, useSearchParams } from "next/navigation"
 
 function AdminConsoleInner() {
@@ -60,6 +66,18 @@ function AdminConsoleInner() {
         return <UserManagement />
       case "funds":
         return <FundManagement />
+      case "analytics":
+        return <AdvancedAnalytics />
+      case "audit":
+        return <AuditTrail />
+      case "risk":
+        return <RiskManagement />
+      case "system-health":
+        return <SystemHealth />
+      case "financial-reports":
+        return <FinancialReports />
+      case "notifications":
+        return <NotificationCenter />
       case "financial-overview":
         return role === 'SUPER_ADMIN' ? <FinancialOverview /> : <Dashboard />
       case "advanced":

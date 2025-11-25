@@ -1,7 +1,16 @@
+/**
+ * @file route.ts
+ * @module admin-console
+ * @description API route for user list with advanced filtering
+ * @author BharatERP
+ * @created 2025-01-27
+ */
+
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
 import { createTradingLogger } from "@/lib/services/logging/TradingLogger"
 import { auth } from "@/auth"
+import { Role, KycStatus } from "@prisma/client"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] GET request received")
@@ -19,8 +28,13 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
     const search = searchParams.get('search') || undefined
+    const status = searchParams.get('status') as 'active' | 'inactive' | 'all' | null
+    const kycStatus = searchParams.get('kycStatus') as KycStatus | 'all' | null
+    const userRole = searchParams.get('role') as Role | 'all' | null
+    const dateFrom = searchParams.get('dateFrom') ? new Date(searchParams.get('dateFrom')!) : undefined
+    const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined
 
-    console.log("📝 [API-ADMIN-USERS] Request params:", { page, limit, search })
+    console.log("📝 [API-ADMIN-USERS] Request params:", { page, limit, search, status, kycStatus, userRole, dateFrom, dateTo })
 
     const logger = createTradingLogger({
       clientId: 'ADMIN',
@@ -28,9 +42,23 @@ export async function GET(req: Request) {
     })
 
     const adminService = createAdminUserService(logger)
-    // Scope users by RM where applicable; super admin sees all
-    const result = await adminService.getAllUsers(page, limit, search)
-    // NOTE: Actual scoping by managedById should be enforced in service-level queries when DB supports it
+    
+    // Use advanced filters if any filter is provided, otherwise use simple getAllUsers
+    let result
+    if (status || kycStatus || userRole || dateFrom || dateTo) {
+      result = await adminService.getUsersWithFilters({
+        page,
+        limit,
+        search,
+        status: status || 'all',
+        kycStatus: kycStatus || 'all',
+        role: userRole || 'all',
+        dateFrom,
+        dateTo
+      })
+    } else {
+      result = await adminService.getAllUsers(page, limit, search)
+    }
 
     console.log("🎉 [API-ADMIN-USERS] Users retrieved:", {
       count: result.users.length,
