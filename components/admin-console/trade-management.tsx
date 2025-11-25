@@ -122,16 +122,17 @@ export function TradeManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Advanced Trade Management</h1>
-            <p className="text-muted-foreground">View and manage all ledger transactions across the platform</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Advanced Trade Management</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">View and manage all ledger transactions across the platform</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={fetchData} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent">
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
+              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
         </div>
@@ -139,27 +140,27 @@ export function TradeManagement() {
 
       {/* Filters */}
       <Card className="bg-card border-border shadow-sm">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-            <div className="md:col-span-2">
+        <CardContent className="p-3 sm:p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="sm:col-span-2 lg:col-span-2 xl:col-span-2">
               <label className="text-xs text-muted-foreground">User (clientId/name/id)</label>
-              <Input value={userFilter} onChange={(e) => { setUserFilter(e.target.value); setPage(1) }} placeholder="ABC123 or name" />
+              <Input value={userFilter} onChange={(e) => { setUserFilter(e.target.value); setPage(1) }} placeholder="ABC123 or name" className="text-sm" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Search</label>
-              <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} placeholder="Description contains..." />
+              <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} placeholder="Description contains..." className="text-sm" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Type</label>
-              <Input value={type} onChange={(e) => { setType(e.target.value.toUpperCase()); setPage(1) }} placeholder="CREDIT/DEBIT" />
+              <Input value={type} onChange={(e) => { setType(e.target.value.toUpperCase()); setPage(1) }} placeholder="CREDIT/DEBIT" className="text-sm" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">From</label>
-              <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+              <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} className="text-sm" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">To</label>
-              <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
+              <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} className="text-sm" />
             </div>
           </div>
         </CardContent>
@@ -174,12 +175,13 @@ export function TradeManagement() {
       )}
 
       <Card className="bg-card border-border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold text-primary">Transactions</CardTitle>
+        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-lg sm:text-xl font-bold text-primary">Transactions</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+        <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+          <div className="overflow-x-auto -mx-3 sm:mx-0">
+            <div className="min-w-[800px] sm:min-w-0">
+              <Table>
               <TableHeader>
                 <TableRow className="border-border">
                   <TableHead className="text-muted-foreground">Time</TableHead>
@@ -256,7 +258,8 @@ export function TradeManagement() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </div>
 
           {/* Pagination */}

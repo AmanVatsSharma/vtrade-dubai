@@ -49,35 +49,35 @@ interface MetricCardProps {
 function MetricCard({ title, value, change, trend, icon: Icon, color, description, loading }: MetricCardProps) {
   return (
     <Card className="bg-card border-border shadow-sm neon-border hover:shadow-md transition-shadow">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm text-muted-foreground mb-1">{title}</p>
+      <CardContent className="p-3 sm:p-4 md:p-6">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm text-muted-foreground mb-1 truncate">{title}</p>
             {loading ? (
-              <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+              <div className="h-6 sm:h-8 w-20 sm:w-24 bg-muted animate-pulse rounded" />
             ) : (
               <>
-                <p className="text-2xl font-bold text-foreground">{value}</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{value}</p>
                 {change && (
-                  <div className="flex items-center gap-1 mt-1">
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
                     {trend === "up" ? (
-                      <ArrowUpRight className="w-4 h-4 text-green-400" />
+                      <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
                     ) : trend === "down" ? (
-                      <ArrowDownRight className="w-4 h-4 text-red-400" />
+                      <ArrowDownRight className="w-3 h-3 sm:w-4 sm:h-4 text-red-400 flex-shrink-0" />
                     ) : null}
-                    <span className={`text-sm font-medium ${trend === "up" ? "text-green-400" : trend === "down" ? "text-red-400" : "text-muted-foreground"}`}>
+                    <span className={`text-xs sm:text-sm font-medium ${trend === "up" ? "text-green-400" : trend === "down" ? "text-red-400" : "text-muted-foreground"}`}>
                       {change}
                     </span>
                   </div>
                 )}
                 {description && (
-                  <p className="text-xs text-muted-foreground mt-1">{description}</p>
+                  <p className="text-xs text-muted-foreground mt-1 truncate">{description}</p>
                 )}
               </>
             )}
           </div>
-          <div className={`${color} bg-opacity-10 p-3 rounded-lg`}>
-            <Icon className={`w-6 h-6 ${color}`} />
+          <div className={`${color} bg-opacity-10 p-2 sm:p-3 rounded-lg flex-shrink-0`}>
+            <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${color}`} />
           </div>
         </div>
       </CardContent>
@@ -171,20 +171,20 @@ export function AdvancedAnalytics() {
   }, [timeRange])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
       >
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-2">Advanced Analytics</h1>
-          <p className="text-muted-foreground">Comprehensive insights and performance metrics</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Advanced Analytics</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground break-words">Comprehensive insights and performance metrics</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-32 bg-background border-border">
+            <SelectTrigger className="w-full sm:w-32 bg-background border-border text-xs sm:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -197,16 +197,17 @@ export function AdvancedAnalytics() {
           </Select>
           <Button
             variant="outline"
+            size="sm"
             onClick={fetchAnalytics}
             disabled={loading}
-            className="border-primary/50 text-primary hover:bg-primary/10"
+            className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
-            <Download className="w-4 h-4 mr-2" />
-            Export
+          <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm">
+            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
         </div>
       </motion.div>
@@ -216,7 +217,7 @@ export function AdvancedAnalytics() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6"
       >
         <MetricCard
           title="Total Revenue"

@@ -22,14 +22,14 @@ export function TradingChart() {
 
   return (
     <Card className="bg-card border-border shadow-sm neon-border">
-      <CardHeader>
-        <CardTitle className="text-lg font-bold text-primary flex items-center">
-          <TrendingUp className="w-5 h-5 mr-2" />
-          Trading Volume & Price
+      <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+        <CardTitle className="text-base sm:text-lg font-bold text-primary flex items-center">
+          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+          <span className="truncate">Trading Volume & Price</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="h-64 relative">
+      <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+        <div className="h-48 sm:h-56 md:h-64 relative overflow-x-auto">
           {/* Chart Grid */}
           <div className="absolute inset-0 grid grid-cols-7 grid-rows-4 opacity-20">
             {Array.from({ length: 28 }).map((_, i) => (

@@ -137,21 +137,22 @@ export function RMManagement() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Relationship Manager Management</h1>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Relationship Manager Management</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">
               Manage Relationship Managers and their assigned users
             </p>
           </div>
           <Button
             onClick={() => setShowCreateDialog(true)}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm flex-shrink-0"
+            size="sm"
           >
-            <UserPlus className="w-4 h-4 mr-2" />
+            <UserPlus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
             Create RM
           </Button>
         </div>
@@ -159,47 +160,47 @@ export function RMManagement() {
 
       {/* Stats */}
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total RMs</p>
-                <p className="text-2xl font-bold text-foreground">{rms.length}</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground">Total RMs</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{rms.length}</p>
               </div>
-              <Users className="w-8 h-8 text-blue-400" />
+              <Users className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active RMs</p>
-                <p className="text-2xl font-bold text-foreground">
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground">Active RMs</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">
                   {rms.filter(r => r.isActive).length}
                 </p>
               </div>
-              <UserCheck className="w-8 h-8 text-green-400" />
+              <UserCheck className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-green-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Assigned Users</p>
-                <p className="text-2xl font-bold text-foreground">
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground">Total Assigned Users</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">
                   {rms.reduce((sum, rm) => sum + rm.assignedUsersCount, 0)}
                 </p>
               </div>
-              <Users className="w-8 h-8 text-purple-400" />
+              <Users className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-purple-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
@@ -212,25 +213,26 @@ export function RMManagement() {
         transition={{ duration: 0.3, delay: 0.2 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 md:gap-4">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search RMs by name, email, or phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-muted/50 border-border focus:border-primary"
+                  className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
                 />
               </div>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={fetchRMs}
                 disabled={loading}
-                className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
+                className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
+                <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
             </div>
           </CardContent>
@@ -244,19 +246,20 @@ export function RMManagement() {
         transition={{ duration: 0.3, delay: 0.3 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold text-primary">
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-lg sm:text-xl font-bold text-primary">
               Relationship Managers ({filteredRMs.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
             {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
             ) : filteredRMs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No RMs found</div>
+              <div className="text-center py-8 text-muted-foreground text-sm">No RMs found</div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0">
+                <div className="min-w-[700px] sm:min-w-0">
+                  <Table>
                   <TableHeader>
                     <TableRow className="border-border">
                       <TableHead className="text-muted-foreground">RM Details</TableHead>
@@ -329,7 +332,8 @@ export function RMManagement() {
                       </motion.tr>
                     ))}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
               </div>
             )}
           </CardContent>
@@ -338,10 +342,10 @@ export function RMManagement() {
 
       {/* Create RM Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Relationship Manager</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+            <DialogTitle className="text-lg sm:text-xl font-bold text-primary">Create Relationship Manager</DialogTitle>
+            <DialogDescription className="text-sm sm:text-base text-muted-foreground">
               Create a new Relationship Manager account. They will be able to access the admin console
               and view their assigned users.
             </DialogDescription>

@@ -175,40 +175,42 @@ export function NotificationCenter() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
       >
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-2 flex items-center gap-2">
-            <Bell className="w-8 h-8" />
-            Notification Center
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
+            <Bell className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
+            <span>Notification Center</span>
           </h1>
-          <p className="text-muted-foreground">Manage system-wide announcements and alerts</p>
+          <p className="text-xs sm:text-sm text-muted-foreground break-words">Manage system-wide announcements and alerts</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           <Button
             variant="outline"
+            size="sm"
             onClick={fetchNotifications}
             disabled={loading}
-            className="border-primary/50 text-primary hover:bg-primary/10"
+            className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Notification
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs sm:text-sm" size="sm">
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Create Notification</span>
+                <span className="sm:hidden">Create</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader>
-                <DialogTitle>Create Notification</DialogTitle>
+            <DialogContent className="w-[95vw] sm:w-full sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
+              <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+                <DialogTitle className="text-lg sm:text-xl font-bold text-primary">Create Notification</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>

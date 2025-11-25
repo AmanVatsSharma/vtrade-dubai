@@ -85,57 +85,90 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
 
   return (
     <motion.header
-      className="glass-surface border-b border-border p-4"
+      className="glass-surface border-b border-border p-2 sm:p-3 md:p-4"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4 flex-1">
+      <div className="flex items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
           {/* Mobile Menu Button */}
-          <Button variant="ghost" size="sm" className="md:hidden" onClick={onMobileMenuToggle}>
-            <Menu className="w-4 h-4" />
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="md:hidden flex-shrink-0 touch-manipulation" 
+            onClick={onMobileMenuToggle}
+            aria-label="Toggle mobile menu"
+          >
+            <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
 
           {/* Search - Hidden on small screens, shown on medium+ */}
-          <div className="relative flex-1 max-w-md hidden sm:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="relative flex-1 max-w-md hidden sm:block min-w-0">
+            <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search users, transactions, logs..."
-              className="pl-10 bg-muted/50 border-border focus:border-primary"
+              className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm" className="hidden md:flex" onClick={onQRScannerOpen}>
+        <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="hidden md:flex touch-manipulation" 
+            onClick={onQRScannerOpen}
+            aria-label="Open QR Scanner"
+          >
             <QrCode className="w-4 h-4" />
           </Button>
 
-          <Button variant="ghost" size="sm" className="sm:hidden">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="sm:hidden touch-manipulation"
+            aria-label="Search"
+          >
             <Search className="w-4 h-4" />
           </Button>
 
-          <Button variant="ghost" size="sm" className="relative">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="relative touch-manipulation"
+            aria-label="Notifications"
+          >
             <Bell className="w-4 h-4" />
             <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full"></span>
           </Button>
 
-          <Button variant="ghost" size="sm" onClick={() => setDarkMode(!darkMode)}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setDarkMode(!darkMode)}
+            className="touch-manipulation"
+            aria-label="Toggle dark mode"
+          >
             {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
 
-          <Button variant="ghost" size="sm" className="hidden sm:flex">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="hidden sm:flex touch-manipulation"
+            aria-label="Settings"
+          >
             <Settings className="w-4 h-4" />
           </Button>
 
           {/* Admin User Profile */}
-          <div className="flex items-center space-x-2 pl-2 border-l border-border">
+          <div className="flex items-center space-x-1 sm:space-x-2 pl-1 sm:pl-2 border-l border-border">
             {loading ? (
-              <div className="w-8 h-8 bg-primary/50 rounded-full animate-pulse"></div>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary/50 rounded-full animate-pulse flex-shrink-0"></div>
             ) : adminUser?.image ? (
-              <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-primary/50">
+              <div className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border-2 border-primary/50 flex-shrink-0">
                 <Image 
                   src={adminUser.image} 
                   alt={adminUser.name || 'Admin'} 
@@ -144,15 +177,15 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
                 />
               </div>
             ) : (
-              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-primary-foreground" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                <User className="w-3 h-3 sm:w-4 sm:h-4 text-primary-foreground" />
               </div>
             )}
-            <div className="text-sm hidden sm:block">
-              <p className="font-medium">
+            <div className="text-xs sm:text-sm hidden sm:block min-w-0">
+              <p className="font-medium truncate max-w-[120px] lg:max-w-none">
                 {loading ? 'Loading...' : adminUser?.name || adminUser?.email || 'Admin User'}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground truncate">
                 {loading
                   ? '...'
                   : adminUser?.role === 'SUPER_ADMIN'

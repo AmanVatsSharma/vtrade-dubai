@@ -287,52 +287,55 @@ export function RiskManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
       >
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-2 flex items-center gap-2">
-            <Shield className="w-8 h-8" />
-            Risk Management
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
+            <span>Risk Management</span>
           </h1>
-          <p className="text-muted-foreground">Monitor and control trading risks</p>
+          <p className="text-xs sm:text-sm text-muted-foreground break-words">Monitor and control trading risks</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Button
             variant="outline"
+            size="sm"
             onClick={fetchRiskData}
             disabled={loading}
-            className="border-primary/50 text-primary hover:bg-primary/10"
+            className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
       </motion.div>
 
       {/* Tabs for User Limits vs Platform Config */}
-      <Tabs defaultValue="platform" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="platform" className="flex items-center gap-2">
-            <Globe className="w-4 h-4" />
-            Platform Risk Config
+      <Tabs defaultValue="platform" className="space-y-3 sm:space-y-4 md:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 text-xs sm:text-sm">
+          <TabsTrigger value="platform" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+            <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Platform Risk Config</span>
+            <span className="sm:hidden">Platform</span>
           </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            User Risk Limits
+          <TabsTrigger value="users" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+            <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">User Risk Limits</span>
+            <span className="sm:hidden">Users</span>
           </TabsTrigger>
         </TabsList>
 
         {/* Platform Risk Config Tab */}
-        <TabsContent value="platform" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-primary">Platform-Wide Leverage Configuration</h2>
-              <p className="text-sm text-muted-foreground">Manage leverage settings by segment and product type</p>
+        <TabsContent value="platform" className="space-y-3 sm:space-y-4 md:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg sm:text-xl font-semibold text-primary break-words">Platform-Wide Leverage Configuration</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground break-words">Manage leverage settings by segment and product type</p>
             </div>
             <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
               <DialogTrigger asChild>
@@ -341,9 +344,9 @@ export function RiskManagement() {
                   Add Config
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>{selectedConfig ? 'Edit Platform Risk Config' : 'Create Platform Risk Config'}</DialogTitle>
+              <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
+                <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+                  <DialogTitle className="text-lg sm:text-xl font-bold text-primary">{selectedConfig ? 'Edit Platform Risk Config' : 'Create Platform Risk Config'}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -457,12 +460,13 @@ export function RiskManagement() {
 
           {/* Platform Risk Configs Table */}
           <Card className="bg-card border-border shadow-sm neon-border">
-            <CardHeader>
-              <CardTitle>Platform Risk Configurations</CardTitle>
+            <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-lg sm:text-xl font-bold text-primary">Platform Risk Configurations</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
+            <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+              <div className="overflow-x-auto -mx-3 sm:mx-0">
+                <div className="min-w-[1000px] sm:min-w-0">
+                  <Table>
                   <TableHeader>
                     <TableRow className="border-border">
                       <TableHead>Segment</TableHead>
@@ -544,29 +548,31 @@ export function RiskManagement() {
                       ))
                     )}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* User Risk Limits Tab */}
-        <TabsContent value="users" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-primary">User Risk Limits</h2>
-              <p className="text-sm text-muted-foreground">Manage per-user risk limits and leverage overrides</p>
+        <TabsContent value="users" className="space-y-3 sm:space-y-4 md:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg sm:text-xl font-semibold text-primary break-words">User Risk Limits</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground break-words">Manage per-user risk limits and leverage overrides</p>
             </div>
             <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
               <DialogTrigger asChild>
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Limit
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs sm:text-sm" size="sm">
+                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Add Limit</span>
+                  <span className="sm:hidden">Add</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle>{selectedLimit ? 'Edit Risk Limit' : 'Create Risk Limit'}</DialogTitle>
+              <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
+                <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+                  <DialogTitle className="text-lg sm:text-xl font-bold text-primary">{selectedLimit ? 'Edit Risk Limit' : 'Create Risk Limit'}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -618,52 +624,52 @@ export function RiskManagement() {
           </div>
 
           {/* Risk Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Active Limits</p>
-                    <p className="text-2xl font-bold text-foreground">{limits.filter(l => l.status === 'ACTIVE').length}</p>
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Active Limits</p>
+                    <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{limits.filter(l => l.status === 'ACTIVE').length}</p>
                   </div>
-                  <Shield className="w-8 h-8 text-primary" />
+                  <Shield className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-primary flex-shrink-0" />
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Active Alerts</p>
-                    <p className="text-2xl font-bold text-red-400">{alerts.filter(a => !a.resolved).length}</p>
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Active Alerts</p>
+                    <p className="text-xl sm:text-2xl font-bold text-red-400 truncate">{alerts.filter(a => !a.resolved).length}</p>
                   </div>
-                  <AlertTriangle className="w-8 h-8 text-red-400" />
+                  <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-red-400 flex-shrink-0" />
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Critical Alerts</p>
-                    <p className="text-2xl font-bold text-orange-400">
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Critical Alerts</p>
+                    <p className="text-xl sm:text-2xl font-bold text-orange-400 truncate">
                       {alerts.filter(a => !a.resolved && a.severity === 'CRITICAL').length}
                     </p>
                   </div>
-                  <AlertTriangle className="w-8 h-8 text-orange-400" />
+                  <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-orange-400 flex-shrink-0" />
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Users at Risk</p>
-                    <p className="text-2xl font-bold text-yellow-400">
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Users at Risk</p>
+                    <p className="text-xl sm:text-2xl font-bold text-yellow-400 truncate">
                       {limits.filter(l => l.status === 'WARNING').length}
                     </p>
                   </div>
-                  <Users className="w-8 h-8 text-yellow-400" />
+                  <Users className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-yellow-400 flex-shrink-0" />
                 </div>
               </CardContent>
             </Card>
@@ -671,12 +677,13 @@ export function RiskManagement() {
 
           {/* Risk Limits Table */}
           <Card className="bg-card border-border shadow-sm neon-border">
-            <CardHeader>
-              <CardTitle>Risk Limits</CardTitle>
+            <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-lg sm:text-xl font-bold text-primary">Risk Limits</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
+            <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+              <div className="overflow-x-auto -mx-3 sm:mx-0">
+                <div className="min-w-[900px] sm:min-w-0">
+                  <Table>
                   <TableHeader>
                     <TableRow className="border-border">
                       <TableHead>User</TableHead>
@@ -738,17 +745,18 @@ export function RiskManagement() {
                       ))
                     )}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Risk Alerts */}
           <Card className="bg-card border-border shadow-sm neon-border">
-            <CardHeader>
-              <CardTitle>Risk Alerts</CardTitle>
+            <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-lg sm:text-xl font-bold text-primary">Risk Alerts</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               <div className="space-y-4">
                 {alerts.length === 0 ? (
                   <p className="text-center text-muted-foreground">No active alerts</p>

@@ -217,52 +217,54 @@ export function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Mock Data Warning */}
       {isUsingMockData && (
         <Alert variant="destructive" className="bg-yellow-500/10 border-yellow-500/50">
-          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          <AlertTitle className="text-yellow-500">Using Mock Data</AlertTitle>
-          <AlertDescription className="text-yellow-500/80">
-            Unable to load real data from backend. Displaying sample data. Check API endpoints or try refreshing.
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-4"
-              onClick={fetchRealData}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-              Retry
-            </Button>
+          <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+          <AlertTitle className="text-yellow-500 text-sm sm:text-base">Using Mock Data</AlertTitle>
+          <AlertDescription className="text-yellow-500/80 text-xs sm:text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+              <span className="flex-1">Unable to load real data from backend. Displaying sample data. Check API endpoints or try refreshing.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto sm:ml-0 text-xs sm:text-sm"
+                onClick={fetchRealData}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                Retry
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       )}
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Trading Console Dashboard</h1>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Trading Console Dashboard</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">
               Real-time monitoring and analytics for your trading platform
               {!isUsingMockData && " • Live Data"}
             </p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <Button
               variant="outline"
               size="sm"
-              className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
+              className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
               onClick={fetchRealData}
               disabled={loading}
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <div className="flex items-center space-x-2 text-sm">
+            <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
               <div className={`w-2 h-2 rounded-full ${isUsingMockData ? 'bg-yellow-400' : 'bg-green-400 pulse-glow'}`}></div>
-              <span className={isUsingMockData ? 'text-yellow-400' : 'text-green-400'}>
+              <span className={`hidden sm:inline ${isUsingMockData ? 'text-yellow-400' : 'text-green-400'}`}>
                 {isUsingMockData ? 'Mock Data' : 'Live Data'}
               </span>
             </div>
@@ -272,7 +274,7 @@ export function Dashboard() {
 
       {/* Stats Grid */}
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
@@ -288,21 +290,21 @@ export function Dashboard() {
               whileHover={{ scale: 1.02 }}
             >
               <Card className="bg-card border-border shadow-sm hover:border-primary/50 transition-all duration-300 neon-border">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                  <Icon className={`h-5 w-5 ${stat.color}`} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-2">{stat.title}</CardTitle>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${stat.color}`} />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-foreground mb-1">{stat.value}</div>
-                  <p className="text-xs text-muted-foreground mb-2">{stat.description}</p>
-                  <div className="flex items-center text-xs">
+                <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                  <div className="text-xl sm:text-2xl font-bold text-foreground mb-1 break-words">{stat.value}</div>
+                  <p className="text-xs text-muted-foreground mb-2 break-words">{stat.description}</p>
+                  <div className="flex items-center text-xs flex-wrap">
                     {stat.trend === "up" ? (
-                      <ArrowUpRight className="w-3 h-3 text-green-400 mr-1" />
+                      <ArrowUpRight className="w-3 h-3 text-green-400 mr-1 flex-shrink-0" />
                     ) : (
-                      <ArrowDownRight className="w-3 h-3 text-red-400 mr-1" />
+                      <ArrowDownRight className="w-3 h-3 text-red-400 mr-1 flex-shrink-0" />
                     )}
                     <span className={stat.trend === "up" ? "text-green-400" : "text-red-400"}>{stat.change}</span>
-                    <span className="text-muted-foreground ml-1">from last month</span>
+                    <span className="text-muted-foreground ml-1 hidden sm:inline">from last month</span>
                   </div>
                 </CardContent>
               </Card>
@@ -312,7 +314,7 @@ export function Dashboard() {
       </motion.div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -330,7 +332,7 @@ export function Dashboard() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         {/* Recent Activity */}
         <motion.div
           className="lg:col-span-2"
@@ -339,22 +341,22 @@ export function Dashboard() {
           transition={{ duration: 0.3, delay: 0.4 }}
         >
           <Card className="bg-card border-border shadow-sm neon-border">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold text-primary">Recent Activity</CardTitle>
+            <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-lg sm:text-xl font-bold text-primary">Recent Activity</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="space-y-2 sm:space-y-3 max-h-96 overflow-y-auto">
                 {recentActivity.map((activity, index) => (
                   <motion.div
                     key={activity.id}
-                    className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border hover:border-primary/30 transition-all duration-200"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2 sm:p-3 bg-muted/30 rounded-lg border border-border hover:border-primary/30 transition-all duration-200 gap-2 sm:gap-0"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: index * 0.05 }}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                       <div
-                        className={`w-2 h-2 rounded-full ${
+                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
                           activity.status === "completed" || activity.status === "COMPLETED"
                             ? "bg-green-400 pulse-glow"
                             : activity.status === "pending" || activity.status === "PENDING"
@@ -364,16 +366,16 @@ export function Dashboard() {
                                 : "bg-blue-400"
                         }`}
                       ></div>
-                      <div>
-                        <p className="font-medium text-foreground">{activity.action}</p>
-                        <p className="text-sm text-muted-foreground">User: {activity.clientId || activity.user}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground text-sm sm:text-base truncate">{activity.action}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">User: {activity.clientId || activity.user}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-medium text-foreground">{activity.amount}</p>
-                      <div className="flex items-center space-x-2">
+                    <div className="text-left sm:text-right flex-shrink-0">
+                      <p className="font-medium text-foreground text-sm sm:text-base">{activity.amount}</p>
+                      <div className="flex items-center space-x-1 sm:space-x-2 flex-wrap">
                         <span
-                          className={`text-xs px-2 py-1 rounded-full ${
+                          className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
                             activity.status === "completed" || activity.status === "COMPLETED"
                               ? "bg-green-400/20 text-green-400"
                               : activity.status === "pending" || activity.status === "PENDING"
@@ -385,7 +387,7 @@ export function Dashboard() {
                         >
                           {activity.status}
                         </span>
-                        <span className="text-xs text-muted-foreground">{activity.time}</span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{activity.time}</span>
                       </div>
                     </div>
                   </motion.div>
@@ -404,18 +406,18 @@ export function Dashboard() {
             transition={{ duration: 0.3, delay: 0.5 }}
           >
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-lg font-bold text-primary flex items-center">
-                  <AlertTriangle className="w-5 h-5 mr-2" />
-                  System Alerts
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-base sm:text-lg font-bold text-primary flex items-center">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+                  <span className="truncate">System Alerts</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                <div className="space-y-2 sm:space-y-3">
                   {alerts.map((alert, index) => (
                     <motion.div
                       key={alert.id}
-                      className={`p-3 rounded-lg border ${
+                      className={`p-2 sm:p-3 rounded-lg border ${
                         alert.type === "error"
                           ? "bg-red-400/10 border-red-400/30"
                           : alert.type === "warning"
@@ -426,7 +428,7 @@ export function Dashboard() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.1 }}
                     >
-                      <p className="text-sm font-medium text-foreground">{alert.message}</p>
+                      <p className="text-xs sm:text-sm font-medium text-foreground break-words">{alert.message}</p>
                       <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
                     </motion.div>
                   ))}
@@ -442,26 +444,26 @@ export function Dashboard() {
             transition={{ duration: 0.3, delay: 0.6 }}
           >
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-lg font-bold text-primary">Top Traders</CardTitle>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-base sm:text-lg font-bold text-primary">Top Traders</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                <div className="space-y-2 sm:space-y-3">
                   {topTraders.map((trader, index) => (
                     <motion.div
                       key={trader.id}
-                      className="flex items-center justify-between p-2 bg-muted/30 rounded-lg"
+                      className="flex items-center justify-between p-2 bg-muted/30 rounded-lg gap-2"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
                     >
-                      <div>
-                        <p className="font-medium text-foreground text-sm">{trader.name}</p>
-                        <p className="text-xs text-muted-foreground">{trader.clientId}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground text-xs sm:text-sm truncate">{trader.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{trader.clientId}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-green-400">{trader.profit}</p>
-                        <p className="text-xs text-muted-foreground">{trader.winRate} win rate</p>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs sm:text-sm font-bold text-green-400">{trader.profit}</p>
+                        <p className="text-xs text-muted-foreground whitespace-nowrap">{trader.winRate} win rate</p>
                       </div>
                     </motion.div>
                   ))}

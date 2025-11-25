@@ -58,10 +58,10 @@ export function CreateUserDialog({ open, onOpenChange }: CreateUserDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md bg-card border-border">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-primary">Create New User</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
+      <DialogContent className="w-[95vw] sm:w-full sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+          <DialogTitle className="text-lg sm:text-xl font-bold text-primary">Create New User</DialogTitle>
+          <DialogDescription className="text-sm sm:text-base text-muted-foreground">
             Generate a new trading account with credentials
           </DialogDescription>
         </DialogHeader>

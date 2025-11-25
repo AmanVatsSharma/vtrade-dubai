@@ -308,52 +308,58 @@ export function UserManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Mock Data Warning */}
       {isUsingMockData && (
         <Alert variant="destructive" className="bg-yellow-500/10 border-yellow-500/50">
-          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          <AlertTitle className="text-yellow-500">Using Mock Data</AlertTitle>
-          <AlertDescription className="text-yellow-500/80">
-            Unable to load real users from backend. Displaying sample data.
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-4"
-              onClick={fetchRealData}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-              Retry
-            </Button>
+          <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+          <AlertTitle className="text-yellow-500 text-sm sm:text-base">Using Mock Data</AlertTitle>
+          <AlertDescription className="text-yellow-500/80 text-xs sm:text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+              <span className="flex-1">Unable to load real users from backend. Displaying sample data.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto sm:ml-0 text-xs sm:text-sm"
+                onClick={fetchRealData}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                Retry
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       )}
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">User Management</h1>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">User Management</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">
               Manage user accounts, view statements, and create new users
               {!isUsingMockData && " • Live Data"}
             </p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0 flex-wrap">
             <Button
               onClick={() => setShowAddFundsDialog(true)}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
+              size="sm"
             >
-              <DollarSign className="w-4 h-4 mr-2" />
-              Add Funds
+              <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Add Funds</span>
+              <span className="sm:hidden">Add</span>
             </Button>
             <Button
               onClick={() => setShowCreateDialog(true)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm"
+              size="sm"
             >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Create User
+              <UserPlus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Create User</span>
+              <span className="sm:hidden">Create</span>
             </Button>
           </div>
         </div>
@@ -361,55 +367,55 @@ export function UserManagement() {
 
       {/* Stats Cards */}
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-4 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold text-foreground">{stats.total.toLocaleString()}</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground">Total Users</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{stats.total.toLocaleString()}</p>
               </div>
-              <Users className="w-8 h-8 text-blue-400" />
+              <Users className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Users</p>
-                <p className="text-2xl font-bold text-foreground">{stats.active.toLocaleString()}</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground">Active Users</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{stats.active.toLocaleString()}</p>
               </div>
-              <Activity className="w-8 h-8 text-green-400" />
+              <Activity className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-green-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">KYC Pending</p>
-                <p className="text-2xl font-bold text-foreground">{stats.kycPending.toLocaleString()}</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground">KYC Pending</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{stats.kycPending.toLocaleString()}</p>
               </div>
-              <Shield className="w-8 h-8 text-yellow-400" />
+              <Shield className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-yellow-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Balance</p>
-                <p className="text-2xl font-bold text-foreground">₹{(stats.totalBalance / 10000000).toFixed(2)}Cr</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground">Total Balance</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground truncate">₹{(stats.totalBalance / 10000000).toFixed(2)}Cr</p>
               </div>
-              <DollarSign className="w-8 h-8 text-purple-400" />
+              <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-purple-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
@@ -422,41 +428,46 @@ export function UserManagement() {
         transition={{ duration: 0.3, delay: 0.2 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center space-x-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <CardContent className="p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 md:gap-4">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by name, client ID, or email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-muted/50 border-border focus:border-primary"
+                  className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
                 />
               </div>
-              <Button 
-                variant="outline" 
-                className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Filters
-                {(filters.status !== 'all' || filters.kycStatus !== 'all' || filters.role !== 'all' || filters.dateFrom || filters.dateTo) && (
-                  <Badge className="ml-2 bg-primary text-primary-foreground">{Object.values(filters).filter(v => v !== 'all' && v !== '').length}</Badge>
-                )}
-              </Button>
-              <Button 
-                variant="outline" 
-                className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
-                onClick={fetchRealData}
-                disabled={loading}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm flex-1 sm:flex-initial"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  <Filter className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Filters</span>
+                  <span className="sm:hidden">Filter</span>
+                  {(filters.status !== 'all' || filters.kycStatus !== 'all' || filters.role !== 'all' || filters.dateFrom || filters.dateTo) && (
+                    <Badge className="ml-1 sm:ml-2 bg-primary text-primary-foreground text-xs">{Object.values(filters).filter(v => v !== 'all' && v !== '').length}</Badge>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
+                  onClick={fetchRealData}
+                  disabled={loading}
+                >
+                  <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
+                <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
+                  <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              </div>
             </div>
 
             {/* Advanced Filters */}
@@ -465,7 +476,7 @@ export function UserManagement() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-4 border-t border-border"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t border-border"
               >
                 <div className="space-y-2">
                   <Label className="text-sm text-muted-foreground">Status</Label>
@@ -549,37 +560,40 @@ export function UserManagement() {
 
             {/* Bulk Actions */}
             {selectedUsers.size > 0 && (
-              <div className="flex items-center justify-between pt-4 border-t border-border">
-                <p className="text-sm text-muted-foreground">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 pt-3 sm:pt-4 border-t border-border">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {selectedUsers.size} user(s) selected
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleBulkAction('activate')}
                     disabled={loading}
-                    className="border-green-500/50 text-green-500 hover:bg-green-500/10"
+                    className="border-green-500/50 text-green-500 hover:bg-green-500/10 text-xs sm:text-sm flex-1 sm:flex-initial"
                   >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Activate Selected
+                    <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Activate Selected</span>
+                    <span className="sm:hidden">Activate</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleBulkAction('deactivate')}
                     disabled={loading}
-                    className="border-red-500/50 text-red-500 hover:bg-red-500/10"
+                    className="border-red-500/50 text-red-500 hover:bg-red-500/10 text-xs sm:text-sm flex-1 sm:flex-initial"
                   >
-                    <X className="w-4 h-4 mr-2" />
-                    Deactivate Selected
+                    <X className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Deactivate Selected</span>
+                    <span className="sm:hidden">Deactivate</span>
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedUsers(new Set())}
+                    className="text-xs sm:text-sm"
                   >
-                    Clear Selection
+                    Clear
                   </Button>
                 </div>
               </div>
@@ -595,12 +609,13 @@ export function UserManagement() {
         transition={{ duration: 0.3, delay: 0.3 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold text-primary">User Accounts ({filteredUsers.length})</CardTitle>
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-lg sm:text-xl font-bold text-primary">User Accounts ({filteredUsers.length})</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
+          <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+            <div className="overflow-x-auto -mx-3 sm:mx-0">
+              <div className="min-w-[800px] sm:min-w-0">
+                <Table>
                 <TableHeader>
                   <TableRow className="border-border">
                     <TableHead className="w-12">
@@ -805,6 +820,7 @@ export function UserManagement() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
             
             {/* Pagination */}

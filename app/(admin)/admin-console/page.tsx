@@ -117,8 +117,8 @@ function AdminConsoleInner() {
   }, [activeTab])
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="flex">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+      <div className="flex flex-col md:flex-row">
         <Sidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -127,19 +127,19 @@ function AdminConsoleInner() {
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}
         />
-        <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-0 md:ml-16" : "ml-0 md:ml-64"}`}>
+        <div className={`flex-1 w-full transition-all duration-300 ${sidebarCollapsed ? "md:ml-16" : "md:ml-64"}`}>
           <Header
             onQRScannerOpen={() => setQrScannerOpen(true)}
             onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
           />
-          <main className="p-3 md:p-6">
+          <main className="p-2 sm:p-3 md:p-4 lg:p-6 overflow-x-hidden">
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="max-w-7xl mx-auto">
+              <div className="w-full max-w-7xl mx-auto">
                 {renderContent()}
               </div>
             </motion.div>
@@ -151,10 +151,11 @@ function AdminConsoleInner() {
 
       <Button
         onClick={() => setQrScannerOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary hover:bg-primary/90 shadow-lg md:hidden z-40"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary hover:bg-primary/90 shadow-lg md:hidden z-40 touch-manipulation"
         size="icon"
+        aria-label="Open QR Scanner"
       >
-        <QrCode className="w-6 h-6" />
+        <QrCode className="w-5 h-5 sm:w-6 sm:h-6" />
       </Button>
     </div>
   )

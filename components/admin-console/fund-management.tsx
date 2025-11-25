@@ -275,55 +275,59 @@ export function FundManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Mock Data Warning */}
       {isUsingMockData && (
         <Alert variant="destructive" className="bg-yellow-500/10 border-yellow-500/50">
-          <AlertCircle className="h-4 w-4 text-yellow-500" />
-          <AlertTitle className="text-yellow-500">Using Mock Data</AlertTitle>
-          <AlertDescription className="text-yellow-500/80">
-            Unable to load real data from backend. Displaying sample data.
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-4"
-              onClick={fetchRealData}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-              Retry
-            </Button>
+          <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+          <AlertTitle className="text-yellow-500 text-sm sm:text-base">Using Mock Data</AlertTitle>
+          <AlertDescription className="text-yellow-500/80 text-xs sm:text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+              <span className="flex-1">Unable to load real data from backend. Displaying sample data.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto sm:ml-0 text-xs sm:text-sm"
+                onClick={fetchRealData}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                Retry
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       )}
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Fund Management</h1>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Fund Management</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">
               Manage deposits, withdrawals, and fund requests
               {!isUsingMockData && " • Live Data"}
             </p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0 flex-wrap">
             <Button
               onClick={fetchRealData}
               variant="outline"
               size="sm"
-              className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
+              className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
               disabled={loading}
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
             <Button
               onClick={() => setShowAddFundsDialog(true)}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
+              size="sm"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Funds
+              <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Add Funds</span>
+              <span className="sm:hidden">Add</span>
             </Button>
           </div>
         </div>
@@ -336,14 +340,14 @@ export function FundManagement() {
         transition={{ duration: 0.3, delay: 0.1 }}
       >
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search by user name, client ID, or UTR..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-muted/50 border-border focus:border-primary"
+                className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
               />
             </div>
           </CardContent>
@@ -356,27 +360,32 @@ export function FundManagement() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.2 }}
       >
-        <Tabs defaultValue="deposits" className="space-y-6">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="deposits">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Deposit Requests ({filteredDeposits.length})
+        <Tabs defaultValue="deposits" className="space-y-3 sm:space-y-4 md:space-y-6">
+          <TabsList className="bg-muted/50 w-full sm:w-auto flex flex-col sm:flex-row">
+            <TabsTrigger value="deposits" className="text-xs sm:text-sm w-full sm:w-auto">
+              <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Deposit Requests</span>
+              <span className="sm:hidden">Deposits</span>
+              <span className="ml-1 sm:ml-2">({filteredDeposits.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="withdrawals">
-              <TrendingDown className="w-4 h-4 mr-2" />
-              Withdrawal Requests ({filteredWithdrawals.length})
+            <TabsTrigger value="withdrawals" className="text-xs sm:text-sm w-full sm:w-auto">
+              <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Withdrawal Requests</span>
+              <span className="sm:hidden">Withdrawals</span>
+              <span className="ml-1 sm:ml-2">({filteredWithdrawals.length})</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Deposits Tab */}
           <TabsContent value="deposits">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold text-primary">Deposit Requests</CardTitle>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-lg sm:text-xl font-bold text-primary">Deposit Requests</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
+              <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+                <div className="overflow-x-auto -mx-3 sm:mx-0">
+                  <div className="min-w-[900px] sm:min-w-0">
+                    <Table>
                     <TableHeader>
                       <TableRow className="border-border">
                         <TableHead className="text-muted-foreground">User</TableHead>
@@ -466,7 +475,8 @@ export function FundManagement() {
                         ))
                       )}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -475,12 +485,13 @@ export function FundManagement() {
           {/* Withdrawals Tab */}
           <TabsContent value="withdrawals">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold text-primary">Withdrawal Requests</CardTitle>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-lg sm:text-xl font-bold text-primary">Withdrawal Requests</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
+              <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+                <div className="overflow-x-auto -mx-3 sm:mx-0">
+                  <div className="min-w-[900px] sm:min-w-0">
+                    <Table>
                     <TableHeader>
                       <TableRow className="border-border">
                         <TableHead className="text-muted-foreground">User</TableHead>
@@ -551,7 +562,8 @@ export function FundManagement() {
                         ))
                       )}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>

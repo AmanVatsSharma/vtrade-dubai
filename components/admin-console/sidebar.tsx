@@ -70,32 +70,38 @@ export function Sidebar({
         }}
       >
         {/* Header */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between">
+        <div className="p-2 sm:p-3 md:p-4 border-b border-border">
+          <div className="flex items-center justify-between gap-2">
             {!collapsed && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-2 min-w-0 flex-1"
               >
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <Activity className="w-5 h-5 text-primary-foreground" />
+                <div className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Activity className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-primary-foreground" />
                 </div>
-                <div>
-                  <h1 className="text-lg font-bold text-primary">TradePro</h1>
-                  <p className="text-xs text-muted-foreground">Admin Console</p>
+                <div className="min-w-0">
+                  <h1 className="text-sm sm:text-base md:text-lg font-bold text-primary truncate">TradePro</h1>
+                  <p className="text-xs text-muted-foreground truncate">Admin Console</p>
                 </div>
               </motion.div>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setCollapsed(!collapsed)} className="p-1 h-8 w-8">
-              {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setCollapsed(!collapsed)} 
+              className="p-1 h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 touch-manipulation"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" /> : <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />}
             </Button>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="p-2 space-y-1">
+        <nav className="p-1 sm:p-2 space-y-1 overflow-y-auto flex-1">
           {computedMenu.map((item) => {
             const Icon = item.icon
             const isActive = activeTab === item.id
@@ -107,21 +113,22 @@ export function Sidebar({
                   setActiveTab(item.id)
                   setMobileMenuOpen(false)
                 }}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-all duration-200 ${
+                className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-left transition-all duration-200 touch-manipulation ${
                   isActive
                     ? "bg-primary/10 text-primary border border-primary/20 neon-border"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                aria-label={item.label}
               >
-                <Icon className={`w-5 h-5 ${isActive ? "text-primary" : ""}`} />
+                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${isActive ? "text-primary" : ""}`} />
                 {!collapsed && (
                   <motion.span
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="font-medium"
+                    className="font-medium text-xs sm:text-sm truncate flex-1"
                   >
                     {item.label}
                   </motion.span>
@@ -133,20 +140,20 @@ export function Sidebar({
 
         {/* System Status */}
         {!collapsed && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute bottom-4 left-4 right-4">
-            <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
+            <div className="bg-muted/50 rounded-lg p-2 sm:p-3 space-y-1.5 sm:space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">System Status</span>
-                <div className="flex items-center space-x-1">
+                <span className="text-muted-foreground truncate pr-2">System Status</span>
+                <div className="flex items-center space-x-1 flex-shrink-0">
                   <div className="w-2 h-2 bg-primary rounded-full pulse-glow"></div>
-                  <span className="text-primary">Online</span>
+                  <span className="text-primary whitespace-nowrap">Online</span>
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Database</span>
-                <div className="flex items-center space-x-1">
+                <span className="text-muted-foreground truncate pr-2">Database</span>
+                <div className="flex items-center space-x-1 flex-shrink-0">
                   <Database className="w-3 h-3 text-primary" />
-                  <span className="text-primary">Connected</span>
+                  <span className="text-primary whitespace-nowrap">Connected</span>
                 </div>
               </div>
             </div>

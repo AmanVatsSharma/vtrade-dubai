@@ -81,16 +81,18 @@ export function CleanupManagement() {
   }, [loadPreview])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Daily Cleanup</h1>
-            <p className="text-muted-foreground">Remove old orders and closed positions before the selected date (today by default)</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Daily Cleanup</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">Remove old orders and closed positions before the selected date (today by default)</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={loadPreview} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent">
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh Preview
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button variant="outline" size="sm" onClick={loadPreview} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
+              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh Preview</span>
+              <span className="sm:hidden">Refresh</span>
             </Button>
           </div>
         </div>

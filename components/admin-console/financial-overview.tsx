@@ -202,30 +202,30 @@ export function FinancialOverview() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-xl font-semibold">Deposit Audit Trail</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleResetFilters}>
-              <FilterX className="mr-2 h-4 w-4" />
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-lg sm:text-xl font-semibold break-words">Deposit Audit Trail</CardTitle>
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <Button variant="outline" size="sm" onClick={handleResetFilters} className="text-xs sm:text-sm">
+              <FilterX className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               Reset
             </Button>
-            <Button variant="default" size="sm" onClick={handleRefresh} disabled={loading}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <Button variant="default" size="sm" onClick={handleRefresh} disabled={loading} className="text-xs sm:text-sm">
+              <RefreshCw className={`mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 ${loading ? "animate-spin" : ""}`} />
               {loading ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-6">
-            <div className="lg:col-span-2">
+        <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+            <div className="sm:col-span-2 lg:col-span-2 xl:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
               <Select
                 value={filters.status}
                 onValueChange={(value) => handleFilterChange("status", value as FilterState["status"])}
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-sm">
                   <SelectValue placeholder="All actions" />
                 </SelectTrigger>
                 <SelectContent>
@@ -238,12 +238,12 @@ export function FinancialOverview() {
               </Select>
             </div>
 
-            <div>
+            <div className="sm:col-span-2 lg:col-span-2 xl:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Search</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-2 sm:left-3 top-1/2 h-3 w-3 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="pl-9"
+                  className="pl-7 sm:pl-9 text-sm"
                   placeholder="Deposit ID or keyword"
                   value={filters.search}
                   onChange={(event) => handleFilterChange("search", event.target.value)}
@@ -297,15 +297,16 @@ export function FinancialOverview() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-lg font-semibold">Recent Decisions</CardTitle>
-          <div className="text-xs text-muted-foreground">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-lg sm:text-xl font-semibold break-words">Recent Decisions</CardTitle>
+          <div className="text-xs text-muted-foreground whitespace-nowrap">
             Showing page {page} of {totalPages} ({total} total actions)
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
+        <CardContent className="space-y-3 sm:space-y-4 px-0 sm:px-6 pb-3 sm:pb-6">
+          <div className="overflow-x-auto -mx-3 sm:mx-0 rounded-lg border">
+            <div className="min-w-[1000px] sm:min-w-0">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="whitespace-nowrap">Timestamp (IST)</TableHead>
@@ -378,7 +379,8 @@ export function FinancialOverview() {
                     </TableRow>
                   ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </div>
 
           <div className="flex items-center justify-between">

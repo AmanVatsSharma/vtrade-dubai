@@ -19,14 +19,14 @@ export function UserActivityChart() {
 
   return (
     <Card className="bg-card border-border shadow-sm neon-border">
-      <CardHeader>
-        <CardTitle className="text-lg font-bold text-primary flex items-center">
-          <Users className="w-5 h-5 mr-2" />
-          User Activity
+      <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+        <CardTitle className="text-base sm:text-lg font-bold text-primary flex items-center">
+          <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+          <span className="truncate">User Activity</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="h-64 flex items-end justify-between space-x-2">
+      <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+        <div className="h-48 sm:h-56 md:h-64 flex items-end justify-between space-x-1 sm:space-x-2 overflow-x-auto">
           {activityData.map((data, index) => (
             <div key={data.day} className="flex-1 flex flex-col items-center space-y-2">
               {/* Active Users Bar */}

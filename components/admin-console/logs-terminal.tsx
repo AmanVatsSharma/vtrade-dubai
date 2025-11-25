@@ -278,22 +278,22 @@ export function LogsTerminal() {
   }, [isLiveMode])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Logs & Terminal</h1>
-            <p className="text-muted-foreground">Monitor system logs and execute terminal commands</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Logs & Terminal</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">Monitor system logs and execute terminal commands</p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsLiveMode(!isLiveMode)}
-              className={`border-primary/50 ${isLiveMode ? "text-green-400 bg-green-400/10" : "text-muted-foreground"}`}
+              className={`border-primary/50 text-xs sm:text-sm ${isLiveMode ? "text-green-400 bg-green-400/10" : "text-muted-foreground"}`}
             >
-              {isLiveMode ? <Pause className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+              {isLiveMode ? <Pause className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" /> : <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />}
               {isLiveMode ? "Live" : "Paused"}
             </Button>
           </div>
@@ -306,23 +306,25 @@ export function LogsTerminal() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Tabs defaultValue="logs" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 bg-muted/30">
+        <Tabs defaultValue="logs" className="space-y-3 sm:space-y-4 md:space-y-6">
+          <TabsList className="grid w-full grid-cols-3 bg-muted/30 text-xs sm:text-sm">
             <TabsTrigger
               value="logs"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm"
             >
-              Application Logs
+              <span className="hidden sm:inline">Application Logs</span>
+              <span className="sm:hidden">App</span>
             </TabsTrigger>
             <TabsTrigger
               value="database"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm"
             >
-              Database Logs
+              <span className="hidden sm:inline">Database Logs</span>
+              <span className="sm:hidden">DB</span>
             </TabsTrigger>
             <TabsTrigger
               value="terminal"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm"
             >
               Terminal
             </TabsTrigger>
@@ -332,28 +334,28 @@ export function LogsTerminal() {
             <div className="space-y-4">
               {/* Filters */}
               <Card className="bg-card/50 border-border neon-border">
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <CardContent className="p-3 sm:p-4 md:p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         placeholder="Search logs..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 bg-muted/50 border-border focus:border-primary"
+                        className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
                       />
                     </div>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <User className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         placeholder="Client ID..."
                         value={clientIdSearch}
                         onChange={(e) => setClientIdSearch(e.target.value)}
-                        className="pl-10 bg-muted/50 border-border focus:border-primary"
+                        className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
                       />
                     </div>
                     <Select value={logLevel} onValueChange={setLogLevel}>
-                      <SelectTrigger className="bg-muted/50 border-border focus:border-primary">
+                      <SelectTrigger className="bg-muted/50 border-border focus:border-primary text-sm">
                         <SelectValue placeholder="Log Level" />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border">
@@ -366,10 +368,11 @@ export function LogsTerminal() {
                     </Select>
                     <Button
                       variant="outline"
-                      className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
+                      size="sm"
+                      className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
+                      <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">Export</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -377,14 +380,14 @@ export function LogsTerminal() {
 
               {/* Logs Display */}
               <Card className="bg-card/50 border-border neon-border">
-                <CardHeader>
-                  <CardTitle className="text-xl font-bold text-primary flex items-center">
+                <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                  <CardTitle className="text-lg sm:text-xl font-bold text-primary flex items-center">
                     <Activity className="w-5 h-5 mr-2" />
                     Application Logs ({filteredLogs.length})
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-sm">
+                <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                  <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-xs sm:text-sm">
                     <AnimatePresence>
                       {filteredLogs.map((log, index) => (
                         <motion.div
@@ -432,14 +435,14 @@ export function LogsTerminal() {
 
           <TabsContent value="database">
             <Card className="bg-card/50 border-border neon-border">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold text-primary flex items-center">
-                  <Database className="w-5 h-5 mr-2" />
-                  Database Query Logs
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-lg sm:text-xl font-bold text-primary flex items-center">
+                  <Database className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+                  <span className="truncate">Database Query Logs</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-sm">
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-xs sm:text-sm">
                   {mockDatabaseLogs.map((log, index) => (
                     <motion.div
                       key={log.id}

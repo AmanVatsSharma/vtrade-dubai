@@ -550,17 +550,17 @@ export function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }} 
         animate={{ opacity: 1, y: 0 }} 
         transition={{ duration: 0.3 }}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Settings</h1>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Settings</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">
               Configure platform settings and payment options
             </p>
           </div>
@@ -569,10 +569,10 @@ export function Settings() {
             variant="outline"
             size="sm"
             disabled={refreshing}
-            className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent"
+            className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm flex-shrink-0"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
       </motion.div>
@@ -583,40 +583,43 @@ export function Settings() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Tabs defaultValue="payment" className="space-y-6">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="payment">
-              <CreditCard className="w-4 h-4 mr-2" />
-              Payment Settings
+        <Tabs defaultValue="payment" className="space-y-3 sm:space-y-4 md:space-y-6">
+          <TabsList className="bg-muted/50 w-full sm:w-auto flex flex-col sm:flex-row">
+            <TabsTrigger value="payment" className="text-xs sm:text-sm w-full sm:w-auto">
+              <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Payment Settings</span>
+              <span className="sm:hidden">Payment</span>
             </TabsTrigger>
-            <TabsTrigger value="brokerage">
-              <DollarSign className="w-4 h-4 mr-2" />
+            <TabsTrigger value="brokerage" className="text-xs sm:text-sm w-full sm:w-auto">
+              <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
               Brokerage
             </TabsTrigger>
-            <TabsTrigger value="general">
-              <SettingsIcon className="w-4 h-4 mr-2" />
+            <TabsTrigger value="general" className="text-xs sm:text-sm w-full sm:w-auto">
+              <SettingsIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
               General
             </TabsTrigger>
-            <TabsTrigger value="market">
-              <SettingsIcon className="w-4 h-4 mr-2" />
-              Market Controls
+            <TabsTrigger value="market" className="text-xs sm:text-sm w-full sm:w-auto">
+              <SettingsIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Market Controls</span>
+              <span className="sm:hidden">Market</span>
             </TabsTrigger>
-            <TabsTrigger value="maintenance">
-              <SettingsIcon className="w-4 h-4 mr-2" />
-              Maintenance Mode
+            <TabsTrigger value="maintenance" className="text-xs sm:text-sm w-full sm:w-auto">
+              <SettingsIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Maintenance Mode</span>
+              <span className="sm:hidden">Maintenance</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Payment Settings Tab */}
           <TabsContent value="payment">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold text-primary">Payment Configuration</CardTitle>
-                <CardDescription>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-lg sm:text-xl font-bold text-primary">Payment Configuration</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Configure payment QR code and UPI ID for deposit requests
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6 px-3 sm:px-6 pb-3 sm:pb-6">
                 {/* QR Code Upload */}
                 <div className="space-y-4">
                   <div>
@@ -710,24 +713,24 @@ export function Settings() {
           {/* Brokerage Settings Tab */}
           <TabsContent value="brokerage">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl font-bold text-primary">Platform Brokerage Configuration</CardTitle>
-                    <CardDescription>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg sm:text-xl font-bold text-primary break-words">Platform Brokerage Configuration</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm break-words">
                       Manage brokerage rates by segment and product type. Changes apply to all new orders.
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={fetchBrokerageConfigs}
                       disabled={loadingBrokerages}
-                      className="border-primary/50 text-primary hover:bg-primary/10"
+                      className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
                     >
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loadingBrokerages ? 'animate-spin' : ''}`} />
-                      Refresh
+                      <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loadingBrokerages ? 'animate-spin' : ''}`} />
+                      <span className="hidden sm:inline">Refresh</span>
                     </Button>
                     <Dialog open={showBrokerageDialog} onOpenChange={setShowBrokerageDialog}>
                       <DialogTrigger asChild>
@@ -969,13 +972,13 @@ export function Settings() {
           {/* General Settings Tab */}
           <TabsContent value="general">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold text-primary">General Settings</CardTitle>
-                <CardDescription>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-lg sm:text-xl font-bold text-primary">General Settings</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Platform-wide configuration options
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                 <Alert className="bg-blue-500/10 border-blue-500/50">
                   <SettingsIcon className="h-4 w-4 text-blue-500" />
                   <AlertTitle className="text-blue-500">Coming Soon</AlertTitle>
@@ -990,15 +993,15 @@ export function Settings() {
           {/* Market Controls Tab */}
           <TabsContent value="market">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold text-primary">Market Controls (IST)</CardTitle>
-                <CardDescription>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-lg sm:text-xl font-bold text-primary">Market Controls (IST)</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Manually toggle market closed and manage NSE holidays (YYYY-MM-DD). Affects order placement and live prices.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6 px-3 sm:px-6 pb-3 sm:pb-6">
                 {/* Current Session Indicator */}
-                <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 p-2 sm:p-3 rounded-md bg-muted/50">
                   <div className="text-sm">
                     Current session: <span className="font-semibold">{getMarketSession()}</span>
                   </div>
@@ -1037,13 +1040,13 @@ export function Settings() {
           {/* Maintenance Mode Tab */}
           <TabsContent value="maintenance">
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold text-primary">Maintenance Mode</CardTitle>
-                <CardDescription>
+              <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+                <CardTitle className="text-lg sm:text-xl font-bold text-primary">Maintenance Mode</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Control platform maintenance mode. When enabled, all users except admins will see the maintenance page.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6 px-3 sm:px-6 pb-3 sm:pb-6">
                 {/* Enable/Disable Toggle */}
                 <div className="flex items-center justify-between p-4 rounded-md bg-muted/50">
                   <div>

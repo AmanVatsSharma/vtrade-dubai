@@ -211,24 +211,28 @@ export function PositionsManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">Position Management</h1>
-            <p className="text-muted-foreground">View and modify all positions with URL-synced filters</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Position Management</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground break-words">View and modify all positions with URL-synced filters</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={fetchData} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent">
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
+              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary text-white">Create Position</Button>
+                <Button className="bg-primary text-white text-xs sm:text-sm" size="sm">
+                  <span className="hidden sm:inline">Create Position</span>
+                  <span className="sm:hidden">Create</span>
+                </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-xl">
-                <DialogHeader>
-                  <DialogTitle>Create Position (admin)</DialogTitle>
+              <DialogContent className="w-[95vw] sm:w-full sm:max-w-xl bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
+                <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+                  <DialogTitle className="text-lg sm:text-xl font-bold text-primary">Create Position (admin)</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-3 py-2">
                   <div className="col-span-2">
@@ -320,12 +324,13 @@ export function PositionsManagement() {
       )}
 
       <Card className="bg-card border-border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold text-primary">Positions</CardTitle>
+        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-lg sm:text-xl font-bold text-primary">Positions</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+        <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+          <div className="overflow-x-auto -mx-3 sm:mx-0">
+            <div className="min-w-[900px] sm:min-w-0">
+              <Table>
               <TableHeader>
                 <TableRow className="border-border">
                   <TableHead className="text-muted-foreground">Time</TableHead>
@@ -438,7 +443,8 @@ export function PositionsManagement() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </div>
 
           {pages > 1 && (

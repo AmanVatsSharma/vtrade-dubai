@@ -192,9 +192,9 @@ export function KYCManagementDialog({ open, onOpenChange, user, onKYCUpdated }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-primary flex items-center gap-2">
+      <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+          <DialogTitle className="text-lg sm:text-xl font-bold text-primary flex items-center gap-2">
             <Shield className="w-5 h-5" />
             KYC Management
           </DialogTitle>

@@ -158,49 +158,50 @@ export function AuditTrail() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
       >
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-2 flex items-center gap-2">
-            <Shield className="w-8 h-8" />
-            Audit Trail
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
+            <span>Audit Trail</span>
           </h1>
-          <p className="text-muted-foreground">Complete activity log and compliance tracking</p>
+          <p className="text-xs sm:text-sm text-muted-foreground break-words">Complete activity log and compliance tracking</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           <Button
             variant="outline"
+            size="sm"
             onClick={fetchAuditLogs}
             disabled={loading}
-            className="border-primary/50 text-primary hover:bg-primary/10"
+            className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
-            <Download className="w-4 h-4 mr-2" />
-            Export
+          <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm">
+            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
         </div>
       </motion.div>
 
       {/* Filters */}
       <Card className="bg-card border-border shadow-sm neon-border">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div className="md:col-span-2">
+        <CardContent className="p-3 sm:p-4 md:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+            <div className="sm:col-span-2 lg:col-span-2 xl:col-span-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search logs..."
                   value={filters.search}
                   onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                  className="pl-10 bg-background border-border"
+                  className="pl-8 sm:pl-10 bg-background border-border text-sm"
                 />
               </div>
             </div>
@@ -247,12 +248,13 @@ export function AuditTrail() {
 
       {/* Audit Logs Table */}
       <Card className="bg-card border-border shadow-sm neon-border">
-        <CardHeader>
-          <CardTitle>Activity Logs ({logs.length})</CardTitle>
+        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-lg sm:text-xl font-bold text-primary">Activity Logs ({logs.length})</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+        <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+          <div className="overflow-x-auto -mx-3 sm:mx-0">
+            <div className="min-w-[1000px] sm:min-w-0">
+              <Table>
               <TableHeader>
                 <TableRow className="border-border">
                   <TableHead className="text-muted-foreground">Timestamp</TableHead>
@@ -331,7 +333,8 @@ export function AuditTrail() {
                   ))
                 )}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </div>
 
           {/* Pagination */}

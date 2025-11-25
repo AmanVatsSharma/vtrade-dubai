@@ -111,41 +111,43 @@ export function FinancialReports() {
   const totalCommission = reports.reduce((sum, r) => sum + r.commission, 0)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
       >
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-2 flex items-center gap-2">
-            <FileText className="w-8 h-8" />
-            Financial Reports
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
+            <span>Financial Reports</span>
           </h1>
-          <p className="text-muted-foreground">Comprehensive financial analysis and reporting</p>
+          <p className="text-xs sm:text-sm text-muted-foreground break-words">Comprehensive financial analysis and reporting</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           <Button
             variant="outline"
+            size="sm"
             onClick={fetchReports}
             disabled={loading}
-            className="border-primary/50 text-primary hover:bg-primary/10"
+            className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
-            <Download className="w-4 h-4 mr-2" />
-            Export PDF
+          <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm">
+            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Export PDF</span>
+            <span className="sm:hidden">Export</span>
           </Button>
         </div>
       </motion.div>
 
       {/* Filters */}
       <Card className="bg-card border-border shadow-sm neon-border">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <CardContent className="p-3 sm:p-4 md:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Select value={filters.period} onValueChange={(value) => setFilters({ ...filters, period: value })}>
               <SelectTrigger className="bg-background border-border">
                 <SelectValue placeholder="Period" />
@@ -181,48 +183,48 @@ export function FinancialReports() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Revenue</p>
-                <p className="text-2xl font-bold text-green-400">₹{(totalRevenue / 100000).toFixed(2)}Cr</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Revenue</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-400 truncate">₹{(totalRevenue / 100000).toFixed(2)}Cr</p>
               </div>
-              <TrendingUp className="w-8 h-8 text-green-400" />
+              <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-green-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Expenses</p>
-                <p className="text-2xl font-bold text-red-400">₹{(totalExpenses / 100000).toFixed(2)}Cr</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Expenses</p>
+                <p className="text-xl sm:text-2xl font-bold text-red-400 truncate">₹{(totalExpenses / 100000).toFixed(2)}Cr</p>
               </div>
-              <TrendingDown className="w-8 h-8 text-red-400" />
+              <TrendingDown className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-red-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Net Profit</p>
-                <p className="text-2xl font-bold text-primary">₹{(totalProfit / 100000).toFixed(2)}Cr</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Net Profit</p>
+                <p className="text-xl sm:text-2xl font-bold text-primary truncate">₹{(totalProfit / 100000).toFixed(2)}Cr</p>
               </div>
-              <DollarSign className="w-8 h-8 text-primary" />
+              <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-primary flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Commission</p>
-                <p className="text-2xl font-bold text-yellow-400">₹{(totalCommission / 100000).toFixed(2)}Cr</p>
+          <CardContent className="p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Commission</p>
+                <p className="text-xl sm:text-2xl font-bold text-yellow-400 truncate">₹{(totalCommission / 100000).toFixed(2)}Cr</p>
               </div>
-              <BarChart3 className="w-8 h-8 text-yellow-400" />
+              <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-yellow-400 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
@@ -230,12 +232,13 @@ export function FinancialReports() {
 
       {/* Reports Table */}
       <Card className="bg-card border-border shadow-sm neon-border">
-        <CardHeader>
-          <CardTitle>Financial Reports</CardTitle>
+        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-lg sm:text-xl font-bold text-primary">Financial Reports</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+        <CardContent className="px-0 sm:px-6 pb-3 sm:pb-6">
+          <div className="overflow-x-auto -mx-3 sm:mx-0">
+            <div className="min-w-[800px] sm:min-w-0">
+              <Table>
               <TableHeader>
                 <TableRow className="border-border">
                   <TableHead>Period</TableHead>
@@ -281,7 +284,8 @@ export function FinancialReports() {
                   ))
                 )}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </div>
         </CardContent>
       </Card>

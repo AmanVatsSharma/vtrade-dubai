@@ -125,33 +125,34 @@ export function SystemHealth() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
       >
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-2 flex items-center gap-2">
-            <Activity className="w-8 h-8" />
-            System Health
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
+            <Activity className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
+            <span>System Health</span>
           </h1>
-          <p className="text-muted-foreground">Real-time system monitoring and diagnostics</p>
+          <p className="text-xs sm:text-sm text-muted-foreground break-words">Real-time system monitoring and diagnostics</p>
         </div>
         <Button
           variant="outline"
+          size="sm"
           onClick={fetchHealthData}
           disabled={loading}
-          className="border-primary/50 text-primary hover:bg-primary/10"
+          className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm flex-shrink-0"
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
+          <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Refresh</span>
         </Button>
       </motion.div>
 
       {/* System Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
         {metrics.map((metric, index) => (
           <motion.div
             key={metric.name}
@@ -160,27 +161,27 @@ export function SystemHealth() {
             transition={{ delay: index * 0.1 }}
           >
             <Card className="bg-card border-border shadow-sm neon-border">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    {metric.name === 'CPU Usage' && <Cpu className="w-5 h-5 text-primary" />}
-                    {metric.name === 'Memory Usage' && <Server className="w-5 h-5 text-primary" />}
-                    {metric.name === 'Disk Usage' && <HardDrive className="w-5 h-5 text-primary" />}
-                    {metric.name === 'Network I/O' && <Network className="w-5 h-5 text-primary" />}
-                    <span className="text-sm font-medium text-foreground">{metric.name}</span>
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {metric.name === 'CPU Usage' && <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />}
+                    {metric.name === 'Memory Usage' && <Server className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />}
+                    {metric.name === 'Disk Usage' && <HardDrive className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />}
+                    {metric.name === 'Network I/O' && <Network className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />}
+                    <span className="text-xs sm:text-sm font-medium text-foreground truncate">{metric.name}</span>
                   </div>
-                  {getStatusIcon(metric.status)}
+                  <div className="flex-shrink-0">{getStatusIcon(metric.status)}</div>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl font-bold text-foreground">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xl sm:text-2xl font-bold text-foreground truncate">
                       {metric.value}{metric.unit}
                     </span>
                     {metric.trend && (
                       metric.trend === 'up' ? (
-                        <TrendingUp className="w-4 h-4 text-green-400" />
+                        <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
                       ) : (
-                        <TrendingDown className="w-4 h-4 text-red-400" />
+                        <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4 text-red-400 flex-shrink-0" />
                       )
                     )}
                   </div>
@@ -195,7 +196,7 @@ export function SystemHealth() {
                     }`}
                   />
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Max: {metric.max}{metric.unit}</span>
+                    <span className="text-muted-foreground truncate">Max: {metric.max}{metric.unit}</span>
                     {getStatusBadge(metric.status)}
                   </div>
                 </div>
