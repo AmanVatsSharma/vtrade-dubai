@@ -24,7 +24,8 @@ import {
   BarChart3,
   Activity,
   X,
-  LineChart
+  LineChart,
+  DollarSign
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -315,10 +316,10 @@ export function WatchlistItemCard({
             showActions && "shadow-lg"
           )}
         >
-          <CardContent className="px-4 py-3">
-            <div className="flex items-center justify-between">
+          <CardContent className="px-3 sm:px-4 py-2.5 sm:py-3">
+            <div className="flex items-center justify-between gap-2">
               {/* Stock Info - Enhanced */}
-              <div className="flex-1 overflow-hidden pr-3">
+              <div className="flex-1 overflow-hidden pr-2 sm:pr-3 min-w-0">
                 {/* First Row: Symbol + Exchange Badge + Type Badges */}
                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                   <span className="font-semibold text-base text-foreground truncate">
@@ -411,19 +412,19 @@ export function WatchlistItemCard({
                 )}
               </div>
 
-              {/* Price Info - Compact */}
-              <div className="text-right flex-shrink-0 mr-3">
-                <div className="font-mono font-semibold text-base text-foreground">
+              {/* Price Info - Compact & Responsive */}
+              <div className="text-right flex-shrink-0 mr-2 sm:mr-3">
+                <div className="font-mono font-semibold text-sm sm:text-base text-foreground">
                   ₹{ltp.toFixed(2)}
                 </div>
                 <div className={cn(
-                  "text-xs flex items-center gap-1",
+                  "text-[10px] sm:text-xs flex items-center gap-0.5 sm:gap-1",
                   isPositive ? "text-green-600" : "text-red-600"
                 )}>
                   {isPositive ? (
-                    <TrendingUp className="h-3 w-3" />
+                    <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   ) : (
-                    <TrendingDown className="h-3 w-3" />
+                    <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   )}
                   <span>
                     {isPositive ? "+" : ""}{changePercent.toFixed(2)}%
@@ -431,40 +432,19 @@ export function WatchlistItemCard({
                 </div>
               </div>
 
-              {/* Action Buttons - Compact */}
-              <div className="flex items-center gap-1.5">
-                <motion.button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleQuickBuy()
-                  }}
-                  className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  B
-                </motion.button>
-                <motion.button
-                  onClick={openAdvancedChart}
-                  className="px-2 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  title="Open advanced chart"
-                >
-                  <LineChart className="h-4 w-4" />
-                </motion.button>
-                <motion.button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleQuickSell()
-                  }}
-                  className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  S
-                </motion.button>
-              </div>
+              {/* Ghost Icon Button - Opens Order Panel */}
+              <motion.button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleQuickBuy()
+                }}
+                className="p-2 sm:p-2.5 bg-gray-100/80 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 rounded-lg sm:rounded-xl transition-all duration-200 flex items-center justify-center flex-shrink-0 border border-gray-200/50 dark:border-gray-700/50 hover:border-green-300 dark:hover:border-green-600/50 shadow-sm hover:shadow-md"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileTap={{ scale: 0.9 }}
+                title="Place Order"
+              >
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
+              </motion.button>
 
               {/* Expand/Collapse Chevron */}
               <motion.div

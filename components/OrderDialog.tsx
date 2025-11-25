@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Label } from "@/components/ui/label"
-import { Loader2, DollarSign, Package, Calculator } from "lucide-react"
+import { Loader2, DollarSign, Package, Calculator, X } from "lucide-react"
+import { AnimatedBuySellSwitcher } from "@/components/trading/AnimatedBuySellSwitcher"
 import { toast } from "@/hooks/use-toast"
 import { placeOrder } from "@/lib/hooks/use-trading-data"
 import { useMarketData } from "@/lib/hooks/MarketDataProvider"
@@ -439,16 +440,16 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const Title = drawer ? DrawerTitle : ({ children }: any) => <div className="p-4">{children}</div>
 
   return (
-    <Wrapper open={isOpen} onOpenChange={onClose} >
-      <Content className="bg-white dark:bg-gray-900 rounded-t-lg h-[85vh] flex flex-col">
-        <Header className="flex-shrink-0">
+    <Wrapper open={isOpen} onOpenChange={onClose} direction="bottom">
+      <Content className="bg-white dark:bg-gray-900 rounded-t-lg h-[85vh] sm:h-[90vh] flex flex-col">
+        <Header className="flex-shrink-0 pb-2">
           <Title className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-green-600" />
-            Place Order
+            <span className="text-lg sm:text-xl font-semibold">Place Order</span>
           </Title>
         </Header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
           {/* Stock Info */}
           <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md border flex justify-between items-center">
             <div>
@@ -496,23 +497,6 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             </div>
           )}
 
-          {/* Buy / Sell */}
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setOrderSide("BUY")}
-              className={`flex-1 rounded-full ${orderSide === "BUY" ? "bg-green-600 text-white" : "bg-gray-200"}`}
-              disabled={isMarketBlocked}
-            >
-              Buy
-            </Button>
-            <Button
-              onClick={() => setOrderSide("SELL")}
-              className={`flex-1 rounded-full ${orderSide === "SELL" ? "bg-red-600 text-white" : "bg-gray-200"}`}
-              disabled={isMarketBlocked}
-            >
-              Sell
-            </Button>
-          </div>
 
           {/* Order Type */}
           <Tabs value={currentOrderType} onValueChange={setCurrentOrderType}>
@@ -533,8 +517,8 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             </div>
           )}
 
-          {/* Qty / Price */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Qty / Price - Responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               {isDerivatives ? (
                 <>
@@ -648,18 +632,34 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
           )}
         </div>
 
-        {/* Sticky Footer - Mobile Optimized */}
-        <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t p-3 flex gap-2">
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading || totalCost > availableMargin || isMarketBlocked} 
-            className={`flex-1 h-12 text-base font-semibold ${totalCost > availableMargin ? 'opacity-50' : ''}`}
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : `Place ${orderSide} Order`}
-          </Button>
-          <Button variant="outline" onClick={onClose} className="flex-1 h-12 text-base">
-            Cancel
-          </Button>
+        {/* Sticky Footer - Professional Animated Switcher */}
+        <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-3 sm:p-4 space-y-2 sm:space-y-3">
+          {/* Close Button - Top Right */}
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              aria-label="Close order panel"
+            >
+              <X className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
+            </button>
+          </div>
+          
+          {/* Animated Buy/Sell Switcher */}
+          <AnimatedBuySellSwitcher
+            orderSide={orderSide}
+            onSideChange={setOrderSide}
+            onPlaceOrder={handleSubmit}
+            loading={loading}
+            disabled={totalCost > availableMargin || isMarketBlocked}
+          />
+          
+          {/* Helper Text - Responsive */}
+          <p className="text-[10px] sm:text-xs text-center text-gray-500 dark:text-gray-400 px-2">
+            {orderSide === "BUY" 
+              ? "Tap Buy to place order • Tap Sell to switch" 
+              : "Tap Sell to place order • Tap Buy to switch"}
+          </p>
         </div>
       </Content>
     </Wrapper>
