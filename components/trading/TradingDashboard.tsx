@@ -17,6 +17,7 @@ import { Account } from "@/components/Account"
 import { WatchlistManager } from "@/components/watchlist/WatchlistManager"
 import { OrderDialog } from "@/components/OrderDialog"
 import { TradingHome } from "@/components/trading/TradingHome"
+import { RiskMonitor } from "@/components/risk/RiskMonitor"
 import type {
   TradingDashboardProps,
   TabConfig,
@@ -290,12 +291,15 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
     switch (currentTab) {
       case "home":
         return (
-          <TradingHome 
-            userName={session?.user?.name}
-            session={session}
-            portfolio={portfolio}
-            pnl={{ totalPnL, dayPnL }}
-          />
+          <div className="space-y-4">
+            <RiskMonitor />
+            <TradingHome 
+              userName={session?.user?.name}
+              session={session}
+              portfolio={portfolio}
+              pnl={{ totalPnL, dayPnL }}
+            />
+          </div>
         )
       case "watchlist":
         return (
@@ -316,24 +320,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
       case "positions":
         return (
           <div className="space-y-4 pb-20">
-            {/* <div className="grid grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="p-3">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Day's MTM</p>
-                  <p className={`text-lg font-semibold ${dayPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {dayPnL >= 0 ? "+" : ""}₹{dayPnL.toFixed(2)}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total P&L</p>
-                  <p className={`text-lg font-semibold ${totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {totalPnL >= 0 ? "+" : ""}₹{totalPnL.toFixed(2)}
-                  </p>
-                </CardContent>
-              </Card>
-            </div> */}
+            <RiskMonitor compact={false} />
             <PositionTracking 
               positions={positions} 
               quotes={quotes} 

@@ -33,6 +33,8 @@ import {
   CheckCircle2,
   XCircle,
   Globe,
+  Play,
+  Loader2,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -75,6 +77,237 @@ interface RiskConfig {
   active: boolean
   createdAt: Date
   updatedAt: Date
+}
+
+interface RiskMonitoringResult {
+  checkedAccounts: number
+  positionsChecked: number
+  positionsClosed: number
+  alertsCreated: number
+  errors: number
+  details: Array<{
+    tradingAccountId: string
+    userId: string
+    userName: string
+    totalUnrealizedPnL: number
+    availableMargin: number
+    marginUtilizationPercent: number
+    positionsClosed: number
+    alertCreated: boolean
+  }>
+}
+
+function RiskMonitoringPanel() {
+  const [monitoring, setMonitoring] = useState(false)
+  const [lastResult, setLastResult] = useState<RiskMonitoringResult | null>(null)
+  const [warningThreshold, setWarningThreshold] = useState(0.80)
+  const [autoCloseThreshold, setAutoCloseThreshold] = useState(0.90)
+
+  const runRiskMonitoring = async () => {
+    setMonitoring(true)
+    try {
+      const response = await fetch('/api/admin/risk/monitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          warningThreshold,
+          autoCloseThreshold
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to run risk monitoring')
+      }
+
+      const data = await response.json()
+      setLastResult(data.result)
+      
+      toast({
+        title: "Risk Monitoring Complete",
+        description: `Checked ${data.result.checkedAccounts} accounts, closed ${data.result.positionsClosed} positions, created ${data.result.alertsCreated} alerts`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to run risk monitoring",
+        variant: "destructive",
+      })
+    } finally {
+      setMonitoring(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-card border-border shadow-sm neon-border">
+        <CardHeader>
+          <CardTitle className="text-lg sm:text-xl font-bold text-primary flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            Server-Side Risk Monitoring
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-yellow-400/10 border border-yellow-400/30 rounded-lg p-4">
+            <p className="text-sm text-yellow-400 font-medium mb-2">⚠️ Important</p>
+            <p className="text-xs text-muted-foreground">
+              This monitoring runs server-side and works even when users close their app.
+              It calculates P&L server-side and automatically closes positions when loss exceeds thresholds.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Warning Threshold (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={warningThreshold * 100}
+                onChange={(e) => setWarningThreshold(parseFloat(e.target.value) / 100)}
+                placeholder="80"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Create alert when loss exceeds this % of available funds
+              </p>
+            </div>
+            <div>
+              <Label>Auto-Close Threshold (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={autoCloseThreshold * 100}
+                onChange={(e) => setAutoCloseThreshold(parseFloat(e.target.value) / 100)}
+                placeholder="90"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Automatically close positions when loss exceeds this % of available funds
+              </p>
+            </div>
+          </div>
+
+          <Button
+            onClick={runRiskMonitoring}
+            disabled={monitoring}
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {monitoring ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Running Risk Monitoring...
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 mr-2" />
+                Run Risk Monitoring Now
+              </>
+            )}
+          </Button>
+
+          {lastResult && (
+            <div className="mt-4 space-y-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Accounts Checked</p>
+                  <p className="text-lg font-bold">{lastResult.checkedAccounts}</p>
+                </Card>
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Positions Closed</p>
+                  <p className="text-lg font-bold text-red-400">{lastResult.positionsClosed}</p>
+                </Card>
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Alerts Created</p>
+                  <p className="text-lg font-bold text-yellow-400">{lastResult.alertsCreated}</p>
+                </Card>
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Errors</p>
+                  <p className="text-lg font-bold text-red-400">{lastResult.errors}</p>
+                </Card>
+              </div>
+
+              {lastResult.details.length > 0 && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle className="text-sm">Monitoring Details</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead>Unrealized P&L</TableHead>
+                            <TableHead>Available Margin</TableHead>
+                            <TableHead>Utilization</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {lastResult.details.map((detail) => (
+                            <TableRow key={detail.tradingAccountId}>
+                              <TableCell className="font-medium">{detail.userName}</TableCell>
+                              <TableCell className={detail.totalUnrealizedPnL < 0 ? 'text-red-400' : 'text-green-400'}>
+                                ₹{detail.totalUnrealizedPnL.toFixed(2)}
+                              </TableCell>
+                              <TableCell>₹{detail.availableMargin.toFixed(2)}</TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  detail.marginUtilizationPercent >= autoCloseThreshold
+                                    ? 'bg-red-400/20 text-red-400'
+                                    : detail.marginUtilizationPercent >= warningThreshold
+                                    ? 'bg-yellow-400/20 text-yellow-400'
+                                    : 'bg-green-400/20 text-green-400'
+                                }>
+                                  {(detail.marginUtilizationPercent * 100).toFixed(1)}%
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {detail.positionsClosed > 0 && (
+                                  <Badge className="bg-red-400/20 text-red-400">
+                                    {detail.positionsClosed} closed
+                                  </Badge>
+                                )}
+                                {detail.alertCreated && (
+                                  <Badge className="bg-yellow-400/20 text-yellow-400 ml-1">
+                                    Alert
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card border-border shadow-sm neon-border">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Cron Setup</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground mb-2">
+            To run risk monitoring automatically, set up a cron job to call:
+          </p>
+          <code className="block bg-background p-2 rounded text-xs break-all">
+            GET /api/cron/risk-monitoring
+          </code>
+          <p className="text-xs text-muted-foreground mt-2">
+            Recommended: Run every 60 seconds during market hours.
+            Protect with CRON_SECRET environment variable.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
 
 export function RiskManagement() {
@@ -294,9 +527,14 @@ export function RiskManagement() {
         </div>
       </motion.div>
 
-      {/* Tabs for User Limits vs Platform Config */}
-      <Tabs defaultValue="platform" className="space-y-3 sm:space-y-4 md:space-y-6">
-        <TabsList className="grid w-full grid-cols-2 text-xs sm:text-sm">
+      {/* Tabs for User Limits vs Platform Config vs Monitoring */}
+      <Tabs defaultValue="monitoring" className="space-y-3 sm:space-y-4 md:space-y-6">
+        <TabsList className="grid w-full grid-cols-3 text-xs sm:text-sm">
+          <TabsTrigger value="monitoring" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+            <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Risk Monitoring</span>
+            <span className="sm:hidden">Monitor</span>
+          </TabsTrigger>
           <TabsTrigger value="platform" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
             <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Platform Risk Config</span>
@@ -308,6 +546,11 @@ export function RiskManagement() {
             <span className="sm:hidden">Users</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* Risk Monitoring Tab */}
+        <TabsContent value="monitoring" className="space-y-3 sm:space-y-4 md:space-y-6">
+          <RiskMonitoringPanel />
+        </TabsContent>
 
         {/* Platform Risk Config Tab */}
         <TabsContent value="platform" className="space-y-3 sm:space-y-4 md:space-y-6">
