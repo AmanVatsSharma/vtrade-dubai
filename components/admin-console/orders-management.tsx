@@ -121,24 +121,71 @@ export function OrdersManagement() {
 
   const saveEdit = async (row: OrderRow) => {
     try {
+      // Validate inputs
+      if (editQty !== "") {
+        const qty = Number(editQty)
+        if (isNaN(qty) || qty < 0) {
+          alert("Quantity must be a non-negative number")
+          return
+        }
+      }
+
+      if (editPrice !== "") {
+        const price = Number(editPrice)
+        if (isNaN(price) || price < 0) {
+          alert("Price must be a non-negative number")
+          return
+        }
+      }
+
+      // Validate order type and side
+      const validTypes = ['MARKET', 'LIMIT']
+      const validSides = ['BUY', 'SELL']
+      const validStatuses = ['PENDING', 'EXECUTED', 'CANCELLED']
+
+      if (editType && !validTypes.includes(editType.toUpperCase())) {
+        alert(`Order type must be one of: ${validTypes.join(', ')}`)
+        return
+      }
+
+      if (editSide && !validSides.includes(editSide.toUpperCase())) {
+        alert(`Order side must be one of: ${validSides.join(', ')}`)
+        return
+      }
+
+      if (editStatus && !validStatuses.includes(editStatus.toUpperCase())) {
+        alert(`Order status must be one of: ${validStatuses.join(', ')}`)
+        return
+      }
+
       const payload: any = { orderId: row.id, updates: {} }
       if (editQty !== "") payload.updates.quantity = Number(editQty)
       payload.updates.price = editPrice === "" ? null : Number(editPrice)
-      if (editType) payload.updates.orderType = editType as any
-      if (editSide) payload.updates.orderSide = editSide as any
-      if (editStatus) payload.updates.status = editStatus as any
+      if (editType) payload.updates.orderType = editType.toUpperCase() as any
+      if (editSide) payload.updates.orderSide = editSide.toUpperCase() as any
+      if (editStatus) payload.updates.status = editStatus.toUpperCase() as any
+
+      console.log("💾 [ORDERS-MGMT] Saving order edit:", payload)
 
       const res = await fetch("/api/admin/orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-      if (!res.ok) throw new Error(`Save failed: ${res.status}`)
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: `Save failed: ${res.status}` }))
+        throw new Error(error.error || "Failed to save order")
+      }
+
+      const result = await res.json()
+      console.log("✅ [ORDERS-MGMT] Order saved successfully:", result)
+
       cancelEdit()
       fetchData()
-    } catch (e) {
+    } catch (e: any) {
       console.error("❌ [ORDERS-MGMT] Save failed", e)
-      alert((e as any)?.message || "Save failed")
+      alert(e.message || "Save failed")
     }
   }
 

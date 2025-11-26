@@ -1,3 +1,11 @@
+/**
+ * @file positions-management.tsx
+ * @module admin-console
+ * @description Enhanced positions management with professional editing dialog
+ * @author BharatERP
+ * @created 2025-01-27
+ */
+
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -10,7 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ChevronLeft, ChevronRight, RefreshCw, Hash, Target, Crosshair, LayoutGrid } from "lucide-react"
+import { ChevronLeft, ChevronRight, RefreshCw, Hash, Target, Crosshair, LayoutGrid, Edit } from "lucide-react"
+import { PositionEditDialog } from "./position-edit-dialog"
 
 interface PositionRow {
   id: string
@@ -88,14 +97,9 @@ export function PositionsManagement() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editQty, setEditQty] = useState<string>("")
-  const [editAvg, setEditAvg] = useState<string>("")
-  const [editSL, setEditSL] = useState<string>("")
-  const [editTP, setEditTP] = useState<string>("")
-  const [editSymbol, setEditSymbol] = useState<string>("")
-  const [editUPnL, setEditUPnL] = useState<string>("")
-  const [editDayPnL, setEditDayPnL] = useState<string>("")
+  // Position edit dialog state
+  const [editingPosition, setEditingPosition] = useState<PositionRow | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
 
   // Create Position dialog state
   const [createOpen, setCreateOpen] = useState(false)
@@ -148,50 +152,8 @@ export function PositionsManagement() {
   }
 
   const startEdit = (row: PositionRow) => {
-    setEditingId(row.id)
-    setEditQty(String(row.quantity))
-    setEditAvg(String(row.averagePrice))
-    setEditSL(row.stopLoss != null ? String(row.stopLoss) : "")
-    setEditTP(row.target != null ? String(row.target) : "")
-    setEditSymbol(row.symbol)
-    setEditUPnL(row.unrealizedPnL != null ? String(row.unrealizedPnL) : "")
-    setEditDayPnL(row.dayPnL != null ? String(row.dayPnL) : "")
-  }
-
-  const cancelEdit = () => {
-    setEditingId(null)
-    setEditQty("")
-    setEditAvg("")
-    setEditSL("")
-    setEditTP("")
-    setEditSymbol("")
-    setEditUPnL("")
-    setEditDayPnL("")
-  }
-
-  const saveEdit = async (row: PositionRow) => {
-    try {
-      const payload: any = { positionId: row.id, updates: {} }
-      if (editQty !== "") payload.updates.quantity = Number(editQty)
-      if (editAvg !== "") payload.updates.averagePrice = Number(editAvg)
-      payload.updates.stopLoss = editSL === "" ? null : Number(editSL)
-      payload.updates.target = editTP === "" ? null : Number(editTP)
-      if (editSymbol && editSymbol !== row.symbol) payload.updates.symbol = editSymbol
-      if (editUPnL !== "") payload.updates.unrealizedPnL = Number(editUPnL)
-      if (editDayPnL !== "") payload.updates.dayPnL = Number(editDayPnL)
-
-      const res = await fetch("/api/admin/positions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
-      if (!res.ok) throw new Error(`Save failed: ${res.status}`)
-      cancelEdit()
-      fetchData()
-    } catch (e) {
-      console.error("❌ [POSITIONS-MGMT] Save failed", e)
-      alert((e as any)?.message || "Save failed")
-    }
+    setEditingPosition(row)
+    setEditDialogOpen(true)
   }
 
   const closePosition = async (row: PositionRow) => {
@@ -367,78 +329,40 @@ export function PositionsManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <Input value={editSymbol} onChange={(e) => setEditSymbol(e.target.value.toUpperCase())} />
-                      ) : (
-                        <span className="font-mono">{r.symbol}</span>
-                      )}
+                      <span className="font-mono">{r.symbol}</span>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <Input value={editQty} onChange={(e) => setEditQty(e.target.value)} />
-                      ) : (
-                        <span className="font-bold">{r.quantity}</span>
-                      )}
+                      <span className="font-bold">{r.quantity}</span>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <Input value={editAvg} onChange={(e) => setEditAvg(e.target.value)} />
-                      ) : (
-                        <span>{r.averagePrice}</span>
-                      )}
+                      <span>{r.averagePrice}</span>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <Input value={editSL} onChange={(e) => setEditSL(e.target.value)} />
-                      ) : (
-                        <span>{r.stopLoss ?? "—"}</span>
-                      )}
+                      <span>{r.stopLoss ?? "—"}</span>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <Input value={editTP} onChange={(e) => setEditTP(e.target.value)} />
-                      ) : (
-                        <span>{r.target ?? "—"}</span>
-                      )}
+                      <span>{r.target ?? "—"}</span>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <Input value={editUPnL} onChange={(e) => setEditUPnL(e.target.value)} />
-                      ) : (
-                        <span className={r.unrealizedPnL! >= 0 ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
-                          {r.unrealizedPnL! >= 0 ? '+' : ''}{r.unrealizedPnL}
-                        </span>
-                      )}
+                      <span className={r.unrealizedPnL! >= 0 ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
+                        {r.unrealizedPnL! >= 0 ? '+' : ''}{r.unrealizedPnL}
+                      </span>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <Input value={editDayPnL} onChange={(e) => setEditDayPnL(e.target.value)} />
-                      ) : (
-                        <span className={r.dayPnL! >= 0 ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
-                          {r.dayPnL! >= 0 ? '+' : ''}{r.dayPnL}
-                        </span>
-                      )}
+                      <span className={r.dayPnL! >= 0 ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
+                        {r.dayPnL! >= 0 ? '+' : ''}{r.dayPnL}
+                      </span>
                     </TableCell>
                     <TableCell>
-                      {editingId === r.id ? (
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" onClick={() => saveEdit(r)} className="bg-primary hover:bg-primary/90 text-white">
-                            Save
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={cancelEdit}>
-                            Cancel
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="outline" onClick={() => startEdit(r)}>
-                            Edit
-                          </Button>
-                          <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => closePosition(r)}>
-                            Close
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => startEdit(r)}>
+                          <Edit className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => closePosition(r)}>
+                          Close
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -460,6 +384,23 @@ export function PositionsManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Position Edit Dialog */}
+      {editingPosition && (
+        <PositionEditDialog
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open)
+            if (!open) setEditingPosition(null)
+          }}
+          position={editingPosition}
+          onSaved={() => {
+            fetchData()
+            setEditDialogOpen(false)
+            setEditingPosition(null)
+          }}
+        />
+      )}
     </div>
   )
 }

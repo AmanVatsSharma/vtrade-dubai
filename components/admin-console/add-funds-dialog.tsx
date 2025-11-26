@@ -1,8 +1,16 @@
+/**
+ * @file add-funds-dialog.tsx
+ * @module admin-console
+ * @description Professional add funds dialog with searchable user selector
+ * @author BharatERP
+ * @created 2025-01-27
+ */
+
 "use client"
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,7 +19,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { User, DollarSign, CreditCard, FileText, Upload, Check } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { User, DollarSign, CreditCard, FileText, Upload, Check, Search, Loader2, X } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
+
+interface User {
+  id: string
+  name: string | null
+  email: string | null
+  clientId: string | null
+  phone: string | null
+}
 
 interface AddFundsDialogProps {
   open: boolean
@@ -27,13 +45,93 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
     description: "",
     screenshot: null as File | null,
   })
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [userSearch, setUserSearch] = useState("")
+  const [users, setUsers] = useState<User[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [showUserSelector, setShowUserSelector] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
-
   const [loading, setLoading] = useState(false)
+  const userSelectorRef = useRef<HTMLDivElement>(null)
+
+  // Close user selector when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userSelectorRef.current && !userSelectorRef.current.contains(event.target as Node)) {
+        setShowUserSelector(false)
+      }
+    }
+
+    if (showUserSelector) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showUserSelector])
+
+  // Fetch users for search
+  const fetchUsers = useCallback(async (search: string = "") => {
+    console.log("🔍 [ADD-FUNDS-DIALOG] Fetching users with search:", search)
+    setLoadingUsers(true)
+    try {
+      const response = await fetch(`/api/admin/users/list?search=${encodeURIComponent(search)}&limit=50`)
+      if (response.ok) {
+        const data = await response.json()
+        console.log("✅ [ADD-FUNDS-DIALOG] Users fetched:", data.users?.length || 0)
+        setUsers(data.users || [])
+      } else {
+        console.error("❌ [ADD-FUNDS-DIALOG] Failed to fetch users")
+        toast({
+          title: "Error",
+          description: "Failed to fetch users",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error("❌ [ADD-FUNDS-DIALOG] Error fetching users:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch users",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingUsers(false)
+    }
+  }, [])
+
+  // Debounced search effect
+  useEffect(() => {
+    if (showUserSelector && open) {
+      const timeoutId = setTimeout(() => {
+        fetchUsers(userSearch)
+      }, 300)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [userSearch, showUserSelector, open, fetchUsers])
+
+  // Load initial users when dialog opens
+  useEffect(() => {
+    if (open && showUserSelector) {
+      fetchUsers("")
+    }
+  }, [open, showUserSelector, fetchUsers])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("💰 [ADD-FUNDS-DIALOG] Submitting add funds request:", formData)
+    
+    // Validate user selection
+    if (!selectedUser || !selectedUser.id) {
+      toast({
+        title: "Error",
+        description: "Please select a user",
+        variant: "destructive"
+      })
+      return
+    }
+
+    console.log("💰 [ADD-FUNDS-DIALOG] Submitting add funds request:", { ...formData, userId: selectedUser.id, selectedUser })
     
     setLoading(true)
     
@@ -42,7 +140,7 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: formData.userId,
+          userId: selectedUser.id,
           amount: parseFloat(formData.amount),
           description: formData.description || `Manual credit via ${formData.method} - UTR: ${formData.utrCode}`
         })
@@ -55,6 +153,10 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
       }
 
       console.log("✅ [ADD-FUNDS-DIALOG] Funds added successfully:", data)
+      toast({
+        title: "Success",
+        description: `₹${formData.amount} added to ${selectedUser.name || selectedUser.email}'s account`
+      })
       setIsSubmitted(true)
       
       setTimeout(() => {
@@ -64,7 +166,11 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
 
     } catch (error: any) {
       console.error("❌ [ADD-FUNDS-DIALOG] Error adding funds:", error)
-      alert(`Error: ${error.message}`)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add funds",
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
@@ -79,8 +185,20 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
       description: "",
       screenshot: null,
     })
+    setSelectedUser(null)
+    setUserSearch("")
+    setUsers([])
+    setShowUserSelector(false)
     setIsSubmitted(false)
     onOpenChange(false)
+  }
+
+  const handleUserSelect = (user: User) => {
+    console.log("👤 [ADD-FUNDS-DIALOG] User selected:", user)
+    setSelectedUser(user)
+    setFormData({ ...formData, userId: user.id })
+    setShowUserSelector(false)
+    setUserSearch("")
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,20 +227,84 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
             transition={{ duration: 0.3 }}
           >
             <div className="space-y-2">
-              <Label htmlFor="userId" className="text-foreground">
-                User ID / Client ID
+              <Label htmlFor="userSelect" className="text-foreground">
+                Select User *
               </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="userId"
-                  value={formData.userId}
-                  onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                  className="pl-10 bg-muted/50 border-border focus:border-primary"
-                  placeholder="Enter user ID (e.g., USR_001234)"
-                  required
-                />
-              </div>
+              {selectedUser ? (
+                <Card className="bg-muted/30 border-border p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground truncate">{selectedUser.name || "Unknown"}</p>
+                      <p className="text-sm text-muted-foreground truncate">{selectedUser.email}</p>
+                      <p className="text-xs text-muted-foreground">ID: {selectedUser.clientId || selectedUser.id}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedUser(null)
+                        setFormData({ ...formData, userId: "" })
+                      }}
+                      className="ml-2 h-8 w-8 p-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <div className="relative" ref={userSelectorRef}>
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+                  <Input
+                    id="userSelect"
+                    value={userSearch}
+                    onChange={(e) => {
+                      setUserSearch(e.target.value)
+                      setShowUserSelector(true)
+                    }}
+                    onFocus={() => setShowUserSelector(true)}
+                    className="pl-10 bg-muted/50 border-border focus:border-primary"
+                    placeholder="Search by name, email, client ID, or phone..."
+                  />
+                  {showUserSelector && (
+                    <Card className="absolute z-50 w-full mt-2 bg-card border-border shadow-lg max-h-64 overflow-y-auto">
+                      <CardContent className="p-2">
+                        {loadingUsers ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : users.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            {userSearch ? "No users found" : "Start typing to search users"}
+                          </p>
+                        ) : (
+                          <div className="space-y-1">
+                            {users.map((user) => (
+                              <div
+                                key={user.id}
+                                onClick={() => handleUserSelect(user)}
+                                className="flex items-center space-x-3 p-2 hover:bg-muted rounded cursor-pointer transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">
+                                    {user.name || user.email || "Unknown"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {user.email && user.name ? user.email : user.clientId || user.id}
+                                  </p>
+                                  {user.clientId && (
+                                    <p className="text-xs text-muted-foreground">ID: {user.clientId}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -229,7 +411,7 @@ export function AddFundsDialog({ open, onOpenChange }: AddFundsDialogProps) {
             </div>
             <h3 className="text-lg font-bold text-foreground">Funds Added Successfully!</h3>
             <p className="text-sm text-muted-foreground">
-              ${formData.amount} has been added to user {formData.userId}
+              ₹{formData.amount} has been added to {selectedUser?.name || selectedUser?.email || "user"}'s account
             </p>
             <Card className="bg-muted/30 border-border">
               <CardContent className="p-4">

@@ -79,6 +79,29 @@ export class TransactionRepository {
   }
 
   /**
+   * Update multiple transactions matching a condition
+   */
+  async updateMany(
+    where: Prisma.TransactionWhereInput,
+    updates: Partial<Pick<CreateTransactionData, 'description' | 'orderId' | 'positionId' | 'amount'>>,
+    tx?: Prisma.TransactionClient
+  ) {
+    console.log("🔄 [TRANSACTION-REPO] Updating multiple transactions:", { where, updates })
+
+    const client = tx || prisma
+
+    const result = await client.transaction.updateMany({
+      where,
+      data: {
+        ...updates
+      }
+    })
+
+    console.log(`✅ [TRANSACTION-REPO] Updated ${result.count} transactions`)
+    return result
+  }
+
+  /**
    * Get transactions for an account
    */
   async findByAccountId(

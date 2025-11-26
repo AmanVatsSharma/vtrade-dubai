@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
-import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp, UserCheck } from "lucide-react"
+import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp, UserCheck, DollarSign, Wallet, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface EditUserDialogProps {
@@ -49,6 +49,15 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
   const [selectedRMId, setSelectedRMId] = useState<string | null>(null)
   const [loadingRMs, setLoadingRMs] = useState(false)
   const [currentRMId, setCurrentRMId] = useState<string | null>(null)
+  
+  // Trading account funds state (Super Admin only)
+  const [tradingAccountData, setTradingAccountData] = useState<{
+    balance: string
+    availableMargin: string
+    usedMargin: string
+  } | null>(null)
+  const [originalTradingAccountData, setOriginalTradingAccountData] = useState<any>(null)
+  const [fundReason, setFundReason] = useState("")
 
   // Load current user role and user data when dialog opens
   useEffect(() => {
@@ -76,8 +85,51 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
       
       // Load RM assignment data
       loadRMData()
+      
+      // Load trading account data (for Super Admin)
+      // Fetch full user details if tradingAccount is not available
+      if (currentUserRole === 'SUPER_ADMIN') {
+        if (user?.tradingAccount) {
+          const taData = {
+            balance: String(user.tradingAccount.balance || 0),
+            availableMargin: String(user.tradingAccount.availableMargin || 0),
+            usedMargin: String(user.tradingAccount.usedMargin || 0)
+          }
+          setTradingAccountData(taData)
+          setOriginalTradingAccountData(taData)
+        } else if (user?.id) {
+          // Fetch full user details to get trading account
+          fetch(`/api/admin/users/${user.id}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.user?.tradingAccount) {
+                const taData = {
+                  balance: String(data.user.tradingAccount.balance || 0),
+                  availableMargin: String(data.user.tradingAccount.availableMargin || 0),
+                  usedMargin: String(data.user.tradingAccount.usedMargin || 0)
+                }
+                setTradingAccountData(taData)
+                setOriginalTradingAccountData(taData)
+              } else {
+                setTradingAccountData(null)
+                setOriginalTradingAccountData(null)
+              }
+            })
+            .catch(err => {
+              console.error("❌ [EDIT-USER-DIALOG] Failed to fetch trading account:", err)
+              setTradingAccountData(null)
+              setOriginalTradingAccountData(null)
+            })
+        } else {
+          setTradingAccountData(null)
+          setOriginalTradingAccountData(null)
+        }
+      } else {
+        setTradingAccountData(null)
+        setOriginalTradingAccountData(null)
+      }
     }
-  }, [open, user])
+  }, [open, user, currentUserRole])
 
   const loadRMData = async () => {
     if (!user?.id) return
@@ -293,6 +345,131 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveFunds = async () => {
+    if (!tradingAccountData) return
+
+    // Validate inputs
+    const balance = parseFloat(tradingAccountData.balance)
+    const availableMargin = parseFloat(tradingAccountData.availableMargin)
+    const usedMargin = parseFloat(tradingAccountData.usedMargin)
+
+    if (isNaN(balance) || balance < 0) {
+      toast({
+        title: "Validation Error",
+        description: "Balance must be a non-negative number",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (isNaN(availableMargin) || availableMargin < 0) {
+      toast({
+        title: "Validation Error",
+        description: "Available margin must be a non-negative number",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (isNaN(usedMargin) || usedMargin < 0) {
+      toast({
+        title: "Validation Error",
+        description: "Used margin must be a non-negative number",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Check if availableMargin + usedMargin makes sense (warn if unusual)
+    const totalMargin = availableMargin + usedMargin
+    if (totalMargin > balance * 2) {
+      const confirmed = confirm(
+        `Warning: Total margin (${totalMargin.toLocaleString()}) is significantly higher than balance (${balance.toLocaleString()}). Continue?`
+      )
+      if (!confirmed) return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/trading-account`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          balance,
+          availableMargin,
+          usedMargin,
+          reason: fundReason || undefined
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to update trading account funds")
+      }
+
+      const result = await response.json()
+      console.log("✅ [EDIT-USER-DIALOG] Trading account funds updated:", result)
+
+      toast({
+        title: "✅ Success",
+        description: "Trading account funds updated successfully"
+      })
+
+      // Reload user data
+      if (onUserUpdated) {
+        onUserUpdated()
+      }
+
+      // Reset form
+      setFundReason("")
+      if (result.tradingAccount) {
+        const newData = {
+          balance: String(result.tradingAccount.balance),
+          availableMargin: String(result.tradingAccount.availableMargin),
+          usedMargin: String(result.tradingAccount.usedMargin)
+        }
+        setTradingAccountData(newData)
+        setOriginalTradingAccountData(newData)
+      }
+    } catch (error: any) {
+      console.error("❌ [EDIT-USER-DIALOG] Error updating funds:", error)
+      toast({
+        title: "❌ Error",
+        description: error.message || "Failed to update trading account funds",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const hasFundChanges = () => {
+    if (!tradingAccountData || !originalTradingAccountData) return false
+    return (
+      tradingAccountData.balance !== originalTradingAccountData.balance ||
+      tradingAccountData.availableMargin !== originalTradingAccountData.availableMargin ||
+      tradingAccountData.usedMargin !== originalTradingAccountData.usedMargin
+    )
+  }
+
+  const calculateFundImpact = () => {
+    if (!tradingAccountData || !originalTradingAccountData) return null
+
+    const oldBalance = parseFloat(originalTradingAccountData.balance) || 0
+    const newBalance = parseFloat(tradingAccountData.balance) || 0
+    const oldAvailableMargin = parseFloat(originalTradingAccountData.availableMargin) || 0
+    const newAvailableMargin = parseFloat(tradingAccountData.availableMargin) || 0
+    const oldUsedMargin = parseFloat(originalTradingAccountData.usedMargin) || 0
+    const newUsedMargin = parseFloat(tradingAccountData.usedMargin) || 0
+
+    return {
+      balanceDelta: newBalance - oldBalance,
+      availableMarginDelta: newAvailableMargin - oldAvailableMargin,
+      usedMarginDelta: newUsedMargin - oldUsedMargin,
+      totalMarginDelta: (newAvailableMargin + newUsedMargin) - (oldAvailableMargin + oldUsedMargin)
     }
   }
 
@@ -667,6 +844,165 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
               )}
             </CardContent>
           </Card>
+
+          {/* Trading Account Funds Management (Super Admin Only) */}
+          {currentUserRole === 'SUPER_ADMIN' && tradingAccountData && (
+            <Card className="bg-yellow-500/10 border-yellow-500/50">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <DollarSign className="w-5 h-5 text-yellow-400" />
+                  <h3 className="font-semibold text-foreground">Trading Account Funds</h3>
+                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Super Admin Only</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  ⚠️ <strong>Warning:</strong> Direct fund manipulation. Changes will create transaction records and affect user's trading capabilities.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="balance" className="text-foreground flex items-center gap-2">
+                      <Wallet className="w-4 h-4" />
+                      Balance (₹)
+                    </Label>
+                    <Input
+                      id="balance"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={tradingAccountData.balance}
+                      onChange={(e) => setTradingAccountData({ ...tradingAccountData, balance: e.target.value })}
+                      className="bg-background border-border font-mono"
+                      placeholder="0.00"
+                    />
+                    {originalTradingAccountData && (
+                      <p className="text-xs text-muted-foreground">
+                        Current: ₹{parseFloat(originalTradingAccountData.balance).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="availableMargin" className="text-foreground flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4" />
+                      Available Margin (₹)
+                    </Label>
+                    <Input
+                      id="availableMargin"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={tradingAccountData.availableMargin}
+                      onChange={(e) => setTradingAccountData({ ...tradingAccountData, availableMargin: e.target.value })}
+                      className="bg-background border-border font-mono"
+                      placeholder="0.00"
+                    />
+                    {originalTradingAccountData && (
+                      <p className="text-xs text-muted-foreground">
+                        Current: ₹{parseFloat(originalTradingAccountData.availableMargin).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="usedMargin" className="text-foreground flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Used Margin (₹)
+                    </Label>
+                    <Input
+                      id="usedMargin"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={tradingAccountData.usedMargin}
+                      onChange={(e) => setTradingAccountData({ ...tradingAccountData, usedMargin: e.target.value })}
+                      className="bg-background border-border font-mono"
+                      placeholder="0.00"
+                    />
+                    {originalTradingAccountData && (
+                      <p className="text-xs text-muted-foreground">
+                        Current: ₹{parseFloat(originalTradingAccountData.usedMargin).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fund Impact Warning */}
+                {hasFundChanges() && (() => {
+                  const impact = calculateFundImpact()
+                  if (!impact) return null
+                  
+                  return (
+                    <Alert className={impact.balanceDelta >= 0 ? "bg-green-500/10 border-green-500/50" : "bg-red-500/10 border-red-500/50"}>
+                      <DollarSign className="h-4 w-4" />
+                      <AlertDescription>
+                        <div className="space-y-1">
+                          {impact.balanceDelta !== 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">Balance Change:</span>
+                              <span className={impact.balanceDelta >= 0 ? "text-green-400" : "text-red-400"}>
+                                {impact.balanceDelta >= 0 ? "+" : ""}₹{Math.abs(impact.balanceDelta).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {impact.availableMarginDelta !== 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">Available Margin Change:</span>
+                              <span className={impact.availableMarginDelta >= 0 ? "text-green-400" : "text-red-400"}>
+                                {impact.availableMarginDelta >= 0 ? "+" : ""}₹{Math.abs(impact.availableMarginDelta).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {impact.usedMarginDelta !== 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">Used Margin Change:</span>
+                              <span className={impact.usedMarginDelta >= 0 ? "text-red-400" : "text-green-400"}>
+                                {impact.usedMarginDelta >= 0 ? "+" : ""}₹{Math.abs(impact.usedMarginDelta).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )
+                })()}
+
+                {/* Reason for change */}
+                <div className="space-y-2">
+                  <Label htmlFor="fundReason" className="text-foreground">Reason for Change (Optional)</Label>
+                  <Input
+                    id="fundReason"
+                    value={fundReason}
+                    onChange={(e) => setFundReason(e.target.value)}
+                    className="bg-background border-border"
+                    placeholder="e.g., Manual adjustment, reconciliation, etc."
+                    maxLength={200}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This reason will be recorded in the transaction history
+                  </p>
+                </div>
+
+                {/* Save Funds Button */}
+                <Button
+                  onClick={handleSaveFunds}
+                  disabled={loading || !hasFundChanges()}
+                  className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving Funds...
+                    </>
+                  ) : (
+                    <>
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      Save Fund Changes
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Credential Management */}
           <Card className="bg-muted/30 border-border">

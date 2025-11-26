@@ -104,20 +104,50 @@ export function TradeManagement() {
 
   const saveEdit = async (row: TxnRow) => {
     try {
+      // Validate amount
       const amountNum = Number(editAmount)
-      if (Number.isNaN(amountNum) || amountNum < 0) throw new Error("Invalid amount")
+      if (Number.isNaN(amountNum) || amountNum < 0) {
+        alert("Amount must be a non-negative number")
+        return
+      }
+
+      // Validate description
+      if (editDescription && editDescription.length > 500) {
+        alert("Description must be less than 500 characters")
+        return
+      }
+
+      console.log("💾 [TRADE-MGMT] Saving transaction edit:", {
+        transactionId: row.id,
+        amount: amountNum,
+        description: editDescription,
+        reconcile: true
+      })
 
       const res = await fetch("/api/admin/transactions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactionId: row.id, amount: amountNum, description: editDescription, reconcile: true })
+        body: JSON.stringify({ 
+          transactionId: row.id, 
+          amount: amountNum, 
+          description: editDescription || undefined, 
+          reconcile: true 
+        })
       })
-      if (!res.ok) throw new Error(`Save failed: ${res.status}`)
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: `Save failed: ${res.status}` }))
+        throw new Error(error.error || "Failed to save transaction")
+      }
+
+      const result = await res.json()
+      console.log("✅ [TRADE-MGMT] Transaction saved successfully:", result)
+
       cancelEdit()
       fetchData()
-    } catch (e) {
+    } catch (e: any) {
       console.error("❌ [TRADE-MGMT] Save failed", e)
-      alert((e as any)?.message || "Save failed")
+      alert(e.message || "Save failed")
     }
   }
 

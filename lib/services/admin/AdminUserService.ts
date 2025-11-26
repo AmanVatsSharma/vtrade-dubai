@@ -191,6 +191,145 @@ export class AdminUserService {
   }
 
   /**
+   * Generate unique client ID
+   */
+  private generateClientId(): string {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    const randomLetters = Array.from({ length: 2 }, () =>
+      chars.charAt(Math.floor(Math.random() * chars.length))
+    ).join("")
+    const randomNumbers = Math.floor(1000 + Math.random() * 9000)
+    return randomLetters + randomNumbers
+  }
+
+  /**
+   * Create a new user with trading account and KYC
+   */
+  async createUser(input: {
+    name: string
+    email: string
+    phone: string
+    password: string
+    initialBalance?: number
+  }) {
+    console.log("👤 [ADMIN-USER-SERVICE] Creating new user:", { email: input.email, name: input.name })
+    
+    try {
+      await this.logger.info("ADMIN_CREATE_USER_START", "Admin creating new user", {
+        email: input.email,
+        name: input.name
+      })
+
+      // Check if email already exists
+      const existingEmail = await prisma.user.findUnique({
+        where: { email: input.email }
+      })
+      if (existingEmail) {
+        throw new Error("Email already registered")
+      }
+
+      // Check if phone already exists
+      if (input.phone) {
+        const existingPhone = await prisma.user.findUnique({
+          where: { phone: input.phone }
+        })
+        if (existingPhone) {
+          throw new Error("Phone number already registered")
+        }
+      }
+
+      // Generate unique client ID
+      let clientId = this.generateClientId()
+      let attempts = 0
+      while (attempts < 10) {
+        const existing = await prisma.user.findUnique({
+          where: { clientId }
+        })
+        if (!existing) break
+        clientId = this.generateClientId()
+        attempts++
+      }
+      if (attempts >= 10) {
+        throw new Error("Failed to generate unique client ID")
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(input.password, 10)
+
+      // Create user, trading account, and KYC in a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Create user
+        const newUser = await tx.user.create({
+          data: {
+            name: input.name,
+            email: input.email,
+            phone: input.phone,
+            password: hashedPassword,
+            clientId,
+            role: Role.USER,
+            isActive: true,
+            emailVerified: new Date(), // Auto-verify for admin-created users
+            phoneVerified: new Date(), // Auto-verify for admin-created users
+          }
+        })
+
+        // Create trading account
+        const tradingAccount = await tx.tradingAccount.create({
+          data: {
+            userId: newUser.id,
+            clientId,
+            balance: input.initialBalance || 0,
+            availableMargin: input.initialBalance || 0,
+            usedMargin: 0,
+          }
+        })
+
+        // Create default KYC record
+        await tx.kYC.create({
+          data: {
+            userId: newUser.id,
+            aadhaarNumber: "",
+            panNumber: "",
+            bankProofUrl: "",
+            status: KycStatus.PENDING,
+          }
+        })
+
+        return { user: newUser, tradingAccount }
+      })
+
+      await this.logger.info("ADMIN_CREATE_USER_COMPLETED", "User created successfully", {
+        userId: result.user.id,
+        clientId: result.user.clientId,
+        email: result.user.email
+      })
+
+      console.log("✅ [ADMIN-USER-SERVICE] User created successfully:", {
+        id: result.user.id,
+        clientId: result.user.clientId,
+        email: result.user.email
+      })
+
+      return {
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
+        phone: result.user.phone,
+        clientId: result.user.clientId,
+        password: input.password, // Return plain password for display
+        tradingAccount: {
+          id: result.tradingAccount.id,
+          balance: result.tradingAccount.balance,
+        }
+      }
+    } catch (error: any) {
+      console.error("❌ [ADMIN-USER-SERVICE] Create user failed:", error)
+      await this.logger.error("ADMIN_CREATE_USER_FAILED", error.message, error, { email: input.email })
+      throw error
+    }
+  }
+
+  /**
    * Get platform statistics
    */
   async getPlatformStats() {
@@ -447,6 +586,116 @@ export class AdminUserService {
 
     console.log("✅ [ADMIN-USER-SERVICE] MPIN reset successfully")
     return user
+  }
+
+  /**
+   * Update trading account funds (Super Admin only)
+   * Allows direct manipulation of balance, availableMargin, and usedMargin
+   */
+  async updateTradingAccountFunds(
+    userId: string,
+    updates: {
+      balance?: number
+      availableMargin?: number
+      usedMargin?: number
+    },
+    reason?: string
+  ) {
+    console.log("💰 [ADMIN-USER-SERVICE] Updating trading account funds:", { userId, updates })
+
+    await this.logger.logSystemEvent("TRADING_ACCOUNT_FUNDS_UPDATE", `Admin updating trading account funds for user ${userId}`, {
+      userId,
+      updates,
+      reason
+    })
+
+    // Validate inputs
+    if (updates.balance !== undefined && (!Number.isFinite(updates.balance) || updates.balance < 0)) {
+      throw new Error("Balance must be a non-negative number")
+    }
+    if (updates.availableMargin !== undefined && (!Number.isFinite(updates.availableMargin) || updates.availableMargin < 0)) {
+      throw new Error("Available margin must be a non-negative number")
+    }
+    if (updates.usedMargin !== undefined && (!Number.isFinite(updates.usedMargin) || updates.usedMargin < 0)) {
+      throw new Error("Used margin must be a non-negative number")
+    }
+
+    // Get user's trading account
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { tradingAccount: true }
+    })
+
+    if (!user) {
+      throw new Error("User not found")
+    }
+
+    if (!user.tradingAccount) {
+      throw new Error("User does not have a trading account")
+    }
+
+    const oldBalance = Number(user.tradingAccount.balance)
+    const oldAvailableMargin = Number(user.tradingAccount.availableMargin)
+    const oldUsedMargin = Number(user.tradingAccount.usedMargin)
+
+    // Calculate deltas for transaction record
+    const balanceDelta = updates.balance !== undefined ? updates.balance - oldBalance : 0
+    const availableMarginDelta = updates.availableMargin !== undefined ? updates.availableMargin - oldAvailableMargin : 0
+    const usedMarginDelta = updates.usedMargin !== undefined ? updates.usedMargin - oldUsedMargin : 0
+
+    // Update trading account and create transaction record
+    const result = await prisma.$transaction(async (tx) => {
+      // Update trading account
+      const updatedAccount = await tx.tradingAccount.update({
+        where: { id: user.tradingAccount!.id },
+        data: {
+          ...(updates.balance !== undefined && { balance: updates.balance }),
+          ...(updates.availableMargin !== undefined && { availableMargin: updates.availableMargin }),
+          ...(updates.usedMargin !== undefined && { usedMargin: updates.usedMargin })
+        }
+      })
+
+      // Create transaction record for balance changes
+      if (balanceDelta !== 0) {
+        await tx.transaction.create({
+          data: {
+            tradingAccountId: user.tradingAccount.id,
+            type: balanceDelta > 0 ? 'CREDIT' : 'DEBIT',
+            amount: Math.abs(balanceDelta),
+            description: reason || `Admin manual fund adjustment: Balance ${balanceDelta > 0 ? 'increased' : 'decreased'} by ₹${Math.abs(balanceDelta).toLocaleString()}`
+          }
+        })
+      }
+
+      // Create transaction record for margin changes
+      if (availableMarginDelta !== 0 || usedMarginDelta !== 0) {
+        const marginDescription = `Admin manual margin adjustment: ` +
+          (availableMarginDelta !== 0 ? `Available ${availableMarginDelta > 0 ? '+' : ''}₹${availableMarginDelta.toLocaleString()}` : '') +
+          (usedMarginDelta !== 0 ? ` Used ${usedMarginDelta > 0 ? '+' : ''}₹${usedMarginDelta.toLocaleString()}` : '')
+        
+        await tx.transaction.create({
+          data: {
+            tradingAccountId: user.tradingAccount.id,
+            type: (availableMarginDelta - usedMarginDelta) > 0 ? 'CREDIT' : 'DEBIT',
+            amount: Math.abs(availableMarginDelta - usedMarginDelta) || Math.abs(availableMarginDelta) || Math.abs(usedMarginDelta),
+            description: reason || marginDescription
+          }
+        })
+      }
+
+      return updatedAccount
+    })
+
+    console.log("✅ [ADMIN-USER-SERVICE] Trading account funds updated successfully:", {
+      oldBalance,
+      newBalance: updates.balance ?? oldBalance,
+      oldAvailableMargin,
+      newAvailableMargin: updates.availableMargin ?? oldAvailableMargin,
+      oldUsedMargin,
+      newUsedMargin: updates.usedMargin ?? oldUsedMargin
+    })
+
+    return result
   }
 
   /**

@@ -495,6 +495,20 @@ export class OrderExecutionService {
         await this.orderRepo.update(orderId, { positionId: position.id }, tx)
         await this.orderRepo.markExecuted(orderId, input.quantity, executionPrice, tx)
 
+        // Also link related transactions to position for easier querying
+        // This creates bidirectional links: Transaction → Order → Position AND Transaction → Position
+        try {
+          await this.transactionRepo.updateMany(
+            { orderId },
+            { positionId: position.id },
+            tx
+          )
+          console.log("✅ [ORDER-EXECUTION-SERVICE] Linked transactions to position:", position.id)
+        } catch (linkError) {
+          console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to link transactions to position:", linkError)
+          // Non-critical - transactions can still be found via orderId
+        }
+
         await this.logger.logPosition("POSITION_UPDATED", `Position updated for ${input.symbol}`, {
           positionId: position.id,
           quantity: position.quantity,

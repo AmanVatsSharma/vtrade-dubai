@@ -99,6 +99,98 @@ export async function GET(req: Request) {
   }
 }
 
+export async function POST(req: Request) {
+  console.log("🌐 [API-ADMIN-USERS] POST request received")
+  
+  try {
+    const session = await auth()
+    const role = (session?.user as any)?.role
+    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
+      console.error("❌ [API-ADMIN-USERS] Unauthorized role attempting POST:", role)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const body = await req.json()
+    console.log("📝 [API-ADMIN-USERS] Create user request:", { 
+      name: body.name, 
+      email: body.email,
+      phone: body.phone ? "***" : undefined,
+      hasInitialBalance: !!body.initialBalance
+    })
+
+    const { name, email, phone, password, initialBalance } = body
+
+    // Validate required fields
+    if (!name || !email || !phone || !password) {
+      return NextResponse.json(
+        { error: "Missing required fields: name, email, phone, and password are required" },
+        { status: 400 }
+      )
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Invalid email format" },
+        { status: 400 }
+      )
+    }
+
+    // Validate phone format (basic check)
+    if (phone.length < 10) {
+      return NextResponse.json(
+        { error: "Invalid phone number" },
+        { status: 400 }
+      )
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters long" },
+        { status: 400 }
+      )
+    }
+
+    const logger = createTradingLogger({
+      clientId: 'ADMIN',
+      userId: session.user.id
+    })
+
+    const adminService = createAdminUserService(logger)
+    const result = await adminService.createUser({
+      name,
+      email,
+      phone,
+      password,
+      initialBalance: initialBalance ? parseFloat(initialBalance) : undefined
+    })
+
+    console.log("✅ [API-ADMIN-USERS] User created successfully:", result.clientId)
+
+    return NextResponse.json({ 
+      success: true, 
+      user: {
+        id: result.id,
+        name: result.name,
+        email: result.email,
+        phone: result.phone,
+        clientId: result.clientId,
+        password: result.password, // Return password for display
+        initialBalance: result.tradingAccount.balance
+      }
+    }, { status: 201 })
+
+  } catch (error: any) {
+    console.error("❌ [API-ADMIN-USERS] POST error:", error)
+    return NextResponse.json(
+      { error: error.message || "Failed to create user" },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PATCH(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] PATCH request received")
   

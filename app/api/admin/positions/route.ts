@@ -103,7 +103,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json()
-    const { positionId, updates, action } = body as {
+    const { positionId, updates, action, options } = body as {
       positionId: string
       updates?: {
         quantity?: number
@@ -115,13 +115,24 @@ export async function PATCH(req: Request) {
         dayPnL?: number
       }
       action?: 'close'
+      options?: {
+        cascadeToOrders?: boolean
+        cascadeToTransactions?: boolean
+        manageFunds?: boolean
+        valueDelta?: number
+      }
     }
 
     if (!positionId) {
       return NextResponse.json({ error: 'positionId is required' }, { status: 400 })
     }
 
-    const existing = await prisma.position.findUnique({ where: { id: positionId } })
+    const existing = await prisma.position.findUnique({ 
+      where: { id: positionId },
+      include: {
+        tradingAccount: true
+      }
+    })
     if (!existing) return NextResponse.json({ error: 'Position not found' }, { status: 404 })
 
     const data: any = {}
@@ -179,8 +190,129 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
     }
 
-    const updated = await prisma.position.update({ where: { id: positionId }, data })
-    return NextResponse.json({ success: true, position: updated }, { status: 200 })
+    // Handle cascading updates and fund management in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update position
+      const updatedPosition = await tx.position.update({ 
+        where: { id: positionId }, 
+        data 
+      })
+
+      // Cascade to orders if requested
+      if (options?.cascadeToOrders && updates) {
+        const orderUpdates: any = {}
+        if (updates.symbol !== undefined) orderUpdates.symbol = updates.symbol
+        if (updates.quantity !== undefined) orderUpdates.quantity = updates.quantity
+        if (updates.averagePrice !== undefined) orderUpdates.averagePrice = updates.averagePrice
+
+        if (Object.keys(orderUpdates).length > 0) {
+          await tx.order.updateMany({
+            where: { positionId },
+            data: orderUpdates
+          })
+          console.log("✅ [API-ADMIN-POSITIONS] Cascaded updates to related orders")
+        }
+      }
+
+      // Cascade to transactions if requested
+      if (options?.cascadeToTransactions && updates) {
+        // Update transaction amounts if quantity or averagePrice changed
+        if (updates.quantity !== undefined || updates.averagePrice !== undefined) {
+          const newValue = (updates.quantity ?? updatedPosition.quantity) * (updates.averagePrice ?? updatedPosition.averagePrice)
+          const oldValue = existing.quantity * existing.averagePrice
+          const amountDelta = newValue - oldValue
+
+          if (amountDelta !== 0) {
+            // Find related transactions:
+            // 1. Transactions directly linked to position (positionId)
+            // 2. Transactions linked via orders that belong to this position (order.positionId = positionId)
+            const relatedOrderIds = await tx.order.findMany({
+              where: { positionId },
+              select: { id: true }
+            }).then(orders => orders.map(o => o.id))
+
+            // Get all related transactions
+            const relatedTransactions = await tx.transaction.findMany({
+              where: {
+                OR: [
+                  { positionId }, // Directly linked to position
+                  ...(relatedOrderIds.length > 0 ? [{ orderId: { in: relatedOrderIds } }] : []) // Linked via orders
+                ]
+              }
+            })
+
+            console.log(`📊 [API-ADMIN-POSITIONS] Found ${relatedTransactions.length} related transactions (${relatedTransactions.filter(t => t.positionId).length} direct, ${relatedTransactions.filter(t => t.orderId && relatedOrderIds.includes(t.orderId!)).length} via orders)`)
+
+            // Only update transactions that represent position value (not margin/charges)
+            // Margin and charge transactions should remain as historical records
+            // We'll update transactions that are directly linked to position or represent position value adjustments
+            for (const txn of relatedTransactions) {
+              // Skip margin/charge transactions (they have specific descriptions or are DEBITs for orders)
+              const isMarginOrCharge = txn.description?.toLowerCase().includes('margin') || 
+                                       txn.description?.toLowerCase().includes('charge') ||
+                                       (txn.type === 'DEBIT' && txn.orderId && !txn.positionId)
+              
+              if (!isMarginOrCharge && oldValue > 0) {
+                const currentAmount = Number(txn.amount)
+                const proportionalDelta = (currentAmount / oldValue) * amountDelta
+                const newAmount = Math.max(0, currentAmount + proportionalDelta) // Ensure non-negative
+
+                await tx.transaction.update({
+                  where: { id: txn.id },
+                  data: { amount: newAmount }
+                })
+              }
+            }
+            console.log("✅ [API-ADMIN-POSITIONS] Cascaded updates to related transactions")
+          }
+        }
+      }
+
+      // Manage funds if requested
+      if (options?.manageFunds && options.valueDelta !== undefined && options.valueDelta !== 0) {
+        const tradingAccount = await tx.tradingAccount.findUnique({
+          where: { id: existing.tradingAccountId }
+        })
+
+        if (!tradingAccount) {
+          throw new Error('Trading account not found')
+        }
+
+        // Check if we have sufficient funds for debit
+        if (options.valueDelta < 0) {
+          const newAvailable = Number(tradingAccount.availableMargin) + options.valueDelta
+          if (newAvailable < 0) {
+            throw new Error('Insufficient funds to adjust position value')
+          }
+        }
+
+        // Update trading account balance and available margin
+        await tx.tradingAccount.update({
+          where: { id: existing.tradingAccountId },
+          data: {
+            balance: { increment: options.valueDelta },
+            availableMargin: { increment: options.valueDelta }
+          }
+        })
+
+        // Create a transaction record for the fund adjustment
+        await tx.transaction.create({
+          data: {
+            tradingAccountId: existing.tradingAccountId,
+            positionId: positionId,
+            type: options.valueDelta > 0 ? 'CREDIT' : 'DEBIT',
+            amount: Math.abs(options.valueDelta),
+            description: `Position adjustment: ${existing.symbol} - ${options.valueDelta > 0 ? 'Credit' : 'Debit'} for value change`
+          }
+        })
+
+        console.log("✅ [API-ADMIN-POSITIONS] Adjusted funds:", options.valueDelta)
+      }
+
+      return updatedPosition
+    })
+
+    return NextResponse.json({ success: true, position: result }, { status: 200 })
   } catch (error: any) {
     console.error('❌ [API-ADMIN-POSITIONS] PATCH error', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
