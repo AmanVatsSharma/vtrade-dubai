@@ -63,20 +63,11 @@ export function SystemHealth() {
         const data = await response.json()
         setMetrics(data.metrics || [])
         setServices(data.services || [])
+        console.log(`✅ [SYSTEM-HEALTH] Loaded ${data.metrics?.length || 0} metrics and ${data.services?.length || 0} services`)
       } else {
-        // Mock data
-        setMetrics([
-          { name: 'CPU Usage', value: 45, max: 100, unit: '%', status: 'HEALTHY', trend: 'down' },
-          { name: 'Memory Usage', value: 68, max: 100, unit: '%', status: 'HEALTHY', trend: 'up' },
-          { name: 'Disk Usage', value: 52, max: 100, unit: '%', status: 'HEALTHY', trend: 'down' },
-          { name: 'Network I/O', value: 23, max: 100, unit: '%', status: 'HEALTHY', trend: 'up' },
-        ])
-        setServices([
-          { name: 'API Server', status: 'ONLINE', uptime: 99.9, lastCheck: new Date(), responseTime: 45 },
-          { name: 'Database', status: 'ONLINE', uptime: 99.8, lastCheck: new Date(), responseTime: 12 },
-          { name: 'WebSocket', status: 'ONLINE', uptime: 99.7, lastCheck: new Date(), responseTime: 8 },
-          { name: 'Cache', status: 'DEGRADED', uptime: 98.5, lastCheck: new Date(), responseTime: 5 },
-        ])
+        console.warn("⚠️ [SYSTEM-HEALTH] Failed to fetch health data")
+        setMetrics([])
+        setServices([])
       }
     } catch (error) {
       console.error("❌ [SYSTEM-HEALTH] Error fetching health data:", error)

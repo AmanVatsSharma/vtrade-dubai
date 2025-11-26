@@ -839,6 +839,361 @@ export class AdminUserService {
     console.log(`✅ [ADMIN-USER-SERVICE] ${type} verified successfully`)
     return user
   }
+
+  /**
+   * Get top traders by profit and win rate
+   */
+  async getTopTraders(limit: number = 10) {
+    console.log("🏆 [ADMIN-USER-SERVICE] Fetching top traders:", { limit })
+
+    // Get users with their trading accounts and positions
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        tradingAccount: {
+          isNot: null
+        }
+      },
+      include: {
+        tradingAccount: {
+          include: {
+            positions: {
+              where: {
+                quantity: { not: 0 }
+              }
+            },
+            orders: {
+              where: {
+                status: 'EXECUTED'
+              }
+            },
+            trades: {
+              where: {
+                type: 'CREDIT'
+              }
+            }
+          }
+        }
+      },
+      take: limit * 2 // Get more to calculate win rate
+    })
+
+    // Calculate metrics for each user
+    const traders = users
+      .map(user => {
+        if (!user.tradingAccount) return null
+
+        const positions = user.tradingAccount.positions || []
+        const orders = user.tradingAccount.orders || []
+        const trades = user.tradingAccount.trades || []
+
+        // Calculate total profit from positions (unrealized PnL)
+        const totalProfit = positions.reduce((sum, pos) => {
+          return sum + Number(pos.unrealizedPnL || 0)
+        }, 0)
+
+        // Calculate win rate from executed orders
+        const totalTrades = orders.length
+        const winningTrades = orders.filter(order => {
+          // Find corresponding position to check if profitable
+          const position = positions.find(p => p.symbol === order.symbol)
+          if (!position) return false
+          return Number(position.unrealizedPnL || 0) > 0
+        }).length
+
+        const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0
+
+        return {
+          id: user.id,
+          name: user.name || 'Unknown',
+          clientId: user.clientId || user.id.slice(0, 10),
+          profit: totalProfit,
+          trades: totalTrades,
+          winRate: Math.round(winRate)
+        }
+      })
+      .filter((t): t is NonNullable<typeof t> => t !== null && t.trades > 0) // Only traders with actual trades
+      .sort((a, b) => b.profit - a.profit) // Sort by profit descending
+      .slice(0, limit) // Take top N
+
+    console.log(`✅ [ADMIN-USER-SERVICE] Found ${traders.length} top traders`)
+    return traders
+  }
+
+  /**
+   * Get system alerts from risk alerts and system health
+   */
+  async getSystemAlerts(limit: number = 10) {
+    console.log("🚨 [ADMIN-USER-SERVICE] Fetching system alerts:", { limit })
+
+    const [riskAlerts, recentErrors] = await Promise.all([
+      // Get unresolved risk alerts
+      prisma.riskAlert.findMany({
+        where: {
+          resolved: false
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              clientId: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: limit
+      }),
+      // Get recent critical system errors from logs
+      prisma.tradingLog.findMany({
+        where: {
+          level: 'ERROR',
+          category: 'SYSTEM'
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: limit / 2
+      })
+    ])
+
+    // Format risk alerts
+    const alerts = [
+      ...riskAlerts.map(alert => ({
+        id: alert.id,
+        type: alert.severity === 'CRITICAL' ? 'error' : 'warning',
+        message: `${alert.type}: ${alert.message}`,
+        time: alert.createdAt,
+        user: alert.user?.name || alert.user?.clientId || 'Unknown'
+      })),
+      ...recentErrors.map(log => ({
+        id: log.id,
+        type: 'error',
+        message: log.message,
+        time: log.createdAt,
+        user: 'System'
+      }))
+    ]
+      .sort((a, b) => b.time.getTime() - a.time.getTime())
+      .slice(0, limit)
+      .map(alert => ({
+        ...alert,
+        time: this.getTimeAgo(alert.time)
+      }))
+
+    console.log(`✅ [ADMIN-USER-SERVICE] Found ${alerts.length} system alerts`)
+    return alerts
+  }
+
+  /**
+   * Get trading chart data (volume and price over time)
+   */
+  async getTradingChartData(days: number = 7) {
+    console.log("📈 [ADMIN-USER-SERVICE] Fetching trading chart data:", { days })
+
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+    startDate.setHours(0, 0, 0, 0)
+
+    // Get orders grouped by day
+    const orders = await prisma.order.findMany({
+      where: {
+        createdAt: {
+          gte: startDate
+        },
+        status: 'EXECUTED'
+      },
+      select: {
+        createdAt: true,
+        quantity: true,
+        averagePrice: true,
+        price: true
+      }
+    })
+
+    // Group by day and calculate metrics
+    const dailyData: { [key: string]: { volume: number; prices: number[] } } = {}
+
+    orders.forEach(order => {
+      const dateKey = order.createdAt.toISOString().split('T')[0]
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = { volume: 0, prices: [] }
+      }
+      dailyData[dateKey].volume += order.quantity
+      const price = Number(order.averagePrice || order.price || 0)
+      if (price > 0) {
+        dailyData[dateKey].prices.push(price)
+      }
+    })
+
+    // Convert to chart format
+    const chartData = Object.entries(dailyData)
+      .map(([date, data]) => {
+        const avgPrice = data.prices.length > 0
+          ? data.prices.reduce((sum, p) => sum + p, 0) / data.prices.length
+          : 0
+
+        return {
+          time: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          date: date,
+          price: Math.round(avgPrice),
+          volume: data.volume
+        }
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    // Fill in missing days with zero values
+    const filledData = []
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate)
+      date.setDate(date.getDate() + i)
+      const dateKey = date.toISOString().split('T')[0]
+      const existing = chartData.find(d => d.date === dateKey)
+      filledData.push(existing || {
+        time: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        date: dateKey,
+        price: 0,
+        volume: 0
+      })
+    }
+
+    console.log(`✅ [ADMIN-USER-SERVICE] Generated chart data for ${filledData.length} days`)
+    return filledData
+  }
+
+  /**
+   * Get user activity chart data (daily active and new users)
+   */
+  async getUserActivityChartData(days: number = 7) {
+    console.log("👥 [ADMIN-USER-SERVICE] Fetching user activity chart data:", { days })
+
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+    startDate.setHours(0, 0, 0, 0)
+
+    // Get all users created in the period
+    const allUsers = await prisma.user.findMany({
+      where: {
+        createdAt: {
+          gte: startDate
+        }
+      },
+      select: {
+        createdAt: true,
+        id: true
+      }
+    })
+
+    // Get active users (users who logged in or placed orders)
+    // Use a simpler approach: get users with orders or recent sessions
+    const [orders, sessions] = await Promise.all([
+      prisma.order.findMany({
+        where: {
+          createdAt: { gte: startDate }
+        },
+        select: {
+          tradingAccount: {
+            select: {
+              userId: true
+            }
+          },
+          createdAt: true
+        }
+      }),
+      prisma.sessionAuth.findMany({
+        where: {
+          lastActivity: { gte: startDate }
+        },
+        select: {
+          userId: true,
+          lastActivity: true
+        }
+      })
+    ])
+
+    // Group by user and date to get unique user-date combinations
+    const userDateMap = new Map<string, Date>()
+    
+    orders.forEach(o => {
+      const userId = o.tradingAccount.userId
+      const dateKey = o.createdAt.toISOString().split('T')[0]
+      const key = `${userId}-${dateKey}`
+      if (!userDateMap.has(key) || userDateMap.get(key)! < o.createdAt) {
+        userDateMap.set(key, o.createdAt)
+      }
+    })
+
+    sessions.forEach(s => {
+      const dateKey = s.lastActivity.toISOString().split('T')[0]
+      const key = `${s.userId}-${dateKey}`
+      if (!userDateMap.has(key) || userDateMap.get(key)! < s.lastActivity) {
+        userDateMap.set(key, s.lastActivity)
+      }
+    })
+
+    // Convert to array format
+    const activeUserIds = Array.from(userDateMap.entries()).map(([key, date]) => {
+      const [userId] = key.split('-')
+      return { userId, date }
+    })
+
+    // Group by day
+    const dailyData: { [key: string]: { active: Set<string>; new: Set<string> } } = {}
+
+    // Process new users
+    allUsers.forEach(user => {
+      const dateKey = user.createdAt.toISOString().split('T')[0]
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = { active: new Set(), new: new Set() }
+      }
+      dailyData[dateKey].new.add(user.id)
+    })
+
+    // Process active users
+    activeUserIds.forEach(item => {
+      const dateKey = item.date.toISOString().split('T')[0]
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = { active: new Set(), new: new Set() }
+      }
+      dailyData[dateKey].active.add(item.userId)
+    })
+
+    // Convert to chart format
+    const chartData = []
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate)
+      date.setDate(date.getDate() + i)
+      const dateKey = date.toISOString().split('T')[0]
+      const data = dailyData[dateKey] || { active: new Set(), new: new Set() }
+
+      chartData.push({
+        day: dayNames[date.getDay()],
+        date: dateKey,
+        active: data.active.size,
+        new: data.new.size
+      })
+    }
+
+    console.log(`✅ [ADMIN-USER-SERVICE] Generated activity data for ${chartData.length} days`)
+    return chartData
+  }
+
+  /**
+   * Helper to format time ago
+   */
+  private getTimeAgo(date: Date): string {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
+    if (seconds < 60) return `${seconds} sec ago`
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+    const days = Math.floor(hours / 24)
+    return `${days} day${days > 1 ? 's' : ''} ago`
+  }
 }
 
 /**

@@ -2,31 +2,98 @@
 
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { TrendingUp } from "lucide-react"
+import { TrendingUp, RefreshCw } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 
-// Mock data for the trading chart
-const chartData = [
-  { time: "00:00", price: 45230, volume: 1200 },
-  { time: "04:00", price: 46150, volume: 1450 },
-  { time: "08:00", price: 44890, volume: 1680 },
-  { time: "12:00", price: 47320, volume: 2100 },
-  { time: "16:00", price: 48750, volume: 1890 },
-  { time: "20:00", price: 49200, volume: 1560 },
-  { time: "24:00", price: 50100, volume: 1340 },
+interface ChartDataPoint {
+  time: string
+  date: string
+  price: number
+  volume: number
+}
+
+// Mock data as fallback
+const mockChartData: ChartDataPoint[] = [
+  { time: "Jan 1", date: "2025-01-01", price: 45230, volume: 1200 },
+  { time: "Jan 2", date: "2025-01-02", price: 46150, volume: 1450 },
+  { time: "Jan 3", date: "2025-01-03", price: 44890, volume: 1680 },
+  { time: "Jan 4", date: "2025-01-04", price: 47320, volume: 2100 },
+  { time: "Jan 5", date: "2025-01-05", price: 48750, volume: 1890 },
+  { time: "Jan 6", date: "2025-01-06", price: 49200, volume: 1560 },
+  { time: "Jan 7", date: "2025-01-07", price: 50100, volume: 1340 },
 ]
 
 export function TradingChart() {
-  const maxPrice = Math.max(...chartData.map((d) => d.price))
-  const minPrice = Math.min(...chartData.map((d) => d.price))
-  const priceRange = maxPrice - minPrice
+  const [chartData, setChartData] = useState<ChartDataPoint[]>(mockChartData)
+  const [loading, setLoading] = useState(true)
+  const [isUsingMockData, setIsUsingMockData] = useState(true)
+
+  const fetchChartData = async () => {
+    console.log("📈 [TRADING-CHART] Fetching real chart data...")
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/admin/charts/trading?days=7').catch(e => {
+        console.error("❌ [TRADING-CHART] API failed:", e)
+        return null
+      })
+
+      if (response && response.ok) {
+        const data = await response.json()
+        console.log("✅ [TRADING-CHART] Chart data received:", data)
+
+        if (data.success && data.chartData && data.chartData.length > 0) {
+          setChartData(data.chartData)
+          setIsUsingMockData(false)
+          console.log("✅ [TRADING-CHART] Real chart data loaded!")
+        } else {
+          setIsUsingMockData(true)
+        }
+      } else {
+        setIsUsingMockData(true)
+      }
+    } catch (error) {
+      console.error("❌ [TRADING-CHART] Error fetching data:", error)
+      setIsUsingMockData(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchChartData()
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(fetchChartData, 300000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const maxPrice = Math.max(...chartData.map((d) => d.price), 1)
+  const minPrice = Math.min(...chartData.map((d) => d.price), 0)
+  const priceRange = maxPrice - minPrice || 1
+
+  const currentPrice = chartData[chartData.length - 1]?.price || 0
+  const previousPrice = chartData[chartData.length - 2]?.price || currentPrice
+  const priceChange = currentPrice - previousPrice
+  const priceChangePercent = previousPrice > 0 ? ((priceChange / previousPrice) * 100) : 0
+  const totalVolume = chartData.reduce((sum, d) => sum + d.volume, 0)
 
   return (
     <Card className="bg-card border-border shadow-sm neon-border">
-      <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+      <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 flex flex-row items-center justify-between">
         <CardTitle className="text-base sm:text-lg font-bold text-primary flex items-center">
           <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
           <span className="truncate">Trading Volume & Price</span>
         </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchChartData}
+          disabled={loading}
+          className="h-8 w-8 p-0"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
       </CardHeader>
       <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
         <div className="h-48 sm:h-56 md:h-64 relative overflow-x-auto">
@@ -101,29 +168,34 @@ export function TradingChart() {
 
           {/* Y-axis labels */}
           <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-muted-foreground">
-            <span>${maxPrice.toLocaleString()}</span>
-            <span>${((maxPrice + minPrice) / 2).toLocaleString()}</span>
-            <span>${minPrice.toLocaleString()}</span>
+            <span>₹{maxPrice.toLocaleString()}</span>
+            <span>₹{Math.round((maxPrice + minPrice) / 2).toLocaleString()}</span>
+            <span>₹{minPrice.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Chart Stats */}
         <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">Current Price</p>
+            <p className="text-xs text-muted-foreground">Avg Price</p>
             <p className="text-lg font-bold text-green-400">
-              ${chartData[chartData.length - 1].price.toLocaleString()}
+              ₹{currentPrice.toLocaleString()}
             </p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">24h Change</p>
-            <p className="text-lg font-bold text-green-400">+8.7%</p>
+            <p className="text-xs text-muted-foreground">Change</p>
+            <p className={`text-lg font-bold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {priceChange >= 0 ? '+' : ''}{priceChangePercent.toFixed(1)}%
+            </p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">Volume</p>
-            <p className="text-lg font-bold text-foreground">{chartData[chartData.length - 1].volume}</p>
+            <p className="text-xs text-muted-foreground">Total Volume</p>
+            <p className="text-lg font-bold text-foreground">{totalVolume.toLocaleString()}</p>
           </div>
         </div>
+        {isUsingMockData && (
+          <p className="text-xs text-yellow-400 text-center mt-2">⚠️ Using sample data</p>
+        )}
       </CardContent>
     </Card>
   )

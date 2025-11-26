@@ -2,28 +2,90 @@
 
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users } from "lucide-react"
+import { Users, RefreshCw } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 
-const activityData = [
-  { day: "Mon", active: 850, new: 45 },
-  { day: "Tue", active: 920, new: 52 },
-  { day: "Wed", active: 780, new: 38 },
-  { day: "Thu", active: 1100, new: 67 },
-  { day: "Fri", active: 1250, new: 78 },
-  { day: "Sat", active: 980, new: 41 },
-  { day: "Sun", active: 720, new: 29 },
+interface ActivityDataPoint {
+  day: string
+  date: string
+  active: number
+  new: number
+}
+
+// Mock data as fallback
+const mockActivityData: ActivityDataPoint[] = [
+  { day: "Mon", date: "2025-01-20", active: 850, new: 45 },
+  { day: "Tue", date: "2025-01-21", active: 920, new: 52 },
+  { day: "Wed", date: "2025-01-22", active: 780, new: 38 },
+  { day: "Thu", date: "2025-01-23", active: 1100, new: 67 },
+  { day: "Fri", date: "2025-01-24", active: 1250, new: 78 },
+  { day: "Sat", date: "2025-01-25", active: 980, new: 41 },
+  { day: "Sun", date: "2025-01-26", active: 720, new: 29 },
 ]
 
 export function UserActivityChart() {
-  const maxActive = Math.max(...activityData.map((d) => d.active))
+  const [activityData, setActivityData] = useState<ActivityDataPoint[]>(mockActivityData)
+  const [loading, setLoading] = useState(true)
+  const [isUsingMockData, setIsUsingMockData] = useState(true)
+
+  const fetchActivityData = async () => {
+    console.log("👥 [USER-ACTIVITY-CHART] Fetching real activity data...")
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/admin/charts/activity?days=7').catch(e => {
+        console.error("❌ [USER-ACTIVITY-CHART] API failed:", e)
+        return null
+      })
+
+      if (response && response.ok) {
+        const data = await response.json()
+        console.log("✅ [USER-ACTIVITY-CHART] Activity data received:", data)
+
+        if (data.success && data.chartData && data.chartData.length > 0) {
+          setActivityData(data.chartData)
+          setIsUsingMockData(false)
+          console.log("✅ [USER-ACTIVITY-CHART] Real activity data loaded!")
+        } else {
+          setIsUsingMockData(true)
+        }
+      } else {
+        setIsUsingMockData(true)
+      }
+    } catch (error) {
+      console.error("❌ [USER-ACTIVITY-CHART] Error fetching data:", error)
+      setIsUsingMockData(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchActivityData()
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(fetchActivityData, 300000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const maxActive = Math.max(...activityData.map((d) => d.active), 1)
 
   return (
     <Card className="bg-card border-border shadow-sm neon-border">
-      <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+      <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 flex flex-row items-center justify-between">
         <CardTitle className="text-base sm:text-lg font-bold text-primary flex items-center">
           <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
           <span className="truncate">User Activity</span>
         </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchActivityData}
+          disabled={loading}
+          className="h-8 w-8 p-0"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
       </CardHeader>
       <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
         <div className="h-48 sm:h-56 md:h-64 flex items-end justify-between space-x-1 sm:space-x-2 overflow-x-auto">
@@ -77,6 +139,9 @@ export function UserActivityChart() {
             <span className="text-xs text-muted-foreground">New Users</span>
           </div>
         </div>
+        {isUsingMockData && (
+          <p className="text-xs text-yellow-400 text-center mt-2">⚠️ Using sample data</p>
+        )}
       </CardContent>
     </Card>
   )

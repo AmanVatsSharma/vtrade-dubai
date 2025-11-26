@@ -120,40 +120,19 @@ export function RiskManagement() {
       if (limitsResponse && limitsResponse.ok) {
         const limitsData = await limitsResponse.json()
         setLimits(limitsData.limits || [])
+        console.log(`✅ [RISK-MANAGEMENT] Loaded ${limitsData.limits?.length || 0} risk limits`)
       } else {
-        // Mock data
-        setLimits([
-          {
-            id: '1',
-            userId: 'user-123',
-            userName: 'Alex Chen',
-            maxDailyLoss: 50000,
-            maxPositionSize: 100000,
-            maxLeverage: 5,
-            maxDailyTrades: 50,
-            status: 'ACTIVE',
-            lastUpdated: new Date(),
-          },
-        ])
+        console.warn("⚠️ [RISK-MANAGEMENT] Failed to fetch risk limits")
+        setLimits([])
       }
 
       if (alertsResponse && alertsResponse.ok) {
         const alertsData = await alertsResponse.json()
         setAlerts(alertsData.alerts || [])
+        console.log(`✅ [RISK-MANAGEMENT] Loaded ${alertsData.alerts?.length || 0} risk alerts`)
       } else {
-        // Mock data
-        setAlerts([
-          {
-            id: '1',
-            userId: 'user-123',
-            userName: 'Alex Chen',
-            type: 'LIMIT_EXCEEDED',
-            severity: 'HIGH',
-            message: 'Daily loss limit exceeded',
-            timestamp: new Date(),
-            resolved: false,
-          },
-        ])
+        console.warn("⚠️ [RISK-MANAGEMENT] Failed to fetch risk alerts")
+        setAlerts([])
       }
 
       if (configsResponse && configsResponse.ok) {

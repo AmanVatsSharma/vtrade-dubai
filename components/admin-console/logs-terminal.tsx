@@ -24,94 +24,14 @@ import {
   XCircle,
 } from "lucide-react"
 
-const mockLogs = [
-  {
-    id: 1,
-    timestamp: "2024-03-15 14:30:25.123",
-    level: "INFO",
-    source: "AUTH_SERVICE",
-    userId: "USR_001234",
-    message: "User login successful",
-    details: { ip: "192.168.1.100", userAgent: "Mozilla/5.0..." },
-  },
-  {
-    id: 2,
-    timestamp: "2024-03-15 14:29:18.456",
-    level: "ERROR",
-    source: "PAYMENT_SERVICE",
-    userId: "USR_005678",
-    message: "Payment processing failed",
-    details: { amount: 5000, error: "Insufficient funds", transactionId: "TXN123456" },
-  },
-  {
-    id: 3,
-    timestamp: "2024-03-15 14:28:42.789",
-    level: "WARN",
-    source: "TRADE_ENGINE",
-    userId: "USR_009876",
-    message: "High frequency trading detected",
-    details: { trades: 50, timeWindow: "1min", symbol: "AAPL" },
-  },
-  {
-    id: 4,
-    timestamp: "2024-03-15 14:27:15.321",
-    level: "INFO",
-    source: "DATABASE",
-    userId: null,
-    message: "Database backup completed",
-    details: { size: "2.4GB", duration: "45s" },
-  },
-  {
-    id: 5,
-    timestamp: "2024-03-15 14:26:33.654",
-    level: "DEBUG",
-    source: "API_GATEWAY",
-    userId: "USR_004321",
-    message: "API rate limit warning",
-    details: { endpoint: "/api/trades", requests: 95, limit: 100 },
-  },
-]
-
-const mockDatabaseLogs = [
-  {
-    id: 1,
-    timestamp: "2024-03-15 14:30:25",
-    query: "SELECT * FROM users WHERE client_id = 'USR_001234'",
-    duration: "12ms",
-    status: "SUCCESS",
-    rows: 1,
-  },
-  {
-    id: 2,
-    timestamp: "2024-03-15 14:29:18",
-    query: "UPDATE accounts SET balance = balance + 5000 WHERE user_id = 'USR_005678'",
-    duration: "8ms",
-    status: "SUCCESS",
-    rows: 1,
-  },
-  {
-    id: 3,
-    timestamp: "2024-03-15 14:28:42",
-    query: "INSERT INTO trades (user_id, symbol, quantity, price) VALUES ('USR_009876', 'AAPL', 100, 150.25)",
-    duration: "15ms",
-    status: "SUCCESS",
-    rows: 1,
-  },
-  {
-    id: 4,
-    timestamp: "2024-03-15 14:27:15",
-    query: "SELECT COUNT(*) FROM active_sessions WHERE created_at > NOW() - INTERVAL 1 HOUR",
-    duration: "25ms",
-    status: "SUCCESS",
-    rows: 1,
-  },
-]
-
 export function LogsTerminal() {
+  const [logs, setLogs] = useState<any[]>([])
+  const [databaseLogs, setDatabaseLogs] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [clientIdSearch, setClientIdSearch] = useState("")
   const [logLevel, setLogLevel] = useState("all")
   const [isLiveMode, setIsLiveMode] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [terminalInput, setTerminalInput] = useState("")
   const [terminalHistory, setTerminalHistory] = useState<string[]>([])
   const [terminalOutput, setTerminalOutput] = useState<string[]>([
@@ -120,6 +40,50 @@ export function LogsTerminal() {
     "",
   ])
   const terminalRef = useRef<HTMLDivElement>(null)
+
+  const fetchLogs = async () => {
+    setLoading(true)
+    console.log("📋 [LOGS-TERMINAL] Fetching logs...")
+
+    try {
+      const params = new URLSearchParams()
+      if (logLevel !== 'all') params.set('level', logLevel)
+      params.set('limit', '100')
+
+      const response = await fetch(`/api/admin/logs?${params.toString()}`).catch(() => null)
+
+      if (response && response.ok) {
+        const data = await response.json()
+        const formattedLogs = (data.logs || []).map((log: any) => ({
+          id: log.id,
+          timestamp: new Date(log.createdAt).toLocaleString('en-IN', { hour12: false }),
+          level: log.level,
+          source: log.category,
+          userId: log.clientId || log.userId || null,
+          message: log.message,
+          details: log.details || log.metadata || {},
+        }))
+        setLogs(formattedLogs)
+        console.log(`✅ [LOGS-TERMINAL] Loaded ${formattedLogs.length} logs`)
+      } else {
+        console.warn("⚠️ [LOGS-TERMINAL] Failed to fetch logs")
+        setLogs([])
+      }
+    } catch (error) {
+      console.error("❌ [LOGS-TERMINAL] Error fetching logs:", error)
+      setLogs([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchLogs()
+    if (isLiveMode) {
+      const interval = setInterval(fetchLogs, 10000) // Refresh every 10 seconds in live mode
+      return () => clearInterval(interval)
+    }
+  }, [logLevel, isLiveMode])
 
   const getLogIcon = (level: string) => {
     switch (level) {
@@ -147,7 +111,7 @@ export function LogsTerminal() {
     return <Badge className={colors[level as keyof typeof colors] || colors.INFO}>{level}</Badge>
   }
 
-  const filteredLogs = mockLogs.filter((log) => {
+  const filteredLogs = logs.filter((log) => {
     const matchesSearch =
       log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.source.toLowerCase().includes(searchTerm.toLowerCase())
@@ -443,27 +407,35 @@ export function LogsTerminal() {
               </CardHeader>
               <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                 <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-xs sm:text-sm">
-                  {mockDatabaseLogs.map((log, index) => (
-                    <motion.div
-                      key={log.id}
-                      className="p-3 bg-muted/30 rounded-lg border border-border/50"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">{log.timestamp}</span>
-                        <div className="flex items-center space-x-2">
-                          {getLogBadge(log.status)}
-                          <span className="text-xs text-muted-foreground">{log.duration}</span>
-                          <span className="text-xs text-muted-foreground">{log.rows} rows</span>
+                  {databaseLogs.length === 0 ? (
+                    <div className="p-6 text-center text-muted-foreground">
+                      <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Database query logging is not available</p>
+                      <p className="text-xs mt-1">Query logs are not currently being captured</p>
+                    </div>
+                  ) : (
+                    databaseLogs.map((log, index) => (
+                      <motion.div
+                        key={log.id}
+                        className="p-3 bg-muted/30 rounded-lg border border-border/50"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-muted-foreground">{log.timestamp}</span>
+                          <div className="flex items-center space-x-2">
+                            {getLogBadge(log.status)}
+                            <span className="text-xs text-muted-foreground">{log.duration}</span>
+                            <span className="text-xs text-muted-foreground">{log.rows} rows</span>
+                          </div>
                         </div>
-                      </div>
-                      <code className="text-primary text-xs bg-primary/10 p-2 rounded block overflow-x-auto">
-                        {log.query}
-                      </code>
-                    </motion.div>
-                  ))}
+                        <code className="text-primary text-xs bg-primary/10 p-2 rounded block overflow-x-auto">
+                          {log.query}
+                        </code>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

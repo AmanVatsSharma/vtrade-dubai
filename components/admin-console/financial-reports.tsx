@@ -64,30 +64,10 @@ export function FinancialReports() {
       if (response && response.ok) {
         const data = await response.json()
         setReports(data.reports || [])
+        console.log(`✅ [FINANCIAL-REPORTS] Loaded ${data.reports?.length || 0} reports`)
       } else {
-        // Mock data
-        setReports([
-          {
-            id: '1',
-            period: 'January 2025',
-            revenue: 2450000,
-            expenses: 1200000,
-            profit: 1250000,
-            commission: 245000,
-            trades: 12543,
-            users: 3421,
-          },
-          {
-            id: '2',
-            period: 'December 2024',
-            revenue: 2200000,
-            expenses: 1150000,
-            profit: 1050000,
-            commission: 220000,
-            trades: 11234,
-            users: 3289,
-          },
-        ])
+        console.warn("⚠️ [FINANCIAL-REPORTS] Failed to fetch financial reports")
+        setReports([])
       }
     } catch (error) {
       console.error("❌ [FINANCIAL-REPORTS] Error fetching reports:", error)

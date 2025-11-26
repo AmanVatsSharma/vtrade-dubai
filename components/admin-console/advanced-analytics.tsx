@@ -114,44 +114,36 @@ export function AdvancedAnalytics() {
 
       if (response && response.ok) {
         const data = await response.json()
-        setMetrics(data)
+        setMetrics({
+          totalRevenue: data.totalRevenue || 0,
+          totalTrades: data.totalTrades || 0,
+          activeUsers: data.activeUsers || 0,
+          avgOrderValue: data.avgOrderValue || 0,
+          conversionRate: data.conversionRate || 0,
+          churnRate: data.churnRate || 0,
+          userGrowth: data.userGrowth || 0,
+          revenueGrowth: data.revenueGrowth || 0,
+          topPerformingUsers: data.topPerformingUsers || [],
+          revenueByPeriod: data.revenueByPeriod || [],
+          userActivity: data.userActivity || [],
+          tradingVolume: data.tradingVolume || [],
+        })
         console.log("✅ [ADVANCED-ANALYTICS] Analytics data loaded")
       } else {
-        // Use mock data for demonstration
+        console.warn("⚠️ [ADVANCED-ANALYTICS] Failed to fetch analytics data")
         setMetrics({
-          totalRevenue: 2450000,
-          totalTrades: 12543,
-          activeUsers: 3421,
-          avgOrderValue: 195.5,
-          conversionRate: 12.5,
-          churnRate: 2.3,
-          userGrowth: 15.2,
-          revenueGrowth: 23.8,
-          topPerformingUsers: [
-            { id: "1", name: "Alex Chen", clientId: "USR_001234", profit: 45230, trades: 156 },
-            { id: "2", name: "Sarah Johnson", clientId: "USR_005678", profit: 38940, trades: 142 },
-            { id: "3", name: "Mike Wilson", clientId: "USR_009012", profit: 32150, trades: 128 },
-          ],
-          revenueByPeriod: [
-            { period: "Mon", value: 45000 },
-            { period: "Tue", value: 52000 },
-            { period: "Wed", value: 48000 },
-            { period: "Thu", value: 61000 },
-            { period: "Fri", value: 55000 },
-            { period: "Sat", value: 42000 },
-            { period: "Sun", value: 38000 },
-          ],
-          userActivity: [
-            { hour: "00:00", active: 120 },
-            { hour: "06:00", active: 450 },
-            { hour: "12:00", active: 1200 },
-            { hour: "18:00", active: 980 },
-          ],
-          tradingVolume: [
-            { symbol: "RELIANCE", volume: 1250000 },
-            { symbol: "TCS", volume: 980000 },
-            { symbol: "INFY", volume: 750000 },
-          ],
+          totalRevenue: 0,
+          totalTrades: 0,
+          activeUsers: 0,
+          avgOrderValue: 0,
+          conversionRate: 0,
+          churnRate: 0,
+          userGrowth: 0,
+          revenueGrowth: 0,
+          topPerformingUsers: [],
+          revenueByPeriod: [],
+          userActivity: [],
+          tradingVolume: [],
         })
       }
     } catch (error) {

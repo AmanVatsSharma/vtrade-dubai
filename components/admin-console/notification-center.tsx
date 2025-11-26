@@ -47,6 +47,7 @@ export function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [session, setSession] = useState<any>(null)
   const [newNotification, setNewNotification] = useState({
     title: '',
     message: '',
@@ -60,35 +61,32 @@ export function NotificationCenter() {
     console.log("🔔 [NOTIFICATION-CENTER] Fetching notifications...")
 
     try {
+      // Get session info for read status
+      const sessionResponse = await fetch('/api/admin/me').catch(() => null)
+      const sessionData = sessionResponse && sessionResponse.ok ? await sessionResponse.json() : null
+      if (sessionData) setSession(sessionData)
+
       const response = await fetch('/api/admin/notifications').catch(() => null)
 
       if (response && response.ok) {
         const data = await response.json()
-        setNotifications(data.notifications || [])
+        const userId = sessionData?.id || sessionData?.user?.id || ''
+        const formattedNotifications = (data.notifications || []).map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type,
+          priority: n.priority,
+          target: n.target,
+          createdAt: new Date(n.createdAt),
+          expiresAt: n.expiresAt ? new Date(n.expiresAt) : undefined,
+          read: n.read || false, // API already includes read status
+        }))
+        setNotifications(formattedNotifications)
+        console.log(`✅ [NOTIFICATION-CENTER] Loaded ${formattedNotifications.length} notifications`)
       } else {
-        // Mock data
-        setNotifications([
-          {
-            id: '1',
-            title: 'System Maintenance Scheduled',
-            message: 'Scheduled maintenance on January 30, 2025 from 2:00 AM to 4:00 AM IST',
-            type: 'WARNING',
-            priority: 'HIGH',
-            target: 'ALL',
-            createdAt: new Date(),
-            read: false,
-          },
-          {
-            id: '2',
-            title: 'New Feature Released',
-            message: 'Advanced analytics dashboard is now available',
-            type: 'INFO',
-            priority: 'MEDIUM',
-            target: 'ADMINS',
-            createdAt: new Date(Date.now() - 3600000),
-            read: true,
-          },
-        ])
+        console.warn("⚠️ [NOTIFICATION-CENTER] Failed to fetch notifications")
+        setNotifications([])
       }
     } catch (error) {
       console.error("❌ [NOTIFICATION-CENTER] Error fetching notifications:", error)

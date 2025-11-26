@@ -73,19 +73,11 @@ const mockRecentActivity = [
   },
 ]
 
-const alerts = [
-  { id: 1, type: "warning", message: "High server load detected", time: "5 min ago" },
-  { id: 2, type: "info", message: "Daily backup completed", time: "1 hour ago" },
-]
-
-const topTraders = [
-  { id: 1, name: "Alex Chen", clientId: "USR_001234", profit: "$45,230", trades: 156, winRate: "78%" },
-  { id: 2, name: "Sarah Johnson", clientId: "USR_005678", profit: "$38,940", trades: 142, winRate: "72%" },
-]
-
 export function Dashboard() {
   const [stats, setStats] = useState(mockStats)
   const [recentActivity, setRecentActivity] = useState(mockRecentActivity)
+  const [alerts, setAlerts] = useState<Array<{ id: string; type: string; message: string; time: string }>>([])
+  const [topTraders, setTopTraders] = useState<Array<{ id: string; name: string; clientId: string; profit: number; trades: number; winRate: number }>>([])
   const [isUsingMockData, setIsUsingMockData] = useState(true)
   const [loading, setLoading] = useState(true)
 
@@ -94,14 +86,22 @@ export function Dashboard() {
     setLoading(true)
 
     try {
-      // Fetch stats and activity in parallel
-      const [statsResponse, activityResponse] = await Promise.all([
+      // Fetch stats, activity, alerts, and top traders in parallel
+      const [statsResponse, activityResponse, alertsResponse, tradersResponse] = await Promise.all([
         fetch('/api/admin/stats').catch(e => {
           console.error("❌ [ADMIN-DASHBOARD] Stats API failed:", e)
           return null
         }),
         fetch('/api/admin/activity?limit=20').catch(e => {
           console.error("❌ [ADMIN-DASHBOARD] Activity API failed:", e)
+          return null
+        }),
+        fetch('/api/admin/alerts?limit=10').catch(e => {
+          console.error("❌ [ADMIN-DASHBOARD] Alerts API failed:", e)
+          return null
+        }),
+        fetch('/api/admin/top-traders?limit=5').catch(e => {
+          console.error("❌ [ADMIN-DASHBOARD] Top traders API failed:", e)
           return null
         })
       ])
@@ -177,6 +177,30 @@ export function Dashboard() {
           setRecentActivity(realActivity)
           hasRealData = true
           console.log("✅ [ADMIN-DASHBOARD] Real activity loaded!")
+        }
+      }
+
+      // Process alerts
+      if (alertsResponse && alertsResponse.ok) {
+        const data = await alertsResponse.json()
+        console.log("✅ [ADMIN-DASHBOARD] Alerts received:", data)
+
+        if (data.success && data.alerts) {
+          setAlerts(data.alerts)
+          hasRealData = true
+          console.log("✅ [ADMIN-DASHBOARD] Real alerts loaded!")
+        }
+      }
+
+      // Process top traders
+      if (tradersResponse && tradersResponse.ok) {
+        const data = await tradersResponse.json()
+        console.log("✅ [ADMIN-DASHBOARD] Top traders received:", data)
+
+        if (data.success && data.traders) {
+          setTopTraders(data.traders)
+          hasRealData = true
+          console.log("✅ [ADMIN-DASHBOARD] Real top traders loaded!")
         }
       }
 
@@ -414,24 +438,28 @@ export function Dashboard() {
               </CardHeader>
               <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                 <div className="space-y-2 sm:space-y-3">
-                  {alerts.map((alert, index) => (
-                    <motion.div
-                      key={alert.id}
-                      className={`p-2 sm:p-3 rounded-lg border ${
-                        alert.type === "error"
-                          ? "bg-red-400/10 border-red-400/30"
-                          : alert.type === "warning"
-                            ? "bg-yellow-400/10 border-yellow-400/30"
-                            : "bg-blue-400/10 border-blue-400/30"
-                      }`}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                    >
-                      <p className="text-xs sm:text-sm font-medium text-foreground break-words">{alert.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
-                    </motion.div>
-                  ))}
+                  {alerts.length === 0 ? (
+                    <p className="text-center text-xs sm:text-sm text-muted-foreground py-4">No active alerts</p>
+                  ) : (
+                    alerts.map((alert, index) => (
+                      <motion.div
+                        key={alert.id}
+                        className={`p-2 sm:p-3 rounded-lg border ${
+                          alert.type === "error"
+                            ? "bg-red-400/10 border-red-400/30"
+                            : alert.type === "warning"
+                              ? "bg-yellow-400/10 border-yellow-400/30"
+                              : "bg-blue-400/10 border-blue-400/30"
+                        }`}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                      >
+                        <p className="text-xs sm:text-sm font-medium text-foreground break-words">{alert.message}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -449,24 +477,28 @@ export function Dashboard() {
               </CardHeader>
               <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                 <div className="space-y-2 sm:space-y-3">
-                  {topTraders.map((trader, index) => (
-                    <motion.div
-                      key={trader.id}
-                      className="flex items-center justify-between p-2 bg-muted/30 rounded-lg gap-2"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground text-xs sm:text-sm truncate">{trader.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{trader.clientId}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xs sm:text-sm font-bold text-green-400">{trader.profit}</p>
-                        <p className="text-xs text-muted-foreground whitespace-nowrap">{trader.winRate} win rate</p>
-                      </div>
-                    </motion.div>
-                  ))}
+                  {topTraders.length === 0 ? (
+                    <p className="text-center text-xs sm:text-sm text-muted-foreground py-4">No traders data available</p>
+                  ) : (
+                    topTraders.map((trader, index) => (
+                      <motion.div
+                        key={trader.id}
+                        className="flex items-center justify-between p-2 bg-muted/30 rounded-lg gap-2"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground text-xs sm:text-sm truncate">{trader.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{trader.clientId}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs sm:text-sm font-bold text-green-400">₹{trader.profit.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground whitespace-nowrap">{trader.trades} trades • {trader.winRate}% win</p>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

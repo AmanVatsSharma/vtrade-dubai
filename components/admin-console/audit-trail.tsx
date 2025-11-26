@@ -81,41 +81,16 @@ export function AuditTrail() {
 
       if (response && response.ok) {
         const data = await response.json()
-        setLogs(data.logs || [])
+        const formattedLogs = (data.logs || []).map((log: any) => ({
+          ...log,
+          timestamp: new Date(log.timestamp)
+        }))
+        setLogs(formattedLogs)
         setTotalPages(data.pages || 1)
-        console.log(`✅ [AUDIT-TRAIL] Loaded ${data.logs?.length || 0} logs`)
+        console.log(`✅ [AUDIT-TRAIL] Loaded ${formattedLogs.length} logs`)
       } else {
-        // Mock data for demonstration
-        setLogs([
-          {
-            id: '1',
-            timestamp: new Date(),
-            userId: 'user-123',
-            userName: 'Alex Chen',
-            action: 'USER_UPDATE',
-            resource: 'User',
-            resourceId: 'user-456',
-            details: 'Updated user profile',
-            ipAddress: '192.168.1.1',
-            userAgent: 'Mozilla/5.0...',
-            severity: 'MEDIUM',
-            status: 'SUCCESS'
-          },
-          {
-            id: '2',
-            timestamp: new Date(Date.now() - 3600000),
-            userId: 'admin-789',
-            userName: 'Admin User',
-            action: 'PASSWORD_RESET',
-            resource: 'User',
-            resourceId: 'user-456',
-            details: 'Password reset initiated',
-            ipAddress: '192.168.1.2',
-            userAgent: 'Mozilla/5.0...',
-            severity: 'HIGH',
-            status: 'SUCCESS'
-          },
-        ])
+        console.warn("⚠️ [AUDIT-TRAIL] Failed to fetch audit logs")
+        setLogs([])
         setTotalPages(1)
       }
     } catch (error) {
