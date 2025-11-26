@@ -259,6 +259,7 @@ export class ConsoleService {
           clientId: user.clientId || undefined,
           role: user.role,
           isActive: user.isActive,
+          requireOtpOnLogin: user.requireOtpOnLogin ?? true,
           createdAt: user.createdAt.toISOString(),
           kycStatus: user.kyc?.status || 'PENDING'
         },

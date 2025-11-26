@@ -176,6 +176,7 @@ model User {
   bio                String?
   role               Role                 @default(USER)
   isActive           Boolean              @default(true)
+  requireOtpOnLogin   Boolean              @default(true) @map("require_otp_on_login")
   kyc                KYC?
   tradingAccount     TradingAccount?
   accounts           Account[] // NextAuth relation

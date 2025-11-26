@@ -21,6 +21,7 @@ import {
   Building2,
   LogOut,
   TrendingUp,
+  Shield,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,7 @@ const menuItems = [
   { id: "deposits", label: "Deposits", icon: ArrowDownToLine, description: "Add funds" },
   { id: "withdrawals", label: "Withdrawals", icon: ArrowUpFromLine, description: "Withdraw funds" },
   { id: "banks", label: "Bank Accounts", icon: Building2, description: "Manage banks" },
+  { id: "security", label: "Security", icon: Shield, description: "Security settings" },
 ]
 
 interface SidebarMenuProps {

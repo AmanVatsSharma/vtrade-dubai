@@ -232,7 +232,37 @@ export const mobileLogin = async (values: z.infer<typeof mobileSignInSchema>, re
       }
     }
 
-    // Send OTP for login verification
+    // Check user's OTP preference before requiring OTP
+    const userRequiresOtp = existingUser.requireOtpOnLogin ?? true; // Default to true for security
+    
+    console.log(`[MOBILE-LOGIN] User OTP preference: ${userRequiresOtp} for user ${existingUser.id}`);
+    
+    if (!userRequiresOtp) {
+      // User has disabled OTP requirement - proceed directly to mPin verification
+      console.log('[MOBILE-LOGIN] OTP requirement disabled by user - skipping OTP step');
+      
+      const sessionToken = await MpinService.createSessionAuth(existingUser.id);
+      
+      // Log successful login (user authenticated, proceeding to mPin verification)
+      try {
+        await authLogger.logLogin(
+          'LOGIN_SUCCESS',
+          existingUser.id,
+          identifier,
+          extractClientInfo(req)
+        );
+      } catch (logError) {
+        console.error('Failed to log login success:', logError);
+      }
+      
+      return {
+        success: "Please enter your mPin to complete login.",
+        sessionToken,
+        requiresMpin: true
+      }
+    }
+
+    // User requires OTP - send OTP for login verification
     const otpResult = await OtpService.generateAndSendOtp(
       existingUser.id,
       existingUser.phone!,

@@ -78,6 +78,7 @@ export interface ConsoleData {
     clientId?: string
     role: string
     isActive: boolean
+    requireOtpOnLogin?: boolean
     createdAt: string
     kycStatus: string
   }

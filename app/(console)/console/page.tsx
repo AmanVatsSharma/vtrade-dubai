@@ -7,6 +7,7 @@ import { DepositsSection } from "@/components/console/sections/deposits-section"
 import { ProfileSection } from "@/components/console/sections/profile-section"
 import { StatementsSection } from "@/components/console/sections/statements-section"
 import { WithdrawalsSection } from "@/components/console/sections/withdrawals-section"
+import { SecuritySection } from "@/components/console/sections/security-section"
 import { ConsoleErrorBoundary } from "@/components/console/console-error-boundary"
 import { ConsoleLoadingState } from "@/components/console/console-loading-state"
 import { useState, Suspense } from "react"
@@ -34,6 +35,8 @@ export default function ConsolePage() {
         return <WithdrawalsSection />
       case "banks":
         return <BankAccountsSection />
+      case "security":
+        return <SecuritySection />
       default:
         return <AccountSection />
     }
