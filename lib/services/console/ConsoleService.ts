@@ -694,6 +694,14 @@ export class ConsoleService {
         console.log('✅ [CONSOLE-SERVICE] Deposit record created:', depositId)
       })
 
+      // Create notification for deposit request (non-blocking)
+      try {
+        const { NotificationService } = await import("@/lib/services/notifications/NotificationService")
+        await NotificationService.notifyDeposit(userId, 'PENDING', depositData.amount)
+      } catch (notifError) {
+        console.warn("⚠️ [CONSOLE-SERVICE] Failed to create deposit notification:", notifError)
+      }
+
       console.log('✅ [CONSOLE-SERVICE] Deposit request created successfully')
       return { success: true, message: 'Deposit request created successfully', depositId }
 
@@ -779,6 +787,14 @@ export class ConsoleService {
         withdrawalId = withdrawal.id
         console.log('✅ [CONSOLE-SERVICE] Withdrawal record created:', withdrawalId)
       })
+
+      // Create notification for withdrawal request (non-blocking)
+      try {
+        const { NotificationService } = await import("@/lib/services/notifications/NotificationService")
+        await NotificationService.notifyWithdrawal(userId, 'PENDING', withdrawalData.amount)
+      } catch (notifError) {
+        console.warn("⚠️ [CONSOLE-SERVICE] Failed to create withdrawal notification:", notifError)
+      }
 
       console.log('✅ [CONSOLE-SERVICE] Withdrawal request created successfully')
       return { success: true, message: 'Withdrawal request created successfully', withdrawalId }

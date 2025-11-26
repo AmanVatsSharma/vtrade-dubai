@@ -64,6 +64,14 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      // Create notification for KYC submission (non-blocking)
+      try {
+        const { NotificationService } = await import("@/lib/services/notifications/NotificationService")
+        await NotificationService.notifyKYC(session.user.id, 'SUBMITTED')
+      } catch (notifError) {
+        console.warn("⚠️ [API-KYC] Failed to create notification:", notifError)
+      }
+
       return NextResponse.json({
         success: 'KYC updated successfully. Your documents are being reviewed.',
         kyc: updatedKYC
@@ -79,6 +87,14 @@ export async function POST(request: NextRequest) {
           status: 'PENDING'
         }
       });
+
+      // Create notification for KYC submission (non-blocking)
+      try {
+        const { NotificationService } = await import("@/lib/services/notifications/NotificationService")
+        await NotificationService.notifyKYC(session.user.id, 'SUBMITTED')
+      } catch (notifError) {
+        console.warn("⚠️ [API-KYC] Failed to create notification:", notifError)
+      }
 
       return NextResponse.json({
         success: 'KYC submitted successfully. Your documents are being reviewed.',

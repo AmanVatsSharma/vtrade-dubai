@@ -25,6 +25,7 @@ import { RiskManagement } from "@/components/admin-console/risk-management"
 import { SystemHealth } from "@/components/admin-console/system-health"
 import { FinancialReports } from "@/components/admin-console/financial-reports"
 import { NotificationCenter } from "@/components/admin-console/notification-center"
+import { EnhancedNotificationCenter } from "@/components/admin-console/enhanced-notification-center"
 import { useRouter, useSearchParams } from "next/navigation"
 
 function AdminConsoleInner() {
@@ -80,7 +81,7 @@ function AdminConsoleInner() {
       case "financial-reports":
         return <FinancialReports />
       case "notifications":
-        return <NotificationCenter />
+        return <EnhancedNotificationCenter />
       case "financial-overview":
         return role === 'SUPER_ADMIN' ? <FinancialOverview /> : <Dashboard />
       case "advanced":

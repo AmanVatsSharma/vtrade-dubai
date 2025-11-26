@@ -18,6 +18,7 @@ import { WatchlistManager } from "@/components/watchlist/WatchlistManager"
 import { OrderDialog } from "@/components/OrderDialog"
 import { TradingHome } from "@/components/trading/TradingHome"
 import { RiskMonitor } from "@/components/risk/RiskMonitor"
+import { NotificationBell } from "@/components/notifications/NotificationBell"
 import type {
   TradingDashboardProps,
   TabConfig,
@@ -382,6 +383,9 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
                 </>
               )}
             </div>
+
+            {/* Notification Bell */}
+            <NotificationBell userId={userId} />
           </div>
         </div>
       </header>

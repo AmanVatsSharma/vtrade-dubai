@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createAdminFundService } from "@/lib/services/admin/AdminFundService"
 import { auth } from "@/auth"
+import { NotificationService } from "@/lib/services/notifications/NotificationService"
+import { prisma } from "@/lib/prisma"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-DEPOSITS] GET request received")
@@ -66,6 +68,23 @@ export async function POST(req: Request) {
         actorRole: role as any,
       })
 
+      // Create notification for user (non-blocking)
+      try {
+        const deposit = await prisma.deposit.findUnique({
+          where: { id: depositId },
+          select: { userId: true, amount: true }
+        })
+        if (deposit) {
+          await NotificationService.notifyDeposit(
+            deposit.userId,
+            'APPROVED',
+            Number(deposit.amount)
+          )
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [API-ADMIN-DEPOSITS] Failed to create notification:", notifError)
+      }
+
       console.log("✅ [API-ADMIN-DEPOSITS] Deposit approved:", depositId)
       return NextResponse.json(result, { status: 200 })
     }
@@ -84,6 +103,24 @@ export async function POST(req: Request) {
         adminId: session.user.id!,
         adminName: session.user.name || 'Admin'
       })
+
+      // Create notification for user (non-blocking)
+      try {
+        const deposit = await prisma.deposit.findUnique({
+          where: { id: depositId },
+          select: { userId: true, amount: true }
+        })
+        if (deposit) {
+          await NotificationService.notifyDeposit(
+            deposit.userId,
+            'REJECTED',
+            Number(deposit.amount),
+            reason
+          )
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [API-ADMIN-DEPOSITS] Failed to create notification:", notifError)
+      }
 
       console.log("✅ [API-ADMIN-DEPOSITS] Deposit rejected:", depositId)
       return NextResponse.json(result, { status: 200 })

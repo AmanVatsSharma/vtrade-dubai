@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createAdminFundService } from "@/lib/services/admin/AdminFundService"
 import { auth } from "@/auth"
+import { NotificationService } from "@/lib/services/notifications/NotificationService"
+import { prisma } from "@/lib/prisma"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-WITHDRAWALS] GET request received")
@@ -74,6 +76,23 @@ export async function POST(req: Request) {
         actorRole: role as any,
       })
 
+      // Create notification for user (non-blocking)
+      try {
+        const withdrawal = await prisma.withdrawal.findUnique({
+          where: { id: withdrawalId },
+          select: { userId: true, amount: true }
+        })
+        if (withdrawal) {
+          await NotificationService.notifyWithdrawal(
+            withdrawal.userId,
+            'APPROVED',
+            Number(withdrawal.amount)
+          )
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [API-ADMIN-WITHDRAWALS] Failed to create notification:", notifError)
+      }
+
       console.log("✅ [API-ADMIN-WITHDRAWALS] Withdrawal approved:", withdrawalId)
       return NextResponse.json(result, { status: 200 })
     }
@@ -92,6 +111,24 @@ export async function POST(req: Request) {
         adminId: session.user.id!,
         adminName: session.user.name || 'Admin'
       })
+
+      // Create notification for user (non-blocking)
+      try {
+        const withdrawal = await prisma.withdrawal.findUnique({
+          where: { id: withdrawalId },
+          select: { userId: true, amount: true }
+        })
+        if (withdrawal) {
+          await NotificationService.notifyWithdrawal(
+            withdrawal.userId,
+            'REJECTED',
+            Number(withdrawal.amount),
+            reason
+          )
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [API-ADMIN-WITHDRAWALS] Failed to create notification:", notifError)
+      }
 
       console.log("✅ [API-ADMIN-WITHDRAWALS] Withdrawal rejected:", withdrawalId)
       return NextResponse.json(result, { status: 200 })

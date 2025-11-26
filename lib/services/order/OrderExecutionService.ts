@@ -24,11 +24,13 @@ import { prisma } from "@/lib/prisma"
 import { PriceResolutionService } from "@/lib/services/order/PriceResolutionService"
 import { MarketRealismService } from "@/lib/services/order/MarketRealismService"
 import { TransactionRepository } from "@/lib/repositories/TransactionRepository"
+import { NotificationService } from "@/lib/services/notifications/NotificationService"
 
 console.log("🚀 [ORDER-EXECUTION-SERVICE] Module loaded")
 
 export interface PlaceOrderInput {
   tradingAccountId: string
+  userId?: string // Optional - will be fetched if not provided
   stockId?: string | null
   instrumentId?: string | null
   symbol: string
@@ -261,6 +263,21 @@ export class OrderExecutionService {
         stockId: result.stockId
       })
 
+      // Create notification for order placed (non-blocking)
+      try {
+        const userId = input.userId || await this.getUserIdFromTradingAccount(input.tradingAccountId)
+        if (userId) {
+          await NotificationService.notifyOrderPlaced(userId, {
+            symbol: input.symbol,
+            quantity: input.quantity,
+            orderSide: input.orderSide,
+            orderType: input.orderType
+          })
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to create order placed notification:", notifError)
+      }
+
       // Step 6: Execute synchronously and return executed status to client
       console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order synchronously (no background)")
       try {
@@ -490,6 +507,21 @@ export class OrderExecutionService {
         executionPrice,
         symbol: input.symbol
       })
+
+      // Create notification for order executed (non-blocking)
+      try {
+        const userId = input.userId || await this.getUserIdFromTradingAccount(input.tradingAccountId)
+        if (userId) {
+          await NotificationService.notifyOrderExecuted(userId, {
+            symbol: input.symbol,
+            quantity: input.quantity,
+            orderSide: input.orderSide,
+            averagePrice: executionPrice
+          })
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to create order executed notification:", notifError)
+      }
 
       console.log("🎉 [ORDER-EXECUTION-SERVICE] Order execution completed:", orderId)
 
@@ -806,6 +838,19 @@ export class OrderExecutionService {
         orderId
       })
 
+      // Create notification for order cancelled (non-blocking)
+      try {
+        const userId = await this.getUserIdFromTradingAccount(order.tradingAccountId)
+        if (userId) {
+          await NotificationService.notifyOrderCancelled(userId, {
+            symbol: order.symbol,
+            quantity: order.quantity
+          })
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to create order cancelled notification:", notifError)
+      }
+
       return {
         success: true,
         message: "Order cancelled successfully"
@@ -815,6 +860,22 @@ export class OrderExecutionService {
       console.error("❌ [ORDER-EXECUTION-SERVICE] Order cancellation failed:", error)
       await this.logger.error("ORDER_CANCEL_FAILED", error.message, error, { orderId })
       throw error
+    }
+  }
+
+  /**
+   * Get userId from tradingAccountId
+   */
+  private async getUserIdFromTradingAccount(tradingAccountId: string): Promise<string | null> {
+    try {
+      const tradingAccount = await prisma.tradingAccount.findUnique({
+        where: { id: tradingAccountId },
+        select: { userId: true }
+      })
+      return tradingAccount?.userId || null
+    } catch (error) {
+      console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to get userId from tradingAccount:", error)
+      return null
     }
   }
 

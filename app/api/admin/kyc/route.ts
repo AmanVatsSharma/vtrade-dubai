@@ -188,6 +188,18 @@ export async function PUT(request: NextRequest) {
       }
     });
 
+    // Create notification for user (non-blocking)
+    try {
+      const { NotificationService } = await import("@/lib/services/notifications/NotificationService")
+      await NotificationService.notifyKYC(
+        updatedKYC.userId,
+        status as 'APPROVED' | 'REJECTED',
+        reason || undefined
+      )
+    } catch (notifError) {
+      console.warn("⚠️ [API-ADMIN-KYC] Failed to create notification:", notifError)
+    }
+
     return NextResponse.json({
       success: `KYC ${status.toLowerCase()} successfully`,
       kyc: updatedKYC
