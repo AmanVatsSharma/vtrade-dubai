@@ -16,7 +16,7 @@ interface SidebarProps {
 const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "users", label: "User Management", icon: Users },
-  { id: "rms", label: "RM Management", icon: UserCheck },
+  { id: "rms", label: "RM & Team", icon: UserCheck },
   { id: "funds", label: "Fund Management", icon: Wallet },
   { id: "analytics", label: "Analytics", icon: TrendingUp },
   { id: "audit", label: "Audit Trail", icon: FileText },

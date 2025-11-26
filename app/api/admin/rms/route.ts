@@ -72,7 +72,7 @@ export async function GET(req: Request) {
       })
     }
 
-    // For ADMIN/SUPER_ADMIN, return all RMs
+    // For ADMIN/SUPER_ADMIN, return all RMs with hierarchy info
     const rms = await prisma.user.findMany({
       where: {
         role: 'MODERATOR'
@@ -81,6 +81,14 @@ export async function GET(req: Request) {
         _count: {
           select: {
             managedUsers: true
+          }
+        },
+        managedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
           }
         }
       },
@@ -100,6 +108,12 @@ export async function GET(req: Request) {
         clientId: rm.clientId,
         isActive: rm.isActive,
         assignedUsersCount: rm._count.managedUsers,
+        managedBy: rm.managedBy ? {
+          id: rm.managedBy.id,
+          name: rm.managedBy.name,
+          email: rm.managedBy.email,
+          role: rm.managedBy.role
+        } : null,
         createdAt: rm.createdAt
       })),
       total: rms.length
