@@ -18,8 +18,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ChevronLeft, ChevronRight, RefreshCw, Hash, Target, Crosshair, LayoutGrid, Edit } from "lucide-react"
+import { Hash, Target, Crosshair, LayoutGrid, Edit, Boxes } from "lucide-react"
 import { PositionEditDialog } from "./position-edit-dialog"
+import { PageHeader, RefreshButton, Pagination } from "./shared"
 
 interface PositionRow {
   id: string
@@ -174,17 +175,13 @@ export function PositionsManagement() {
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Position Management</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">View and modify all positions with URL-synced filters</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
-              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
+      <PageHeader
+        title="Position Management"
+        description="View and modify all positions with URL-synced filters"
+        icon={<Boxes className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <>
+            <RefreshButton onClick={fetchData} loading={loading} />
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-primary text-white text-xs sm:text-sm" size="sm">
@@ -227,33 +224,19 @@ export function PositionsManagement() {
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">Price (for LIMIT)</label>
-                    <Input value={cpPrice} onChange={(e) => setCpPrice(e.target.value)} placeholder="e.g. 2500" />
+                    <Input value={cpPrice} onChange={(e) => setCpPrice(e.target.value)} placeholder="optional" />
                   </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Product</label>
-                    <Input value={cpProduct} onChange={(e) => setCpProduct(e.target.value.toUpperCase())} placeholder="MIS/NRML" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Segment</label>
-                    <Input value={cpSegment} onChange={(e) => setCpSegment(e.target.value.toUpperCase())} placeholder="NSE/NFO" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Lot Size</label>
-                    <Input value={cpLot} onChange={(e) => setCpLot(e.target.value)} placeholder="optional" />
-                  </div>
-                  {cpErr && (
-                    <div className="col-span-2 text-sm text-red-400">{cpErr}</div>
-                  )}
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-                  <Button onClick={submitCreate} className="bg-primary text-white">Create</Button>
+                  <Button onClick={createPosition} disabled={loading || !cpAccountId || !cpStockId || !cpSymbol || !cpQty || !cpType || !cpSide}>
+                    Create
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </div>
-        </div>
-      </motion.div>
+          </>
+        }
+      />
 
       <Card className="bg-card border-border shadow-sm">
         <CardContent className="p-4">
@@ -371,17 +354,12 @@ export function PositionsManagement() {
             </div>
           </div>
 
-          {pages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || loading}>
-                <ChevronLeft className="w-4 h-4" /> Prev
-              </Button>
-              <span className="text-sm text-muted-foreground">Page {page} of {pages}</span>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages || loading}>
-                Next <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+            <Pagination
+              currentPage={page}
+              totalPages={pages}
+              onPageChange={setPage}
+              loading={loading}
+            />
         </CardContent>
       </Card>
 

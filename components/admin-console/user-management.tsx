@@ -33,13 +33,13 @@ import {
   Copy,
   Check,
   AlertTriangle,
-  RefreshCw,
   Filter,
   X,
   FileCheck,
   Clock,
   CheckCircle2,
 } from "lucide-react"
+import { StatusBadge, PageHeader, RefreshButton, FilterBar, Pagination, type FilterField } from "./shared"
 import { CreateUserDialog } from "./create-user-dialog"
 import { UserStatementDialog } from "./user-statement-dialog"
 import { AddFundsDialog } from "./add-funds-dialog"
@@ -281,17 +281,60 @@ export function UserManagement() {
     setTimeout(() => setCopiedField(null), 2000)
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-400/20 text-green-400 border-green-400/30">Active</Badge>
-      case "suspended":
-      case "inactive":
-        return <Badge className="bg-red-400/20 text-red-400 border-red-400/30">Inactive</Badge>
-      default:
-        return <Badge className="bg-blue-400/20 text-blue-400 border-blue-400/30">{status}</Badge>
+  // Filter fields configuration
+  const filterFields: FilterField[] = [
+    {
+      key: 'search',
+      label: 'Search',
+      type: 'text',
+      placeholder: 'Search by name, client ID, or email...',
+      span: 2
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'select',
+      options: [
+        { label: 'All', value: 'all' },
+        { label: 'Active', value: 'active' },
+        { label: 'Inactive', value: 'inactive' }
+      ]
+    },
+    {
+      key: 'kycStatus',
+      label: 'KYC Status',
+      type: 'select',
+      options: [
+        { label: 'All', value: 'all' },
+        { label: 'Pending', value: 'PENDING' },
+        { label: 'Approved', value: 'APPROVED' },
+        { label: 'Rejected', value: 'REJECTED' },
+        { label: 'Not Submitted', value: 'NOT_SUBMITTED' }
+      ]
+    },
+    {
+      key: 'role',
+      label: 'Role',
+      type: 'select',
+      options: [
+        { label: 'All', value: 'all' },
+        { label: 'User', value: 'USER' },
+        { label: 'Moderator', value: 'MODERATOR' },
+        { label: 'Admin', value: 'ADMIN' },
+        { label: 'Super Admin', value: 'SUPER_ADMIN' }
+      ]
+    },
+    {
+      key: 'dateFrom',
+      label: 'Date From',
+      type: 'date'
+    },
+    {
+      key: 'dateTo',
+      label: 'Date To',
+      type: 'date'
     }
-  }
+  ]
 
   const getKycBadge = (status: string) => {
     switch (status.toUpperCase()) {
@@ -333,16 +376,12 @@ export function UserManagement() {
       )}
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">User Management</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">
-              Manage user accounts, view statements, and create new users
-              {!isUsingMockData && " • Live Data"}
-            </p>
-          </div>
-          <div className="flex items-center space-x-2 flex-shrink-0 flex-wrap">
+      <PageHeader
+        title="User Management"
+        description={`Manage user accounts, view statements, and create new users${!isUsingMockData ? " • Live Data" : ""}`}
+        icon={<Users className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <>
             <Button
               onClick={() => setShowAddFundsDialog(true)}
               className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
@@ -361,9 +400,9 @@ export function UserManagement() {
               <span className="hidden sm:inline">Create User</span>
               <span className="sm:hidden">Create</span>
             </Button>
-          </div>
-        </div>
-      </motion.div>
+          </>
+        }
+      />
 
       {/* Stats Cards */}
       <motion.div
@@ -453,16 +492,7 @@ export function UserManagement() {
                     <Badge className="ml-1 sm:ml-2 bg-primary text-primary-foreground text-xs">{Object.values(filters).filter(v => v !== 'all' && v !== '').length}</Badge>
                   )}
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
-                  onClick={fetchRealData}
-                  disabled={loading}
-                >
-                  <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Refresh</span>
-                </Button>
+                <RefreshButton onClick={fetchRealData} loading={loading} />
                 <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
                   <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">Export</span>
@@ -682,8 +712,8 @@ export function UserManagement() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{getStatusBadge(user.status)}</TableCell>
-                      <TableCell>{getKycBadge(user.kycStatus)}</TableCell>
+                      <TableCell><StatusBadge status={user.status} type="user" /></TableCell>
+                      <TableCell><StatusBadge status={user.kycStatus} type="kyc" /></TableCell>
                       <TableCell>
                         <div>
                           <p className="text-sm font-medium text-foreground">{user.totalTrades || user.stats?.totalOrders || 0} trades</p>
@@ -824,29 +854,12 @@ export function UserManagement() {
             </div>
             
             {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center space-x-2 mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1 || loading}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages || loading}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              loading={loading}
+            />
           </CardContent>
         </Card>
       </motion.div>

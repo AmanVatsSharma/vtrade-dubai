@@ -4,16 +4,15 @@ import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, Eye, Check, X, TrendingUp, TrendingDown, Clock, AlertCircle, RefreshCw } from "lucide-react"
+import { Plus, Check, X, TrendingUp, TrendingDown, AlertCircle, Wallet } from "lucide-react"
 import { AddFundsDialog } from "./add-funds-dialog"
 import { ApprovalDialog } from "./approval-dialog"
 import { WithdrawalDialog } from "./withdrawal-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "@/hooks/use-toast"
+import { StatusBadge, PageHeader, RefreshButton, FilterBar, type FilterField } from "./shared"
 
 // Mock data as fallback
 const mockFundRequests = [
@@ -260,19 +259,16 @@ export function FundManagement() {
       req.accountDetails.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const getStatusBadge = (status: string) => {
-    switch (status.toUpperCase()) {
-      case "COMPLETED":
-        return <Badge className="bg-green-400/20 text-green-400 border-green-400/30">Completed</Badge>
-      case "PENDING":
-        return <Badge className="bg-yellow-400/20 text-yellow-400 border-yellow-400/30">Pending</Badge>
-      case "FAILED":
-      case "REJECTED":
-        return <Badge className="bg-red-400/20 text-red-400 border-red-400/30">Failed</Badge>
-      default:
-        return <Badge className="bg-gray-400/20 text-gray-400 border-gray-400/30">{status}</Badge>
+  // Filter fields configuration
+  const filterFields: FilterField[] = [
+    {
+      key: 'search',
+      label: 'Search',
+      type: 'text',
+      placeholder: 'Search by user name, client ID, or UTR...',
+      span: 2
     }
-  }
+  ]
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
@@ -300,26 +296,13 @@ export function FundManagement() {
       )}
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Fund Management</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">
-              Manage deposits, withdrawals, and fund requests
-              {!isUsingMockData && " • Live Data"}
-            </p>
-          </div>
-          <div className="flex items-center space-x-2 flex-shrink-0 flex-wrap">
-            <Button
-              onClick={fetchRealData}
-              variant="outline"
-              size="sm"
-              className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
-              disabled={loading}
-            >
-              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
+      <PageHeader
+        title="Fund Management"
+        description={`Manage deposits, withdrawals, and fund requests${!isUsingMockData ? " • Live Data" : ""}`}
+        icon={<Wallet className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <>
+            <RefreshButton onClick={fetchRealData} loading={loading} />
             <Button
               onClick={() => setShowAddFundsDialog(true)}
               className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
@@ -329,9 +312,9 @@ export function FundManagement() {
               <span className="hidden sm:inline">Add Funds</span>
               <span className="sm:hidden">Add</span>
             </Button>
-          </div>
-        </div>
-      </motion.div>
+          </>
+        }
+      />
 
       {/* Search */}
       <motion.div
@@ -339,19 +322,15 @@ export function FundManagement() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Card className="bg-card border-border shadow-sm neon-border">
-          <CardContent className="p-3 sm:p-4 md:p-6">
-            <div className="relative w-full max-w-md">
-              <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by user name, client ID, or UTR..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <FilterBar
+          filters={{ search: searchTerm }}
+          fields={filterFields}
+          onFilterChange={(key, value) => {
+            if (key === 'search') setSearchTerm(value)
+          }}
+          onReset={() => setSearchTerm('')}
+          showReset={false}
+        />
       </motion.div>
 
       {/* Tabs */}
@@ -443,7 +422,7 @@ export function FundManagement() {
                                 <span className="text-xs text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell>{getStatusBadge(request.status)}</TableCell>
+                            <TableCell><StatusBadge status={request.status} /></TableCell>
                             <TableCell>
                               <p className="text-sm text-muted-foreground">{request.requestDate}</p>
                             </TableCell>
@@ -530,7 +509,7 @@ export function FundManagement() {
                             <TableCell>
                               <p className="text-sm text-foreground">{request.accountDetails}</p>
                             </TableCell>
-                            <TableCell>{getStatusBadge(request.status)}</TableCell>
+                            <TableCell><StatusBadge status={request.status} /></TableCell>
                             <TableCell>
                               <p className="text-sm text-muted-foreground">{request.requestDate}</p>
                             </TableCell>

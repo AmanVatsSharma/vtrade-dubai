@@ -222,24 +222,25 @@ export function RMManagement() {
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">RM & Team</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">
-              Manage Relationship Managers and view their team members. For detailed user management, use User Management tab.
-            </p>
-          </div>
-          <Button
-            onClick={() => setShowCreateDialog(true)}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm flex-shrink-0"
-            size="sm"
-          >
-            <UserPlus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-            Create RM
-          </Button>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="RM & Team"
+        description="Manage Relationship Managers and view their team members. For detailed user management, use User Management tab."
+        icon={<UserCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <>
+            <RefreshButton onClick={fetchRMs} loading={loading} />
+            <Button
+              onClick={() => setShowCreateDialog(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm flex-shrink-0"
+              size="sm"
+            >
+              <UserPlus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Create RM</span>
+              <span className="sm:hidden">Create</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats */}
       <motion.div
@@ -307,16 +308,6 @@ export function RMManagement() {
                   className="pl-8 sm:pl-10 bg-muted/50 border-border focus:border-primary text-sm"
                 />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchRMs}
-                disabled={loading}
-                className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
-              >
-                <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
             </div>
           </CardContent>
         </Card>

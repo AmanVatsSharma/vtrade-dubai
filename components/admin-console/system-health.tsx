@@ -24,11 +24,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
-  RefreshCw,
   TrendingUp,
   TrendingDown,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { PageHeader, RefreshButton, StatusBadge } from "./shared"
 
 interface SystemMetric {
   name: string
@@ -103,44 +103,16 @@ export function SystemHealth() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      'HEALTHY': 'bg-green-400/20 text-green-400 border-green-400/30',
-      'ONLINE': 'bg-green-400/20 text-green-400 border-green-400/30',
-      'WARNING': 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30',
-      'DEGRADED': 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30',
-      'CRITICAL': 'bg-red-400/20 text-red-400 border-red-400/30',
-      'OFFLINE': 'bg-red-400/20 text-red-400 border-red-400/30',
-    }
-    return <Badge className={colors[status] || colors['HEALTHY']}>{status}</Badge>
-  }
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
-      >
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
-            <Activity className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
-            <span>System Health</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground break-words">Real-time system monitoring and diagnostics</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchHealthData}
-          disabled={loading}
-          className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm flex-shrink-0"
-        >
-          <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Refresh</span>
-        </Button>
-      </motion.div>
+      <PageHeader
+        title="System Health"
+        description="Real-time system monitoring and diagnostics"
+        icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={<RefreshButton onClick={fetchHealthData} loading={loading} />}
+      />
 
       {/* System Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
@@ -188,7 +160,7 @@ export function SystemHealth() {
                   />
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground truncate">Max: {metric.max}{metric.unit}</span>
-                    {getStatusBadge(metric.status)}
+                    <StatusBadge status={metric.status} type="system" />
                   </div>
                 </div>
               </CardContent>
@@ -217,7 +189,7 @@ export function SystemHealth() {
                     {getStatusIcon(service.status)}
                     <span className="font-medium text-foreground">{service.name}</span>
                   </div>
-                  {getStatusBadge(service.status)}
+                  <StatusBadge status={service.status} type="system" />
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
@@ -261,7 +233,7 @@ export function SystemHealth() {
                   <p className="text-xs text-muted-foreground">Connections</p>
                   <p className="font-medium text-foreground">45/100</p>
                 </div>
-                {getStatusBadge('ONLINE')}
+                <StatusBadge status="ONLINE" type="system" />
               </div>
             </div>
           </div>

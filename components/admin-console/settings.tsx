@@ -31,13 +31,13 @@ import {
   Loader2, 
   CheckCircle, 
   XCircle,
-  RefreshCw,
   QrCode,
   CreditCard,
   Settings as SettingsIcon,
   DollarSign,
   Edit
 } from "lucide-react"
+import { PageHeader, RefreshButton } from "./shared"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -553,30 +553,12 @@ export function Settings() {
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        transition={{ duration: 0.3 }}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Settings</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">
-              Configure platform settings and payment options
-            </p>
-          </div>
-          <Button
-            onClick={fetchSettings}
-            variant="outline"
-            size="sm"
-            disabled={refreshing}
-            className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm flex-shrink-0"
-          >
-            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="Settings"
+        description="Configure platform settings and payment options"
+        icon={<SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={<RefreshButton onClick={fetchSettings} loading={refreshing} />}
+      />
 
       {/* Settings Tabs */}
       <motion.div
@@ -728,16 +710,7 @@ export function Settings() {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={fetchBrokerageConfigs}
-                      disabled={loadingBrokerages}
-                      className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-                    >
-                      <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loadingBrokerages ? 'animate-spin' : ''}`} />
-                      <span className="hidden sm:inline">Refresh</span>
-                    </Button>
+                    <RefreshButton onClick={fetchBrokerageConfigs} loading={loadingBrokerages} size="sm" />
                     <Dialog open={showBrokerageDialog} onOpenChange={setShowBrokerageDialog}>
                       <DialogTrigger asChild>
                         <Button 

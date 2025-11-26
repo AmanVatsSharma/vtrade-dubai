@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ChevronLeft, ChevronRight, RefreshCw, Hash, CheckCircle, Ban, PlayCircle } from "lucide-react"
+import { Hash, CheckCircle, Ban, PlayCircle, ListOrdered } from "lucide-react"
+import { StatusBadge, PageHeader, RefreshButton, Pagination, FilterBar, type FilterField } from "./shared"
 
 interface OrderRow {
   id: string
@@ -223,20 +224,12 @@ export function OrdersManagement() {
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Orders Management</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">View and modify all orders with URL-synced filters</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
-              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
-          </div>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="Orders Management"
+        description="View and modify all orders with URL-synced filters"
+        icon={<ListOrdered className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={<RefreshButton onClick={fetchData} loading={loading} />}
+      />
 
       <Card className="bg-card border-border shadow-sm">
         <CardContent className="p-3 sm:p-4">
@@ -328,9 +321,7 @@ export function OrdersManagement() {
                     <TableCell>{r.filledQuantity}</TableCell>
                     <TableCell>{r.averagePrice ?? "—"}</TableCell>
                     <TableCell>{editingId === r.id ? (<Input value={editStatus} onChange={(e) => setEditStatus(e.target.value.toUpperCase())} />) : (
-                      r.status === 'EXECUTED' ? <Badge className="bg-green-400/20 text-green-400 border-green-400/30">EXECUTED</Badge> :
-                      r.status === 'CANCELLED' ? <Badge className="bg-red-400/20 text-red-400 border-red-400/30">CANCELLED</Badge> :
-                      <Badge className="bg-yellow-400/20 text-yellow-400 border-yellow-400/30">PENDING</Badge>
+                      <StatusBadge status={r.status} type="order" />
                     )}</TableCell>
                     <TableCell>
                       {editingId === r.id ? (
@@ -357,17 +348,12 @@ export function OrdersManagement() {
             </div>
           </div>
 
-          {pages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || loading}>
-                <ChevronLeft className="w-4 h-4" /> Prev
-              </Button>
-              <span className="text-sm text-muted-foreground">Page {page} of {pages}</span>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages || loading}>
-                Next <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+            <Pagination
+              currentPage={page}
+              totalPages={pages}
+              onPageChange={setPage}
+              loading={loading}
+            />
         </CardContent>
       </Card>
     </div>

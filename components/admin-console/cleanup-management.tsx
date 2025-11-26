@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Eraser, RefreshCw, ShieldAlert } from "lucide-react"
+import { Calendar, Eraser, ShieldAlert, Eraser as CleanupIcon } from "lucide-react"
+import { PageHeader, RefreshButton } from "./shared"
 
 interface PreviewCounts {
   oldOrders: number
@@ -82,21 +83,12 @@ export function CleanupManagement() {
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Daily Cleanup</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">Remove old orders and closed positions before the selected date (today by default)</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Button variant="outline" size="sm" onClick={loadPreview} disabled={loading} className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
-              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh Preview</span>
-              <span className="sm:hidden">Refresh</span>
-            </Button>
-          </div>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="Daily Cleanup"
+        description="Remove old orders and closed positions before the selected date (today by default)"
+        icon={<CleanupIcon className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={<RefreshButton onClick={loadPreview} loading={loading} showLabel={false} />}
+      />
 
       {error && (
         <Alert variant="destructive" className="bg-red-500/10 border-red-500/50">

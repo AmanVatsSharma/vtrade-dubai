@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight, ArrowDownRight, Eye, AlertTriangle, RefreshCw } from "lucide-react"
+import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight, ArrowDownRight, Eye, AlertTriangle, LayoutDashboard } from "lucide-react"
+import { PageHeader, RefreshButton } from "./shared"
 import { TradingChart } from "./trading-chart"
 import { UserActivityChart } from "./user-activity-chart"
 import { Button } from "@/components/ui/button"
@@ -257,7 +258,6 @@ export function Dashboard() {
                 onClick={fetchRealData}
                 disabled={loading}
               >
-                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
                 Retry
               </Button>
             </div>
@@ -266,35 +266,22 @@ export function Dashboard() {
       )}
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Trading Console Dashboard</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">
-              Real-time monitoring and analytics for your trading platform
-              {!isUsingMockData && " • Live Data"}
-            </p>
-          </div>
-          <div className="flex items-center space-x-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm"
-              onClick={fetchRealData}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
+      <PageHeader
+        title="Trading Console Dashboard"
+        description={`Real-time monitoring and analytics for your trading platform${!isUsingMockData ? " • Live Data" : ""}`}
+        icon={<LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <>
+            <RefreshButton onClick={fetchRealData} loading={loading} />
             <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
               <div className={`w-2 h-2 rounded-full ${isUsingMockData ? 'bg-yellow-400' : 'bg-green-400 pulse-glow'}`}></div>
               <span className={`hidden sm:inline ${isUsingMockData ? 'text-yellow-400' : 'text-green-400'}`}>
                 {isUsingMockData ? 'Mock Data' : 'Live Data'}
               </span>
             </div>
-          </div>
-        </div>
-      </motion.div>
+          </>
+        }
+      />
 
       {/* Stats Grid */}
       <motion.div

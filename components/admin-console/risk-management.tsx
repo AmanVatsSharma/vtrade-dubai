@@ -26,7 +26,6 @@ import {
   Users,
   DollarSign,
   Settings,
-  RefreshCw,
   Plus,
   Edit,
   Trash2,
@@ -39,6 +38,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
+import { PageHeader, RefreshButton, StatusBadge } from "./shared"
 
 interface RiskLimit {
   id: string
@@ -254,15 +254,13 @@ function RiskMonitoringPanel() {
                               </TableCell>
                               <TableCell>₹{detail.availableMargin.toFixed(2)}</TableCell>
                               <TableCell>
-                                <Badge className={
+                                <StatusBadge status={
                                   detail.marginUtilizationPercent >= autoCloseThreshold
-                                    ? 'bg-red-400/20 text-red-400'
+                                    ? 'CRITICAL'
                                     : detail.marginUtilizationPercent >= warningThreshold
-                                    ? 'bg-yellow-400/20 text-yellow-400'
-                                    : 'bg-green-400/20 text-green-400'
-                                }>
-                                  {(detail.marginUtilizationPercent * 100).toFixed(1)}%
-                                </Badge>
+                                    ? 'WARNING'
+                                    : 'HEALTHY'
+                                } type="risk" />
                               </TableCell>
                               <TableCell>
                                 {detail.positionsClosed > 0 && (
@@ -271,9 +269,7 @@ function RiskMonitoringPanel() {
                                   </Badge>
                                 )}
                                 {detail.alertCreated && (
-                                  <Badge className="bg-yellow-400/20 text-yellow-400 ml-1">
-                                    Alert
-                                  </Badge>
+                                  <StatusBadge status="WARNING" type="risk">Alert</StatusBadge>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -479,53 +475,16 @@ export function RiskManagement() {
     }
   }
 
-  const getSeverityBadge = (severity: string) => {
-    const colors: Record<string, string> = {
-      'LOW': 'bg-blue-400/20 text-blue-400 border-blue-400/30',
-      'MEDIUM': 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30',
-      'HIGH': 'bg-orange-400/20 text-orange-400 border-orange-400/30',
-      'CRITICAL': 'bg-red-400/20 text-red-400 border-red-400/30',
-    }
-    return <Badge className={colors[severity] || colors['LOW']}>{severity}</Badge>
-  }
-
-  const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      'ACTIVE': 'bg-green-400/20 text-green-400 border-green-400/30',
-      'SUSPENDED': 'bg-red-400/20 text-red-400 border-red-400/30',
-      'WARNING': 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30',
-    }
-    return <Badge className={colors[status] || colors['ACTIVE']}>{status}</Badge>
-  }
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
-      >
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
-            <Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
-            <span>Risk Management</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground break-words">Monitor and control trading risks</p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchRiskData}
-            disabled={loading}
-            className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-          >
-            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="Risk Management"
+        description="Monitor and control trading risks"
+        icon={<Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={<RefreshButton onClick={fetchRiskData} loading={loading} />}
+      />
 
       {/* Tabs for User Limits vs Platform Config vs Monitoring */}
       <Tabs defaultValue="monitoring" className="space-y-3 sm:space-y-4 md:space-y-6">
@@ -733,11 +692,7 @@ export function RiskManagement() {
                           </TableCell>
                           <TableCell>{config.maxPositions || '-'}</TableCell>
                           <TableCell>
-                            {config.active ? (
-                              <Badge className="bg-green-400/20 text-green-400 border-green-400/30">Active</Badge>
-                            ) : (
-                              <Badge className="bg-gray-400/20 text-gray-400 border-gray-400/30">Inactive</Badge>
-                            )}
+                            <StatusBadge status={config.active ? 'active' : 'inactive'} type="user" />
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {new Date(config.updatedAt).toLocaleDateString()}
@@ -938,7 +893,7 @@ export function RiskManagement() {
                           <TableCell>₹{limit.maxPositionSize.toLocaleString()}</TableCell>
                           <TableCell>{limit.maxLeverage}x</TableCell>
                           <TableCell>{limit.maxDailyTrades}</TableCell>
-                          <TableCell>{getStatusBadge(limit.status)}</TableCell>
+                          <TableCell><StatusBadge status={limit.status} type="risk" /></TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {new Date(limit.lastUpdated).toLocaleDateString()}
                           </TableCell>
@@ -997,7 +952,7 @@ export function RiskManagement() {
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            {getSeverityBadge(alert.severity)}
+                            <StatusBadge status={alert.severity} type="risk" />
                             <span className="text-sm font-medium text-foreground">{alert.type}</span>
                             {alert.resolved && (
                               <Badge className="bg-green-400/20 text-green-400 border-green-400/30">

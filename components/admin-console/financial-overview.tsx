@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RefreshCw, FilterX, Search } from "lucide-react"
+import { FilterX, Search, DollarSign } from "lucide-react"
+import { PageHeader, RefreshButton, Pagination } from "./shared"
 
 type AuditStatus = "APPROVED" | "REJECTED"
 
@@ -203,18 +204,29 @@ export function FinancialOverview() {
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
+      <PageHeader
+        title="Deposit Audit Trail"
+        description="Super-admin focused deposit audit trail with actionable filters"
+        icon={<DollarSign className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={handleResetFilters} className="text-xs sm:text-sm">
+              <FilterX className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              Reset
+            </Button>
+            <RefreshButton onClick={handleRefresh} loading={loading} />
+          </>
+        }
+      />
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6" style={{ display: 'none' }}>
           <CardTitle className="text-lg sm:text-xl font-semibold break-words">Deposit Audit Trail</CardTitle>
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <Button variant="outline" size="sm" onClick={handleResetFilters} className="text-xs sm:text-sm">
               <FilterX className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
               Reset
             </Button>
-            <Button variant="default" size="sm" onClick={handleRefresh} disabled={loading} className="text-xs sm:text-sm">
-              <RefreshCw className={`mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 ${loading ? "animate-spin" : ""}`} />
-              {loading ? "Refreshing..." : "Refresh"}
-            </Button>
+            <RefreshButton onClick={handleRefresh} loading={loading} />
           </div>
         </CardHeader>
         <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
@@ -387,24 +399,15 @@ export function FinancialOverview() {
             <div className="text-xs text-muted-foreground">
               {records.length} record{records.length === 1 ? "" : "s"} on this page
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange("prev")}
-                disabled={loading || page === 1}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange("next")}
-                disabled={loading || page === totalPages}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={(newPage) => {
+                if (newPage < page) handlePageChange("prev")
+                else if (newPage > page) handlePageChange("next")
+              }}
+              loading={loading}
+            />
           </div>
         </CardContent>
       </Card>

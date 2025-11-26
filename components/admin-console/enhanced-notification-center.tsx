@@ -29,7 +29,6 @@ import {
   Bell,
   Plus,
   Send,
-  RefreshCw,
   CheckCircle2,
   AlertTriangle,
   Info,
@@ -49,6 +48,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { useAdminNotifications } from "@/lib/hooks/use-admin-notifications"
 import { cn } from "@/lib/utils"
+import { PageHeader, RefreshButton, StatusBadge } from "./shared"
 
 interface User {
   id: string
@@ -254,15 +254,6 @@ export function EnhancedNotificationCenter() {
     }
   }
 
-  const getTypeBadge = (type: string) => {
-    const colors: Record<string, string> = {
-      'INFO': 'bg-blue-400/20 text-blue-400 border-blue-400/30',
-      'WARNING': 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30',
-      'ERROR': 'bg-red-400/20 text-red-400 border-red-400/30',
-      'SUCCESS': 'bg-green-400/20 text-green-400 border-green-400/30'
-    }
-    return <Badge className={colors[type] || colors['INFO']}>{type}</Badge>
-  }
 
   const formatTimeAgo = (dateString: string): string => {
     const date = new Date(dateString)
@@ -282,30 +273,20 @@ export function EnhancedNotificationCenter() {
   return (
     <div className="space-y-4">
       {/* Header with Stats */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-      >
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-2 flex items-center gap-2">
-            <Bell className="w-6 h-6 sm:w-8 sm:h-8" />
-            <span>Notification Center</span>
-          </h1>
-          <p className="text-sm text-muted-foreground">Manage system-wide announcements and alerts</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={refresh} disabled={isLoading}>
-            <RefreshCw className={cn("w-4 h-4 mr-2", isLoading && "animate-spin")} />
-            Refresh
-          </Button>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Notification
-              </Button>
-            </DialogTrigger>
+      <PageHeader
+        title="Notification Center"
+        description="Manage system-wide announcements and alerts"
+        icon={<Bell className="w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0" />}
+        actions={
+          <>
+            <RefreshButton onClick={refresh} loading={isLoading} />
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Notification
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Notification</DialogTitle>
@@ -462,8 +443,9 @@ export function EnhancedNotificationCenter() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
-      </motion.div>
+          </>
+        }
+      />
 
       {/* Statistics Cards */}
       {showStats && (
@@ -593,7 +575,7 @@ export function EnhancedNotificationCenter() {
                         )}>
                           {notification.title}
                         </h3>
-                        {getTypeBadge(notification.type)}
+                        <StatusBadge status={notification.type} type="notification" />
                         {!notification.read && (
                           <Badge className="bg-primary/20 text-primary">New</Badge>
                         )}

@@ -23,6 +23,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react"
+import { PageHeader } from "./shared"
 
 export function LogsTerminal() {
   const [logs, setLogs] = useState<any[]>([])
@@ -244,25 +245,22 @@ export function LogsTerminal() {
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 break-words">Logs & Terminal</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground break-words">Monitor system logs and execute terminal commands</p>
-          </div>
-          <div className="flex items-center space-x-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsLiveMode(!isLiveMode)}
-              className={`border-primary/50 text-xs sm:text-sm ${isLiveMode ? "text-green-400 bg-green-400/10" : "text-muted-foreground"}`}
-            >
-              {isLiveMode ? <Pause className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" /> : <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />}
-              {isLiveMode ? "Live" : "Paused"}
-            </Button>
-          </div>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="Logs & Terminal"
+        description="Monitor system logs and execute terminal commands"
+        icon={<Terminal className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsLiveMode(!isLiveMode)}
+            className={`border-primary/50 text-xs sm:text-sm ${isLiveMode ? "text-green-400 bg-green-400/10" : "text-muted-foreground"}`}
+          >
+            {isLiveMode ? <Pause className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" /> : <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />}
+            {isLiveMode ? "Live" : "Paused"}
+          </Button>
+        }
+      />
 
       {/* Tabs */}
       <motion.div

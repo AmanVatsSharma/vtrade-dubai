@@ -12,26 +12,19 @@ import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Shield,
-  Search,
-  Filter,
   Download,
-  RefreshCw,
   Calendar,
   User,
   Activity,
-  AlertTriangle,
   CheckCircle2,
   XCircle,
   Clock,
-  FileText,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { StatusBadge, PageHeader, RefreshButton, FilterBar, Pagination, type FilterField } from "./shared"
 
 interface AuditLog {
   id: string
@@ -109,15 +102,49 @@ export function AuditTrail() {
     fetchAuditLogs()
   }, [page, filters])
 
-  const getSeverityBadge = (severity: string) => {
-    const colors: Record<string, string> = {
-      'LOW': 'bg-blue-400/20 text-blue-400 border-blue-400/30',
-      'MEDIUM': 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30',
-      'HIGH': 'bg-orange-400/20 text-orange-400 border-orange-400/30',
-      'CRITICAL': 'bg-red-400/20 text-red-400 border-red-400/30',
+  // Filter fields configuration
+  const filterFields: FilterField[] = [
+    {
+      key: 'search',
+      label: 'Search',
+      type: 'text',
+      placeholder: 'Search logs...',
+      span: 2
+    },
+    {
+      key: 'severity',
+      label: 'Severity',
+      type: 'select',
+      options: [
+        { label: 'All Severities', value: 'all' },
+        { label: 'Low', value: 'LOW' },
+        { label: 'Medium', value: 'MEDIUM' },
+        { label: 'High', value: 'HIGH' },
+        { label: 'Critical', value: 'CRITICAL' }
+      ]
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'select',
+      options: [
+        { label: 'All Status', value: 'all' },
+        { label: 'Success', value: 'SUCCESS' },
+        { label: 'Failed', value: 'FAILED' },
+        { label: 'Pending', value: 'PENDING' }
+      ]
+    },
+    {
+      key: 'dateFrom',
+      label: 'From',
+      type: 'date'
+    },
+    {
+      key: 'dateTo',
+      label: 'To',
+      type: 'date'
     }
-    return <Badge className={colors[severity] || colors['LOW']}>{severity}</Badge>
-  }
+  ]
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -135,91 +162,35 @@ export function AuditTrail() {
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0"
-      >
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary mb-1 sm:mb-2 flex items-center gap-2 break-words">
-            <Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />
-            <span>Audit Trail</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground break-words">Complete activity log and compliance tracking</p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchAuditLogs}
-            disabled={loading}
-            className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm"
-          >
-            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${loading ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-          <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm">
-            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        </div>
-      </motion.div>
+      <PageHeader
+        title="Audit Trail"
+        description="Complete activity log and compliance tracking"
+        icon={<Shield className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
+        actions={
+          <>
+            <RefreshButton onClick={fetchAuditLogs} loading={loading} />
+            <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 text-xs sm:text-sm">
+              <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
-      <Card className="bg-card border-border shadow-sm neon-border">
-        <CardContent className="p-3 sm:p-4 md:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-            <div className="sm:col-span-2 lg:col-span-2 xl:col-span-2">
-              <div className="relative">
-                <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search logs..."
-                  value={filters.search}
-                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                  className="pl-8 sm:pl-10 bg-background border-border text-sm"
-                />
-              </div>
-            </div>
-            <Select value={filters.severity} onValueChange={(value) => setFilters({ ...filters, severity: value })}>
-              <SelectTrigger className="bg-background border-border">
-                <SelectValue placeholder="Severity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="LOW">Low</SelectItem>
-                <SelectItem value="MEDIUM">Medium</SelectItem>
-                <SelectItem value="HIGH">High</SelectItem>
-                <SelectItem value="CRITICAL">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}>
-              <SelectTrigger className="bg-background border-border">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="SUCCESS">Success</SelectItem>
-                <SelectItem value="FAILED">Failed</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="date"
-              placeholder="From"
-              value={filters.dateFrom}
-              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-              className="bg-background border-border"
-            />
-            <Input
-              type="date"
-              placeholder="To"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              className="bg-background border-border"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <FilterBar
+        filters={filters}
+        fields={filterFields}
+        onFilterChange={(key, value) => setFilters({ ...filters, [key]: value })}
+        onReset={() => setFilters({
+          search: '',
+          severity: 'all',
+          status: 'all',
+          action: 'all',
+          dateFrom: '',
+          dateTo: '',
+        })}
+      />
 
       {/* Audit Logs Table */}
       <Card className="bg-card border-border shadow-sm neon-border">
@@ -294,7 +265,7 @@ export function AuditTrail() {
                       <TableCell className="max-w-xs">
                         <p className="text-sm text-foreground truncate">{log.details}</p>
                       </TableCell>
-                      <TableCell>{getSeverityBadge(log.severity)}</TableCell>
+                      <TableCell><StatusBadge status={log.severity} type="risk" /></TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {getStatusIcon(log.status)}
@@ -313,29 +284,12 @@ export function AuditTrail() {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1 || loading}
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || loading}
-              >
-                Next
-              </Button>
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            loading={loading}
+          />
         </CardContent>
       </Card>
     </div>
