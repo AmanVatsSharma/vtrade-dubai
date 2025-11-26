@@ -46,6 +46,7 @@ import { toast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { getMarketSession, setNSEHolidays, setMarketForceClosed } from "@/lib/hooks/market-timing"
 import Image from "next/image"
+import { HomeTabSettings } from "./home-tab-settings"
 
 interface SystemSetting {
   id: string
@@ -608,6 +609,11 @@ export function Settings() {
               <span className="hidden sm:inline">Maintenance Mode</span>
               <span className="sm:hidden">Maintenance</span>
             </TabsTrigger>
+            <TabsTrigger value="home-tab" className="text-xs sm:text-sm w-full sm:w-auto">
+              <SettingsIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Home Tab</span>
+              <span className="sm:hidden">Home</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Payment Settings Tab */}
@@ -1126,6 +1132,11 @@ export function Settings() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Home Tab Settings Tab */}
+          <TabsContent value="home-tab">
+            <HomeTabSettings />
           </TabsContent>
         </Tabs>
       </motion.div>

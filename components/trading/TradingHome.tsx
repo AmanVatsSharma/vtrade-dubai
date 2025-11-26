@@ -33,7 +33,10 @@ import {
   ShoppingCart,
   Wallet,
   LineChart,
-  BarChart4
+  BarChart4,
+  Bell,
+  History,
+  Star
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import type { PnLData } from "@/types/trading"
@@ -161,131 +164,6 @@ const QuickActions = () => {
         </motion.div>
       ))}
     </div>
-  )
-}
-
-// Market Stats Component Enhanced
-const MarketStats = () => {
-  const stats = [
-    { 
-      label: 'FII', 
-      value: '+₹2,450 Cr', 
-      subtext: 'Net Buy',
-      icon: Globe,
-      color: 'green',
-      trend: 'up'
-    },
-    { 
-      label: 'DII', 
-      value: '-₹850 Cr', 
-      subtext: 'Net Sell',
-      icon: Building2,
-      color: 'red',
-      trend: 'down'
-    },
-    { 
-      label: 'PCR', 
-      value: '1.15', 
-      subtext: 'Put-Call',
-      icon: PieChart,
-      color: 'blue',
-      trend: 'neutral'
-    },
-    { 
-      label: 'VIX', 
-      value: '14.25', 
-      subtext: 'Volatility',
-      icon: Activity,
-      color: 'orange',
-      trend: 'down'
-    },
-  ]
-  
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      {stats.map((stat, idx) => (
-        <motion.div
-          key={stat.label}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: idx * 0.1 }}
-        >
-          <Card className="bg-gradient-to-br from-card to-card/50 border-border/50 hover:border-primary/30 transition-all">
-            <CardContent className="p-3">
-              <div className="flex items-start justify-between mb-2">
-                <div className={`p-2 rounded-lg bg-${stat.color}-500/10`}>
-                  <stat.icon className={`h-4 w-4 text-${stat.color}-600`} />
-                </div>
-                {stat.trend === 'up' && <ArrowUpRight className="h-4 w-4 text-green-500" />}
-                {stat.trend === 'down' && <ArrowDownRight className="h-4 w-4 text-red-500" />}
-              </div>
-              <p className="text-xs text-muted-foreground mb-1">{stat.label}</p>
-              <p className="text-lg font-bold text-foreground mb-0.5">{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.subtext}</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ))}
-    </div>
-  )
-}
-
-// Sector Performance Component
-const SectorPerformance = () => {
-  const sectors = [
-    { name: 'IT', change: 2.45, icon: '💻' },
-    { name: 'Banking', change: 1.87, icon: '🏦' },
-    { name: 'Pharma', change: -0.65, icon: '💊' },
-    { name: 'Auto', change: 1.23, icon: '🚗' },
-    { name: 'FMCG', change: 0.89, icon: '🛒' },
-    { name: 'Energy', change: -1.12, icon: '⚡' },
-  ]
-  
-  return (
-    <Card className="border-border/50">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <BarChart4 className="h-4 w-4 text-primary" />
-            Sector Performance
-          </CardTitle>
-          <Button variant="ghost" size="sm" className="h-7 text-xs">
-            View All <ChevronRight className="h-3 w-3 ml-1" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {sectors.map((sector, idx) => (
-            <motion.div
-              key={sector.name}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: idx * 0.05 }}
-              className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{sector.icon}</span>
-                <span className="text-sm font-medium text-foreground">{sector.name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-20 h-1.5 rounded-full bg-muted overflow-hidden`}>
-                  <div 
-                    className={`h-full ${sector.change >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(Math.abs(sector.change) * 20, 100)}%` }}
-                  ></div>
-                </div>
-                <span className={`text-sm font-bold min-w-[60px] text-right ${
-                  sector.change >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {sector.change >= 0 ? '+' : ''}{sector.change}%
-                </span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -474,290 +352,6 @@ const StockScreener = () => {
   )
 }
 
-// Top Movers Component Enhanced
-const TopMovers = () => {
-  const gainers = [
-    { symbol: "RELIANCE", name: "Reliance Ind.", change: 3.45, price: 2456.75, volume: "High", badge: "🔥" },
-    { symbol: "TCS", name: "Tata Consultancy", change: 2.87, price: 3678.90, volume: "High", badge: "⚡" },
-    { symbol: "HDFCBANK", name: "HDFC Bank", change: 2.34, price: 1567.40, volume: "Med", badge: "" },
-    { symbol: "INFY", name: "Infosys Ltd", change: 2.15, price: 1456.30, volume: "High", badge: "🔥" },
-  ]
-
-  const losers = [
-    { symbol: "BHARTIARTL", name: "Bharti Airtel", change: -2.67, price: 1234.50, volume: "High", badge: "⚠️" },
-    { symbol: "WIPRO", name: "Wipro Ltd", change: -1.98, price: 456.80, volume: "Med", badge: "" },
-    { symbol: "ITC", name: "ITC Ltd", change: -1.45, price: 345.20, volume: "Low", badge: "" },
-  ]
-
-  return (
-    <Card className="border-border/50">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <TrendingUpDown className="h-4 w-4 text-primary" />
-            Top Movers
-          </CardTitle>
-          <Button variant="ghost" size="sm" className="h-7 text-xs">
-            View All <ChevronRight className="h-3 w-3 ml-1" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Gainers */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded bg-green-500/20">
-              <ArrowUpRight className="h-3.5 w-3.5 text-green-600" />
-            </div>
-            <h4 className="text-sm font-semibold text-green-600">Top Gainers</h4>
-          </div>
-          <div className="space-y-2">
-            {gainers.map((stock, idx) => (
-              <motion.div
-                key={stock.symbol}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: idx * 0.05 }}
-                className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20 hover:border-green-500/40 transition-all cursor-pointer group"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-semibold text-foreground">{stock.symbol}</p>
-                    {stock.badge && <span className="text-xs">{stock.badge}</span>}
-                    <Badge variant="outline" className="text-xs h-4 px-1">{stock.volume} Vol</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{stock.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-foreground">₹{stock.price}</p>
-                  <p className="text-xs font-semibold text-green-600">+{stock.change}%</p>
-                </div>
-                <Button size="sm" variant="ghost" className="ml-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                </Button>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Losers */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded bg-red-500/20">
-              <ArrowDownRight className="h-3.5 w-3.5 text-red-600" />
-            </div>
-            <h4 className="text-sm font-semibold text-red-600">Top Losers</h4>
-          </div>
-          <div className="space-y-2">
-            {losers.map((stock, idx) => (
-              <motion.div
-                key={stock.symbol}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: idx * 0.05 }}
-                className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20 hover:border-red-500/40 transition-all cursor-pointer group"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-semibold text-foreground">{stock.symbol}</p>
-                    {stock.badge && <span className="text-xs">{stock.badge}</span>}
-                    <Badge variant="outline" className="text-xs h-4 px-1">{stock.volume} Vol</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{stock.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-foreground">₹{stock.price}</p>
-                  <p className="text-xs font-semibold text-red-600">{stock.change}%</p>
-                </div>
-                <Button size="sm" variant="ghost" className="ml-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                </Button>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// IPO & Events Component
-const IPOAndEvents = () => {
-  const ipos = [
-    { name: "TechCorp India", date: "Oct 15-17", price: "₹320-350", status: "Open", type: "Mainboard" },
-    { name: "GreenEnergy Ltd", date: "Oct 20-22", price: "₹180-200", status: "Upcoming", type: "SME" },
-  ]
-  
-  const events = [
-    { company: "RELIANCE", event: "Results", date: "Oct 18", impact: "High" },
-    { company: "TCS", event: "Dividend", date: "Oct 22", impact: "Medium" },
-  ]
-  
-  return (
-    <Card className="border-border/50">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-primary" />
-            IPOs & Events
-          </CardTitle>
-          <Button variant="ghost" size="sm" className="h-7 text-xs">
-            Calendar <ChevronRight className="h-3 w-3 ml-1" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* IPOs */}
-        <div>
-          <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-            <Award className="h-3 w-3" /> Upcoming IPOs
-          </h4>
-          <div className="space-y-2">
-            {ipos.map((ipo, idx) => (
-              <motion.div
-                key={ipo.name}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: idx * 0.05 }}
-                className="p-3 rounded-lg bg-gradient-to-r from-blue-500/5 to-purple-500/5 border border-blue-500/20"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">{ipo.name}</p>
-                    <p className="text-xs text-muted-foreground">{ipo.date}</p>
-                  </div>
-                  <Badge className={ipo.status === 'Open' ? 'bg-green-500' : 'bg-blue-500'}>{ipo.status}</Badge>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Price: <span className="font-semibold text-foreground">{ipo.price}</span></span>
-                  <Badge variant="outline" className="text-xs h-4">{ipo.type}</Badge>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-        
-        <Separator />
-        
-        {/* Events */}
-        <div>
-          <h4 className="text-xs font-semibold text-muted-foreground mb-2">Corporate Actions</h4>
-          <div className="space-y-2">
-            {events.map((event, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{event.company}</p>
-                  <p className="text-xs text-muted-foreground">{event.event} • {event.date}</p>
-                </div>
-                <Badge variant={event.impact === 'High' ? 'destructive' : 'secondary'} className="text-xs">
-                  {event.impact}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// Market News Component Enhanced
-const MarketNews = () => {
-  const news = [
-    {
-      id: 1,
-      title: "Nifty 50 hits new all-time high amid strong Q3 earnings season",
-      source: "Economic Times",
-      time: "2 hours ago",
-      category: "Markets",
-      image: "📈",
-      priority: "high"
-    },
-    {
-      id: 2,
-      title: "RBI maintains repo rate at 6.5%, outlook remains stable",
-      source: "Moneycontrol",
-      time: "4 hours ago",
-      category: "Economy",
-      image: "🏦",
-      priority: "medium"
-    },
-    {
-      id: 3,
-      title: "FII inflows surge to record high in January 2025",
-      source: "Business Standard",
-      time: "5 hours ago",
-      category: "Markets",
-      image: "💰",
-      priority: "medium"
-    },
-    {
-      id: 4,
-      title: "IT sector sees strong growth on global demand recovery",
-      source: "Live Mint",
-      time: "6 hours ago",
-      category: "Sectors",
-      image: "💻",
-      priority: "low"
-    },
-  ]
-
-  return (
-    <Card className="border-border/50">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Newspaper className="h-4 w-4 text-primary" />
-            Market News
-          </CardTitle>
-          <Button variant="ghost" size="sm" className="h-7 text-xs">
-            More <ChevronRight className="h-3 w-3 ml-1" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {news.map((item, idx) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: idx * 0.05 }}
-              className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
-                item.priority === 'high' 
-                  ? 'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 hover:border-primary/50' 
-                  : 'bg-muted/30 border-border/50 hover:border-primary/30'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">{item.image}</span>
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <h4 className="text-sm font-medium text-foreground line-clamp-2 flex-1">{item.title}</h4>
-                    {item.priority === 'high' && <Badge variant="destructive" className="text-xs shrink-0">Breaking</Badge>}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-medium">{item.source}</span>
-                    <span>•</span>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>{item.time}</span>
-                    </div>
-                    <span>•</span>
-                    <Badge variant="outline" className="text-xs h-4">{item.category}</Badge>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 // TradingView Ticker Tape Widget
 const TickerTape = () => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -830,6 +424,35 @@ export const TradingHome: React.FC<TradingHomeProps> = ({ userName, session, por
     minute: '2-digit',
     hour12: true 
   })
+  const [widgetConfig, setWidgetConfig] = useState({
+    tickerTape: true,
+    chart: true,
+    heatmap: true,
+    screener: false,
+  })
+
+  useEffect(() => {
+    // Fetch admin configuration for widget visibility (only for TradingView widgets)
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/market-data/home-config')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.config?.enabledWidgets) {
+            setWidgetConfig({
+              tickerTape: data.config.enabledWidgets.tickerTape ?? true,
+              chart: data.config.enabledWidgets.chart ?? true,
+              heatmap: data.config.enabledWidgets.heatmap ?? true,
+              screener: data.config.enabledWidgets.screener ?? false,
+            })
+          }
+        }
+      } catch (error) {
+        console.error('[TradingHome] Error fetching widget config:', error)
+      }
+    }
+    fetchConfig()
+  }, [])
 
   return (
     <div className="space-y-4 pb-20">
@@ -867,13 +490,15 @@ export const TradingHome: React.FC<TradingHomeProps> = ({ userName, session, por
       </motion.div>
 
       {/* TradingView Ticker Tape */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-      >
-        <TickerTape />
-      </motion.div>
+      {widgetConfig.tickerTape && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
+          <TickerTape />
+        </motion.div>
+      )}
 
       {/* Portfolio Summary */}
       <motion.div
@@ -893,78 +518,307 @@ export const TradingHome: React.FC<TradingHomeProps> = ({ userName, session, por
         <QuickActions />
       </motion.div>
 
-      {/* Market Stats (FII, DII, PCR, VIX) */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.25 }}
-      >
-        <MarketStats />
-      </motion.div>
-
       {/* Advanced Chart */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
-      >
-        <AdvancedChart />
-      </motion.div>
+      {widgetConfig.chart && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
+        >
+          <AdvancedChart />
+        </motion.div>
+      )}
 
       {/* Market Heat Map */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.35 }}
-      >
-        <MarketHeatMap />
-      </motion.div>
-
-      {/* Sector Performance */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.4 }}
-      >
-        <SectorPerformance />
-      </motion.div>
-
-      {/* Top Movers Enhanced */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.45 }}
-      >
-        <TopMovers />
-      </motion.div>
-
-      {/* IPO & Events */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.5 }}
-      >
-        <IPOAndEvents />
-      </motion.div>
+      {widgetConfig.heatmap && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.35 }}
+        >
+          <MarketHeatMap />
+        </motion.div>
+      )}
 
       {/* Stock Screener */}
+      {widgetConfig.screener && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.55 }}
+        >
+          <StockScreener />
+        </motion.div>
+      )}
+
+      {/* Recent Activity */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.55 }}
+        transition={{ duration: 0.4, delay: 0.65 }}
       >
-        <StockScreener />
+        <RecentActivity />
       </motion.div>
 
-      {/* Market News Enhanced */}
+      {/* Market Alerts */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.6 }}
+        transition={{ duration: 0.4, delay: 0.7 }}
       >
-        <MarketNews />
+        <MarketAlerts />
+      </motion.div>
+
+      {/* Quick Access Stocks */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.75 }}
+      >
+        <QuickAccessStocks />
       </motion.div>
     </div>
+  )
+}
+
+// Recent Activity Component
+const RecentActivity = () => {
+  const [activities, setActivities] = useState<Array<{ id: string; type: string; symbol: string; action: string; time: string; amount?: number }>>([])
+
+  useEffect(() => {
+    const fetchActivity = async () => {
+      try {
+        // Fetch recent orders/positions activity
+        const response = await fetch('/api/trading/orders/list?limit=5')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.orders) {
+            const recentActivities = data.orders.slice(0, 5).map((order: any) => ({
+              id: order.id,
+              type: order.side,
+              symbol: order.symbol || order.instrumentSymbol || 'N/A',
+              action: `${order.side} ${order.quantity} ${order.symbol || ''}`,
+              time: new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+              amount: order.price * order.quantity,
+            }))
+            setActivities(recentActivities)
+          }
+        }
+      } catch (error) {
+        console.error('[RecentActivity] Error fetching activity:', error)
+      }
+    }
+    fetchActivity()
+    const interval = setInterval(fetchActivity, 30000) // Refresh every 30 seconds
+    return () => clearInterval(interval)
+  }, [])
+
+  if (activities.length === 0) {
+    return null
+  }
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <History className="h-4 w-4 text-primary" />
+            Recent Activity
+          </CardTitle>
+          <Button variant="ghost" size="sm" className="h-7 text-xs">
+            View All <ChevronRight className="h-3 w-3 ml-1" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {activities.map((activity, idx) => (
+            <motion.div
+              key={activity.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: idx * 0.05 }}
+              className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded ${activity.type === 'BUY' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                  {activity.type === 'BUY' ? (
+                    <TrendingUp className={`h-3 w-3 ${activity.type === 'BUY' ? 'text-green-600' : 'text-red-600'}`} />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-600" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{activity.symbol}</p>
+                  <p className="text-xs text-muted-foreground">{activity.action}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                {activity.amount && (
+                  <p className="text-sm font-bold text-foreground">₹{activity.amount.toLocaleString('en-IN')}</p>
+                )}
+                <p className="text-xs text-muted-foreground">{activity.time}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Market Alerts Component
+const MarketAlerts = () => {
+  const [alerts, setAlerts] = useState<Array<{ id: string; type: string; message: string; time: string; priority: string }>>([])
+
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        // Fetch market alerts (price alerts, circuit breakers, etc.)
+        // For now, using mock data - integrate with real alerts API
+        const mockAlerts = [
+          {
+            id: '1',
+            type: 'price',
+            message: 'RELIANCE crossed ₹2,500',
+            time: '5 min ago',
+            priority: 'high',
+          },
+          {
+            id: '2',
+            type: 'volume',
+            message: 'High volume detected in TCS',
+            time: '15 min ago',
+            priority: 'medium',
+          },
+        ]
+        setAlerts(mockAlerts)
+      } catch (error) {
+        console.error('[MarketAlerts] Error fetching alerts:', error)
+      }
+    }
+    fetchAlerts()
+    const interval = setInterval(fetchAlerts, 60000) // Refresh every minute
+    return () => clearInterval(interval)
+  }, [])
+
+  if (alerts.length === 0) {
+    return null
+  }
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Bell className="h-4 w-4 text-primary" />
+            Market Alerts
+          </CardTitle>
+          <Button variant="ghost" size="sm" className="h-7 text-xs">
+            Manage <ChevronRight className="h-3 w-3 ml-1" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {alerts.map((alert, idx) => (
+            <motion.div
+              key={alert.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: idx * 0.05 }}
+              className={`p-3 rounded-lg border ${
+                alert.priority === 'high'
+                  ? 'bg-red-500/10 border-red-500/30'
+                  : 'bg-yellow-500/10 border-yellow-500/30'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">{alert.message}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
+                </div>
+                {alert.priority === 'high' && (
+                  <Badge variant="destructive" className="text-xs">High</Badge>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Quick Access Stocks Component
+const QuickAccessStocks = () => {
+  const [quickStocks, setQuickStocks] = useState<Array<{ symbol: string; name: string; price: number; change: number }>>([])
+
+  useEffect(() => {
+    const fetchQuickStocks = async () => {
+      try {
+        // Fetch frequently traded stocks or user's watchlist
+        const response = await fetch('/api/market-data/home-config')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.config?.tickerTapeSymbols) {
+            // Use first 4 symbols from ticker tape as quick access
+            const symbols = data.config.tickerTapeSymbols.slice(0, 4)
+            // Fetch prices for these symbols (mock for now - integrate with real quotes)
+            const stocks = symbols.map((sym: string) => ({
+              symbol: sym.split(':')[1] || sym,
+              name: sym.split(':')[1] || sym,
+              price: Math.random() * 5000 + 1000,
+              change: (Math.random() - 0.5) * 5,
+            }))
+            setQuickStocks(stocks)
+          }
+        }
+      } catch (error) {
+        console.error('[QuickAccessStocks] Error fetching quick stocks:', error)
+      }
+    }
+    fetchQuickStocks()
+  }, [])
+
+  if (quickStocks.length === 0) {
+    return null
+  }
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Star className="h-4 w-4 text-primary" />
+            Quick Access
+          </CardTitle>
+          <Button variant="ghost" size="sm" className="h-7 text-xs">
+            Customize <ChevronRight className="h-3 w-3 ml-1" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-3">
+          {quickStocks.map((stock, idx) => (
+            <motion.div
+              key={stock.symbol}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: idx * 0.05 }}
+              className="p-3 rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
+            >
+              <p className="text-sm font-semibold text-foreground mb-1">{stock.symbol}</p>
+              <p className="text-xs text-muted-foreground mb-2">{stock.name}</p>
+              <p className="text-lg font-bold text-foreground mb-1">₹{stock.price.toFixed(2)}</p>
+              <p className={`text-xs font-semibold ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}%
+              </p>
+            </motion.div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
