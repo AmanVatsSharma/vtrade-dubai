@@ -227,8 +227,14 @@ export function PositionsManagement() {
                     <Input value={cpPrice} onChange={(e) => setCpPrice(e.target.value)} placeholder="optional" />
                   </div>
                 </div>
+                {cpErr && (
+                  <Alert variant="destructive" className="bg-red-500/10 border-red-500/50">
+                    <AlertTitle className="text-red-500">Error</AlertTitle>
+                    <AlertDescription className="text-red-400">{cpErr}</AlertDescription>
+                  </Alert>
+                )}
                 <DialogFooter>
-                  <Button onClick={createPosition} disabled={loading || !cpAccountId || !cpStockId || !cpSymbol || !cpQty || !cpType || !cpSide}>
+                  <Button onClick={submitCreate} disabled={loading || !cpAccountId || !cpStockId || !cpSymbol || !cpQty || !cpType || !cpSide}>
                     Create
                   </Button>
                 </DialogFooter>

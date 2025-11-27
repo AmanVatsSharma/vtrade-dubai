@@ -3,7 +3,7 @@
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight, ArrowDownRight, Eye, AlertTriangle, LayoutDashboard } from "lucide-react"
-import { PageHeader, RefreshButton } from "./shared"
+import { PageHeader, RefreshButton } from "@/components/admin-console/shared"
 import { TradingChart } from "./trading-chart"
 import { UserActivityChart } from "./user-activity-chart"
 import { Button } from "@/components/ui/button"
@@ -75,11 +75,11 @@ const mockRecentActivity = [
 ]
 
 export function Dashboard() {
-  const [stats, setStats] = useState(mockStats)
-  const [recentActivity, setRecentActivity] = useState(mockRecentActivity)
+  const [stats, setStats] = useState<typeof mockStats>([])
+  const [recentActivity, setRecentActivity] = useState<typeof mockRecentActivity>([])
   const [alerts, setAlerts] = useState<Array<{ id: string; type: string; message: string; time: string }>>([])
   const [topTraders, setTopTraders] = useState<Array<{ id: string; name: string; clientId: string; profit: number; trades: number; winRate: number }>>([])
-  const [isUsingMockData, setIsUsingMockData] = useState(true)
+  const [isUsingMockData, setIsUsingMockData] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const fetchRealData = async () => {
@@ -207,6 +207,13 @@ export function Dashboard() {
 
       setIsUsingMockData(!hasRealData)
       
+      // If no real data was loaded, use mock data as fallback
+      if (!hasRealData) {
+        console.warn("⚠️ [ADMIN-DASHBOARD] No real data available, using mock data")
+        setStats(mockStats)
+        setRecentActivity(mockRecentActivity)
+      }
+      
       if (hasRealData) {
         toast({
           title: "✅ Real Data Loaded",
@@ -217,6 +224,9 @@ export function Dashboard() {
     } catch (error) {
       console.error("❌ [ADMIN-DASHBOARD] Error fetching data:", error)
       setIsUsingMockData(true)
+      // Fallback to mock data on error
+      setStats(mockStats)
+      setRecentActivity(mockRecentActivity)
     } finally {
       setLoading(false)
     }
@@ -244,7 +254,7 @@ export function Dashboard() {
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Mock Data Warning */}
-      {isUsingMockData && (
+      {isUsingMockData && !loading && (
         <Alert variant="destructive" className="bg-yellow-500/10 border-yellow-500/50">
           <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
           <AlertTitle className="text-yellow-500 text-sm sm:text-base">Using Mock Data</AlertTitle>
@@ -268,29 +278,49 @@ export function Dashboard() {
       {/* Header */}
       <PageHeader
         title="Trading Console Dashboard"
-        description={`Real-time monitoring and analytics for your trading platform${!isUsingMockData ? " • Live Data" : ""}`}
+        description={`Real-time monitoring and analytics for your trading platform${!isUsingMockData && !loading ? " • Live Data" : ""}`}
         icon={<LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
         actions={
           <>
             <RefreshButton onClick={fetchRealData} loading={loading} />
-            <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
-              <div className={`w-2 h-2 rounded-full ${isUsingMockData ? 'bg-yellow-400' : 'bg-green-400 pulse-glow'}`}></div>
-              <span className={`hidden sm:inline ${isUsingMockData ? 'text-yellow-400' : 'text-green-400'}`}>
-                {isUsingMockData ? 'Mock Data' : 'Live Data'}
-              </span>
-            </div>
+            {!loading && (
+              <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
+                <div className={`w-2 h-2 rounded-full ${isUsingMockData ? 'bg-yellow-400' : 'bg-green-400 pulse-glow'}`}></div>
+                <span className={`hidden sm:inline ${isUsingMockData ? 'text-yellow-400' : 'text-green-400'}`}>
+                  {isUsingMockData ? 'Mock Data' : 'Live Data'}
+                </span>
+              </div>
+            )}
           </>
         }
       />
 
-      {/* Stats Grid */}
-      <motion.div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-      >
-        {stats.map((stat, index) => {
+      {/* Loading State */}
+      {loading && stats.length === 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="bg-card border-border shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                <div className="h-4 w-24 bg-muted animate-pulse rounded"></div>
+                <div className="h-5 w-5 bg-muted animate-pulse rounded"></div>
+              </CardHeader>
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                <div className="h-8 w-32 bg-muted animate-pulse rounded mb-2"></div>
+                <div className="h-3 w-20 bg-muted animate-pulse rounded mb-2"></div>
+                <div className="h-3 w-16 bg-muted animate-pulse rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        /* Stats Grid */
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+        >
+          {stats.map((stat, index) => {
           const Icon = stat.icon
           return (
             <motion.div
@@ -323,6 +353,7 @@ export function Dashboard() {
           )
         })}
       </motion.div>
+      )}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">

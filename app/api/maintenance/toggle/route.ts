@@ -67,90 +67,79 @@ export async function POST(request: NextRequest) {
       allowAdminBypass
     });
 
+    // Helper function to upsert a setting
+    const upsertSetting = async (key: string, value: string, description: string) => {
+      const existing = await prisma.systemSettings.findFirst({
+        where: {
+          key,
+          ownerId: null
+        }
+      });
+
+      if (existing) {
+        return prisma.systemSettings.update({
+          where: { id: existing.id },
+          data: {
+            value,
+            category: 'MAINTENANCE',
+            isActive: true,
+            updatedAt: new Date()
+          }
+        });
+      } else {
+        return prisma.systemSettings.create({
+          data: {
+            ownerId: null,
+            key,
+            value,
+            category: 'MAINTENANCE',
+            description,
+            isActive: true
+          }
+        });
+      }
+    };
+
     // Update settings in database
     const updates: Promise<any>[] = [];
 
     if (enabled !== undefined) {
       updates.push(
-        prisma.systemSettings.upsert({
-          where: { key: 'maintenance_mode_enabled' },
-          update: {
-            value: String(enabled),
-            category: 'MAINTENANCE',
-            isActive: true,
-            updatedAt: new Date()
-          },
-          create: {
-            key: 'maintenance_mode_enabled',
-            value: String(enabled),
-            category: 'MAINTENANCE',
-            description: 'Enable or disable maintenance mode',
-            isActive: true
-          }
-        })
+        upsertSetting(
+          'maintenance_mode_enabled',
+          String(enabled),
+          'Enable or disable maintenance mode'
+        )
       );
     }
 
     if (message !== undefined) {
       updates.push(
-        prisma.systemSettings.upsert({
-          where: { key: 'maintenance_message' },
-          update: {
-            value: message,
-            category: 'MAINTENANCE',
-            isActive: true,
-            updatedAt: new Date()
-          },
-          create: {
-            key: 'maintenance_message',
-            value: message,
-            category: 'MAINTENANCE',
-            description: 'Custom maintenance message displayed to users',
-            isActive: true
-          }
-        })
+        upsertSetting(
+          'maintenance_message',
+          message,
+          'Custom maintenance message displayed to users'
+        )
       );
     }
 
     if (endTime !== undefined) {
       updates.push(
-        prisma.systemSettings.upsert({
-          where: { key: 'maintenance_end_time' },
-          update: {
-            value: endTime,
-            category: 'MAINTENANCE',
-            isActive: true,
-            updatedAt: new Date()
-          },
-          create: {
-            key: 'maintenance_end_time',
-            value: endTime,
-            category: 'MAINTENANCE',
-            description: 'Expected maintenance end time (ISO string or descriptive text)',
-            isActive: true
-          }
-        })
+        upsertSetting(
+          'maintenance_end_time',
+          endTime,
+          'Expected maintenance end time (ISO string or descriptive text)'
+        )
       );
     }
 
     if (allowAdminBypass !== undefined) {
       updates.push(
-        prisma.systemSettings.upsert({
-          where: { key: 'maintenance_allow_admin_bypass' },
-          update: {
-            value: String(allowAdminBypass),
-            category: 'MAINTENANCE',
-            isActive: true,
-            updatedAt: new Date()
-          },
-          create: {
-            key: 'maintenance_allow_admin_bypass',
-            value: String(allowAdminBypass),
-            category: 'MAINTENANCE',
-            description: 'Allow ADMIN and SUPER_ADMIN roles to bypass maintenance mode',
-            isActive: true
-          }
-        })
+        upsertSetting(
+          'maintenance_allow_admin_bypass',
+          String(allowAdminBypass),
+          'Allow ADMIN and SUPER_ADMIN roles to bypass maintenance mode'
+        )
       );
     }
 
