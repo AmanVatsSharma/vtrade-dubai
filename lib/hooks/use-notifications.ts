@@ -69,16 +69,21 @@ const fetcher = async (url: string) => {
 }
 
 export function useNotifications(userId: string): UseNotificationsReturn {
-  console.log("🔔 [USE-NOTIFICATIONS] Hook called with userId:", userId)
+  console.log("🔔 [USE-NOTIFICATIONS] Hook called with userId:", userId, {
+    hasUserId: !!userId,
+    userIdType: typeof userId,
+    userIdLength: userId?.length
+  })
   const [isPolling, setIsPolling] = useState(true)
 
   // Validate userId
   if (!userId || userId.trim() === '') {
     console.warn("🔔 [USE-NOTIFICATIONS] Invalid userId provided:", userId)
+    console.warn("🔔 [USE-NOTIFICATIONS] Hook will not fetch notifications without valid userId")
   }
 
   const { data, error, isLoading, mutate } = useSWR(
-    userId ? '/api/notifications' : null,
+    userId && userId.trim() !== '' ? '/api/notifications' : null,
     fetcher,
     {
       refreshInterval: isPolling ? 30000 : 0, // Poll every 30 seconds
@@ -86,12 +91,24 @@ export function useNotifications(userId: string): UseNotificationsReturn {
       revalidateOnReconnect: true,
       dedupingInterval: 5000, // Dedupe requests within 5 seconds
       onError: (error) => {
-        console.error("🔔 [USE-NOTIFICATIONS] SWR error:", error)
+        console.error("🔔 [USE-NOTIFICATIONS] SWR error:", {
+          error: error.message,
+          stack: error.stack,
+          userId
+        })
       },
       onSuccess: (data) => {
         console.log("🔔 [USE-NOTIFICATIONS] SWR success:", {
           notificationsCount: data?.notifications?.length || 0,
-          unreadCount: data?.unreadCount || 0
+          unreadCount: data?.unreadCount || 0,
+          userId,
+          hasNotifications: !!data?.notifications,
+          notifications: data?.notifications?.map((n: Notification) => ({
+            id: n.id,
+            title: n.title,
+            target: n.target,
+            read: n.read
+          }))
         })
       }
     }

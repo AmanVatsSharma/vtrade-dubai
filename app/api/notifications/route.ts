@@ -24,11 +24,25 @@ export async function GET(req: Request) {
   try {
     const session = await auth()
     if (!session?.user) {
-      console.warn("⚠️ [API-NOTIFICATIONS] Unauthorized request")
+      console.warn("⚠️ [API-NOTIFICATIONS] Unauthorized request - no session or user")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = (session.user as any).id
+    
+    // Enhanced logging for debugging
+    console.log("🔔 [API-NOTIFICATIONS] Session details:", {
+      userId,
+      userEmail: (session.user as any).email,
+      userName: (session.user as any).name,
+      hasUserId: !!userId
+    })
+
+    if (!userId) {
+      console.error("❌ [API-NOTIFICATIONS] userId is missing from session")
+      return NextResponse.json({ error: "User ID not found in session" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     
     // Query parameters
@@ -38,33 +52,49 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    console.log("📋 [API-NOTIFICATIONS] Query params:", { type, priority, read, limit, offset })
+    console.log("📋 [API-NOTIFICATIONS] Query params:", { type, priority, read, limit, offset, userId })
 
-    // Build where clause
+    // Build where clause - match admin route structure for consistency
     const where: any = {
-      OR: [
-        { target: 'ALL' },
-        { target: 'USERS' },
-        { target: 'SPECIFIC', targetUserIds: { has: userId } }
-      ],
-      expiresAt: {
-        OR: [
-          { gt: new Date() },
-          { equals: null }
-        ]
-      }
+      AND: [
+        {
+          OR: [
+            { target: 'ALL' },
+            { target: 'USERS' },
+            { 
+              AND: [
+                { target: 'SPECIFIC' },
+                { targetUserIds: { has: userId } }
+              ]
+            }
+          ]
+        },
+        {
+          OR: [
+            { expiresAt: { gt: new Date() } },
+            { expiresAt: null }
+          ]
+        }
+      ]
     }
 
-    // Add filters
-    if (type) where.type = type
-    if (priority) where.priority = priority
+    // Add filters - append to AND array
+    if (type) {
+      where.AND.push({ type })
+    }
+    if (priority) {
+      where.AND.push({ priority })
+    }
     if (read !== null) {
       if (read === 'true') {
-        where.readBy = { has: userId }
+        where.AND.push({ readBy: { has: userId } })
       } else {
-        where.readBy = { not: { has: userId } }
+        where.AND.push({ readBy: { not: { has: userId } } })
       }
     }
+
+    // Log the where clause for debugging
+    console.log("🔍 [API-NOTIFICATIONS] Prisma where clause:", JSON.stringify(where, null, 2))
 
     // Fetch notifications
     const [notifications, totalCount] = await Promise.all([
@@ -88,6 +118,12 @@ export async function GET(req: Request) {
       prisma.notification.count({ where })
     ])
 
+    console.log("📊 [API-NOTIFICATIONS] Raw notifications from DB:", {
+      count: notifications.length,
+      totalCount,
+      notificationTargets: notifications.map(n => ({ id: n.id, target: n.target, targetUserIds: n.targetUserIds }))
+    })
+
     // Format notifications
     const formattedNotifications = notifications.map(notif => ({
       id: notif.id,
@@ -98,7 +134,7 @@ export async function GET(req: Request) {
       target: notif.target,
       createdAt: notif.createdAt.toISOString(),
       expiresAt: notif.expiresAt?.toISOString() || null,
-      read: notif.readBy.includes(userId),
+      read: Array.isArray(notif.readBy) ? notif.readBy.includes(userId) : false,
       createdBy: notif.createdByUser ? {
         id: notif.createdByUser.id,
         name: notif.createdByUser.name,
@@ -106,15 +142,26 @@ export async function GET(req: Request) {
       } : null
     }))
 
-    // Count unread
+    // Count unread - build separate where clause for unread count
+    const unreadWhere = {
+      ...where,
+      AND: [
+        ...where.AND,
+        { readBy: { not: { has: userId } } }
+      ]
+    }
+
     const unreadCount = await prisma.notification.count({
-      where: {
-        ...where,
-        readBy: { not: { has: userId } }
-      }
+      where: unreadWhere
     })
 
-    console.log(`✅ [API-NOTIFICATIONS] Fetched ${formattedNotifications.length} notifications (${unreadCount} unread)`)
+    console.log(`✅ [API-NOTIFICATIONS] Fetched ${formattedNotifications.length} notifications (${unreadCount} unread) for user ${userId}`)
+    console.log("📋 [API-NOTIFICATIONS] Formatted notifications:", formattedNotifications.map(n => ({
+      id: n.id,
+      title: n.title,
+      target: n.target,
+      read: n.read
+    })))
 
     return NextResponse.json({
       notifications: formattedNotifications,

@@ -73,13 +73,25 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
   // Log notifications data for debugging
   useEffect(() => {
     console.log("🔔 [NOTIFICATION-CENTER] Notifications updated:", {
+      userId,
       count: notifications.length,
       unreadCount,
       isLoading,
       error: error?.message,
-      notifications: notifications.map(n => ({ id: n.id, title: n.title, read: n.read }))
+      errorDetails: error,
+      hasError: !!error,
+      notifications: notifications.map(n => ({ id: n.id, title: n.title, read: n.read, target: n.target }))
     })
-  }, [notifications, unreadCount, isLoading, error])
+    
+    // Log error details if present
+    if (error) {
+      console.error("🔔 [NOTIFICATION-CENTER] Error fetching notifications:", {
+        message: error.message,
+        stack: error.stack,
+        userId
+      })
+    }
+  }, [userId, notifications, unreadCount, isLoading, error])
 
   // Show all notifications - no filtering
   const displayNotifications = notifications
@@ -206,7 +218,24 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
         {/* Notifications List */}
         <CardContent className="p-0">
           <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-            {isLoading && notifications.length === 0 ? (
+            {error && !isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4">
+                <AlertCircle className="h-12 w-12 text-destructive/50 mb-2" />
+                <p className="text-sm font-medium text-destructive mb-1">Failed to load notifications</p>
+                <p className="text-xs text-muted-foreground text-center mb-3">
+                  {error.message || "An error occurred while fetching notifications"}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refresh()}
+                  className="mt-2"
+                >
+                  <RefreshCw className="h-3 w-3 mr-2" />
+                  Retry
+                </Button>
+              </div>
+            ) : isLoading && notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">Loading notifications...</p>

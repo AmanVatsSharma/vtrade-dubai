@@ -25,22 +25,42 @@ interface NotificationBellProps {
 }
 
 export function NotificationBell({ userId, className }: NotificationBellProps) {
-  console.log("🔔 [NOTIFICATION-BELL] Component rendered with userId:", userId)
+  console.log("🔔 [NOTIFICATION-BELL] Component rendered with userId:", userId, {
+    hasUserId: !!userId,
+    userIdType: typeof userId,
+    userIdValue: userId
+  })
   
   const [isOpen, setIsOpen] = useState(false)
-  const { unreadCount, isLoading, error, notifications } = useNotifications(userId)
+  
+  // Validate userId before using hook
+  const validUserId = userId && userId.trim() !== '' ? userId : ''
+  const { unreadCount, isLoading, error, notifications } = useNotifications(validUserId)
 
   // Log bell state for debugging
   useEffect(() => {
     console.log("🔔 [NOTIFICATION-BELL] State updated:", {
       userId,
+      validUserId,
       unreadCount,
       isLoading,
       isOpen,
       error: error?.message,
-      notificationsCount: notifications.length
+      errorDetails: error,
+      notificationsCount: notifications.length,
+      hasError: !!error
     })
-  }, [userId, unreadCount, isLoading, isOpen, error, notifications])
+    
+    // Log error details if present
+    if (error) {
+      console.error("🔔 [NOTIFICATION-BELL] Error fetching notifications:", {
+        message: error.message,
+        stack: error.stack,
+        userId,
+        validUserId
+      })
+    }
+  }, [userId, validUserId, unreadCount, isLoading, isOpen, error, notifications])
 
   const handleToggle = useCallback(() => {
     console.log("🔔 [NOTIFICATION-BELL] Toggle clicked, current state:", isOpen)
@@ -81,6 +101,14 @@ export function NotificationBell({ userId, className }: NotificationBellProps) {
           )}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
+        )}
+        
+        {/* Error indicator */}
+        {error && !isLoading && (
+          <span className={cn(
+            "absolute -top-1 -right-1 min-w-[8px] h-[8px] rounded-full",
+            "bg-yellow-500 border-2 border-background"
+          )} title={`Error: ${error.message}`} />
         )}
       </Button>
 
