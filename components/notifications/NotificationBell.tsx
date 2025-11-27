@@ -25,14 +25,30 @@ interface NotificationBellProps {
 }
 
 export function NotificationBell({ userId, className }: NotificationBellProps) {
+  console.log("🔔 [NOTIFICATION-BELL] Component rendered with userId:", userId)
+  
   const [isOpen, setIsOpen] = useState(false)
-  const { unreadCount, isLoading } = useNotifications(userId)
+  const { unreadCount, isLoading, error, notifications } = useNotifications(userId)
+
+  // Log bell state for debugging
+  useEffect(() => {
+    console.log("🔔 [NOTIFICATION-BELL] State updated:", {
+      userId,
+      unreadCount,
+      isLoading,
+      isOpen,
+      error: error?.message,
+      notificationsCount: notifications.length
+    })
+  }, [userId, unreadCount, isLoading, isOpen, error, notifications])
 
   const handleToggle = useCallback(() => {
+    console.log("🔔 [NOTIFICATION-BELL] Toggle clicked, current state:", isOpen)
     setIsOpen(prev => !prev)
-  }, [])
+  }, [isOpen])
 
   const handleClose = useCallback(() => {
+    console.log("🔔 [NOTIFICATION-BELL] Close clicked")
     setIsOpen(false)
   }, [])
 

@@ -44,15 +44,38 @@ interface UseNotificationsReturn {
 }
 
 const fetcher = async (url: string) => {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error('Failed to fetch notifications')
+  console.log("🔔 [USE-NOTIFICATIONS] Fetching notifications from:", url)
+  try {
+    const response = await fetch(url)
+    console.log("🔔 [USE-NOTIFICATIONS] Response status:", response.status, response.statusText)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("🔔 [USE-NOTIFICATIONS] Error response:", errorText)
+      throw new Error(`Failed to fetch notifications: ${response.status} ${response.statusText}`)
+    }
+    
+    const data = await response.json()
+    console.log("🔔 [USE-NOTIFICATIONS] Fetched data:", {
+      notificationsCount: data.notifications?.length || 0,
+      unreadCount: data.unreadCount || 0,
+      hasNotifications: !!data.notifications
+    })
+    return data
+  } catch (error: any) {
+    console.error("🔔 [USE-NOTIFICATIONS] Fetcher error:", error)
+    throw error
   }
-  return response.json()
 }
 
 export function useNotifications(userId: string): UseNotificationsReturn {
+  console.log("🔔 [USE-NOTIFICATIONS] Hook called with userId:", userId)
   const [isPolling, setIsPolling] = useState(true)
+
+  // Validate userId
+  if (!userId || userId.trim() === '') {
+    console.warn("🔔 [USE-NOTIFICATIONS] Invalid userId provided:", userId)
+  }
 
   const { data, error, isLoading, mutate } = useSWR(
     userId ? '/api/notifications' : null,
@@ -62,6 +85,15 @@ export function useNotifications(userId: string): UseNotificationsReturn {
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 5000, // Dedupe requests within 5 seconds
+      onError: (error) => {
+        console.error("🔔 [USE-NOTIFICATIONS] SWR error:", error)
+      },
+      onSuccess: (data) => {
+        console.log("🔔 [USE-NOTIFICATIONS] SWR success:", {
+          notificationsCount: data?.notifications?.length || 0,
+          unreadCount: data?.unreadCount || 0
+        })
+      }
     }
   )
 
