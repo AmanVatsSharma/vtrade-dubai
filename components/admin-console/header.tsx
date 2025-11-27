@@ -1,14 +1,11 @@
 "use client"
 
 /**
- * Admin Console Header
- * 
- * Shows:
- * - Real admin user data from API
- * - Profile image
- * - Search functionality
- * - Notifications
- * - Quick actions
+ * @file header.tsx
+ * @module admin-console
+ * @description Admin Console Header component with user profile, search, and notifications
+ * @author BharatERP
+ * @created 2025-01-27
  */
 
 import { motion } from "framer-motion"

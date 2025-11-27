@@ -38,8 +38,10 @@ import {
   FileCheck,
   Clock,
   CheckCircle2,
+  RefreshCw,
 } from "lucide-react"
 import { StatusBadge, PageHeader, RefreshButton, FilterBar, Pagination, type FilterField } from "./shared"
+import { Label } from "@/components/ui/label"
 import { CreateUserDialog } from "./create-user-dialog"
 import { UserStatementDialog } from "./user-statement-dialog"
 import { AddFundsDialog } from "./add-funds-dialog"
@@ -707,8 +709,8 @@ export function UserManagement() {
                       <TableCell>
                         <div>
                           <p className="font-bold text-green-400">₹{user.balance.toLocaleString()}</p>
-                          {user.availableMargin !== undefined && (
-                            <p className="text-xs text-muted-foreground">Avl: ₹{user.availableMargin.toLocaleString()}</p>
+                          {(user as any).availableMargin !== undefined && (
+                            <p className="text-xs text-muted-foreground">Avl: ₹{((user as any).availableMargin as number).toLocaleString()}</p>
                           )}
                         </div>
                       </TableCell>
@@ -717,7 +719,7 @@ export function UserManagement() {
                       <TableCell>
                         <div>
                           <p className="text-sm font-medium text-foreground">{user.totalTrades || user.stats?.totalOrders || 0} trades</p>
-                          <p className="text-xs text-green-400">{user.activePositions || user.stats?.activePositions || 0} positions</p>
+                          <p className="text-xs text-green-400">{(user as any).activePositions || user.stats?.activePositions || 0} positions</p>
                         </div>
                       </TableCell>
                       <TableCell>

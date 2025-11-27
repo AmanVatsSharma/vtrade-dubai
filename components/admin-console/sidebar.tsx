@@ -1,5 +1,13 @@
 "use client"
 
+/**
+ * @file sidebar.tsx
+ * @module admin-console
+ * @description Sidebar navigation component for admin console
+ * @author BharatERP
+ * @created 2025-01-27
+ */
+
 import { motion } from "framer-motion"
 import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"

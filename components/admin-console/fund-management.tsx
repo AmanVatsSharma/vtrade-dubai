@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Check, X, TrendingUp, TrendingDown, AlertCircle, Wallet } from "lucide-react"
+import { Plus, Check, X, TrendingUp, TrendingDown, AlertCircle, Wallet, RefreshCw } from "lucide-react"
 import { AddFundsDialog } from "./add-funds-dialog"
 import { ApprovalDialog } from "./approval-dialog"
 import { WithdrawalDialog } from "./withdrawal-dialog"
@@ -35,6 +35,7 @@ const mockWithdrawalRequests = [
   {
     id: "1",
     userId: "USR_004321",
+    userClientId: "CLI004321",
     userName: "Emma Wilson",
     amount: 3000,
     method: "Bank Transfer",
@@ -255,7 +256,7 @@ export function FundManagement() {
   const filteredWithdrawals = withdrawals.filter(
     (req) =>
       req.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (req.userClientId && req.userClientId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      ((req as any).userClientId && (req as any).userClientId.toLowerCase().includes(searchTerm.toLowerCase())) ||
       req.accountDetails.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
