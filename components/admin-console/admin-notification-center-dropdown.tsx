@@ -90,7 +90,7 @@ export function AdminNotificationCenter({ onClose }: AdminNotificationCenterProp
   }, [filteredNotifications, markAsRead])
 
   const handleViewAll = useCallback(() => {
-    router.push('/admin-console?tab=notifications')
+    router.push('/admin-console/notifications')
     onClose?.()
   }, [router, onClose])
 

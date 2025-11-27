@@ -25,17 +25,26 @@ export async function GET(req: Request) {
     // Fetch notifications - filter by target audience
     const notifications = await prisma.notification.findMany({
       where: {
-        OR: [
-          { target: 'ALL' },
-          { target: 'ADMINS' },
-          { target: 'SPECIFIC', targetUserIds: { has: userId } }
-        ],
-        expiresAt: {
-          OR: [
-            { gt: new Date() },
-            { equals: null }
-          ]
-        }
+        AND: [
+          {
+            OR: [
+              { target: 'ALL' },
+              { target: 'ADMINS' },
+              { 
+                AND: [
+                  { target: 'SPECIFIC' },
+                  { targetUserIds: { has: userId } }
+                ]
+              }
+            ]
+          },
+          {
+            OR: [
+              { expiresAt: { gt: new Date() } },
+              { expiresAt: null }
+            ]
+          }
+        ]
       },
       include: {
         createdByUser: {
@@ -61,7 +70,7 @@ export async function GET(req: Request) {
       target: notif.target,
       createdAt: notif.createdAt,
       expiresAt: notif.expiresAt,
-      read: notif.readBy.includes(userId)
+      read: Array.isArray(notif.readBy) ? notif.readBy.includes(userId) : false
     }))
 
     console.log("✅ [API-ADMIN-NOTIFICATIONS] Notifications fetched:", formattedNotifications.length)

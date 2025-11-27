@@ -428,8 +428,8 @@ export function RMManagement() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
-                                    // Navigate to users filtered by this RM in User Management tab
-                                    window.location.href = `/admin-console?tab=users&rmId=${rm.id}`
+                                    // Navigate to users filtered by this RM in User Management page
+                                    window.location.href = `/admin-console/users?rmId=${rm.id}`
                                   }}
                                   className="text-primary hover:text-primary/80 text-xs"
                                 >
@@ -504,7 +504,7 @@ export function RMManagement() {
                                                   variant="ghost"
                                                   size="sm"
                                                   onClick={() => {
-                                                    window.location.href = `/admin-console?tab=users&userId=${member.id}`
+                                                    window.location.href = `/admin-console/users?userId=${member.id}`
                                                   }}
                                                   className="w-full mt-2 text-xs h-7"
                                                 >
@@ -527,7 +527,7 @@ export function RMManagement() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => {
-                                          window.location.href = `/admin-console?tab=users&rmId=${rm.id}`
+                                          window.location.href = `/admin-console/users?rmId=${rm.id}`
                                         }}
                                         className="mt-3 text-xs"
                                       >

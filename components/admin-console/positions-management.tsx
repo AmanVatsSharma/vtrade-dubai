@@ -62,8 +62,8 @@ export function PositionsManagement() {
   }, [page, userFilter, q, symbol, openOnly])
 
   useEffect(() => {
-    const base = "/admin-console?tab=positions"
-    router.replace(`${base}&${params.toString()}`)
+    const base = "/admin-console/positions"
+    router.replace(`${base}?${params.toString()}`)
   }, [params, router])
 
   const fetchData = useCallback(async () => {

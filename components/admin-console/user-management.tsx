@@ -74,6 +74,11 @@ const mockUsers = [
 export function UserManagement() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  
+  // Read query params for filtering
+  const rmIdFromUrl = searchParams.get('rmId')
+  const userIdFromUrl = searchParams.get('userId')
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -92,7 +97,9 @@ export function UserManagement() {
     kycStatus: 'all' as string,
     role: 'all' as string,
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
+    rmId: rmIdFromUrl || '',
+    userId: userIdFromUrl || ''
   })
   
   // Real data states
@@ -118,8 +125,23 @@ export function UserManagement() {
     if (filters.role !== 'all') params.set('role', filters.role)
     if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
     if (filters.dateTo) params.set('dateTo', filters.dateTo)
+    if (filters.rmId) params.set('rmId', filters.rmId)
+    if (filters.userId) params.set('userId', filters.userId)
     return params.toString()
   }
+  
+  // Update filters when URL params change
+  useEffect(() => {
+    const rmId = searchParams.get('rmId')
+    const userId = searchParams.get('userId')
+    if (rmId || userId) {
+      setFilters(prev => ({
+        ...prev,
+        rmId: rmId || prev.rmId,
+        userId: userId || prev.userId
+      }))
+    }
+  }, [searchParams])
 
   const fetchRealData = async () => {
     console.log("🔄 [USER-MANAGEMENT] Fetching real users...")
@@ -741,9 +763,9 @@ export function UserManagement() {
                             size="sm"
                             className="h-8 w-8 p-0"
                             onClick={() => {
-                              // Open Advanced trades tab filtered by this user via URL
+                              // Open Advanced trades page filtered by this user via URL
                               const qp = new URLSearchParams({ user: user.clientId || user.id })
-                              router.push(`/admin-console?tab=advanced&${qp.toString()}`)
+                              router.push(`/admin-console/advanced?${qp.toString()}`)
                             }}
                             title="View Trades"
                           >
@@ -755,7 +777,7 @@ export function UserManagement() {
                             className="h-8 w-8 p-0"
                             onClick={() => {
                               const qp = new URLSearchParams({ user: user.clientId || user.id, openOnly: 'true' })
-                              router.push(`/admin-console?tab=positions&${qp.toString()}`)
+                              router.push(`/admin-console/positions?${qp.toString()}`)
                             }}
                             title="View Positions"
                           >
@@ -803,7 +825,7 @@ export function UserManagement() {
                             className="h-8 w-8 p-0"
                             onClick={() => {
                               const qp = new URLSearchParams({ user: user.clientId || user.id })
-                              router.push(`/admin-console?tab=orders&${qp.toString()}`)
+                              router.push(`/admin-console/orders?${qp.toString()}`)
                             }}
                             title="View Orders"
                           >
