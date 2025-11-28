@@ -20,7 +20,7 @@ import { NotificationCenter } from "./NotificationCenter"
 import { useNotifications } from "@/lib/hooks/use-notifications"
 
 interface NotificationBellProps {
-  userId: string
+  userId?: string | null
   className?: string
 }
 
@@ -33,15 +33,14 @@ export function NotificationBell({ userId, className }: NotificationBellProps) {
   
   const [isOpen, setIsOpen] = useState(false)
   
-  // Validate userId before using hook
-  const validUserId = userId && userId.trim() !== '' ? userId : ''
-  const { unreadCount, isLoading, error, notifications } = useNotifications(validUserId)
+  // Use hook with userId (will be undefined/null if not provided)
+  const { unreadCount, isLoading, error, notifications } = useNotifications(userId)
 
   // Log bell state for debugging
   useEffect(() => {
     console.log("🔔 [NOTIFICATION-BELL] State updated:", {
       userId,
-      validUserId,
+      hasUserId: !!userId,
       unreadCount,
       isLoading,
       isOpen,
@@ -56,11 +55,10 @@ export function NotificationBell({ userId, className }: NotificationBellProps) {
       console.error("🔔 [NOTIFICATION-BELL] Error fetching notifications:", {
         message: error.message,
         stack: error.stack,
-        userId,
-        validUserId
+        userId
       })
     }
-  }, [userId, validUserId, unreadCount, isLoading, isOpen, error, notifications])
+  }, [userId, unreadCount, isLoading, isOpen, error, notifications])
 
   const handleToggle = useCallback(() => {
     console.log("🔔 [NOTIFICATION-BELL] Toggle clicked, current state:", isOpen)

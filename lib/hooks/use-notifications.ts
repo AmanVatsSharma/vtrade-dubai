@@ -68,7 +68,7 @@ const fetcher = async (url: string) => {
   }
 }
 
-export function useNotifications(userId: string): UseNotificationsReturn {
+export function useNotifications(userId: string | undefined | null): UseNotificationsReturn {
   console.log("🔔 [USE-NOTIFICATIONS] Hook called with userId:", userId, {
     hasUserId: !!userId,
     userIdType: typeof userId,
@@ -82,8 +82,9 @@ export function useNotifications(userId: string): UseNotificationsReturn {
     console.warn("🔔 [USE-NOTIFICATIONS] Hook will not fetch notifications without valid userId")
   }
 
+  // Follow the same pattern as orders/positions - pass userId as query param for proper SWR caching
   const { data, error, isLoading, mutate } = useSWR(
-    userId && userId.trim() !== '' ? '/api/notifications' : null,
+    userId && userId.trim() !== '' ? `/api/notifications?userId=${userId}` : null,
     fetcher,
     {
       refreshInterval: isPolling ? 30000 : 0, // Poll every 30 seconds
@@ -119,6 +120,7 @@ export function useNotifications(userId: string): UseNotificationsReturn {
   }, [mutate])
 
   const markAsRead = useCallback(async (notificationIds: string[]) => {
+    console.log("🔔 [USE-NOTIFICATIONS] Marking notifications as read:", notificationIds)
     try {
       const response = await fetch('/api/notifications', {
         method: 'PATCH',
@@ -161,6 +163,7 @@ export function useNotifications(userId: string): UseNotificationsReturn {
   }, [mutate])
 
   const markAsUnread = useCallback(async (notificationIds: string[]) => {
+    console.log("🔔 [USE-NOTIFICATIONS] Marking notifications as unread:", notificationIds)
     try {
       const response = await fetch('/api/notifications', {
         method: 'PATCH',

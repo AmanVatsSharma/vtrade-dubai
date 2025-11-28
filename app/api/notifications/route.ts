@@ -22,28 +22,43 @@ export async function GET(req: Request) {
   console.log("🔔 [API-NOTIFICATIONS] GET request received")
 
   try {
+    const { searchParams } = new URL(req.url)
+    const queryUserId = searchParams.get('userId')
+    
+    // Get session for security (following orders/positions pattern)
     const session = await auth()
     if (!session?.user) {
       console.warn("⚠️ [API-NOTIFICATIONS] Unauthorized request - no session or user")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const userId = (session.user as any).id
+    const sessionUserId = (session.user as any).id
     
     // Enhanced logging for debugging
     console.log("🔔 [API-NOTIFICATIONS] Session details:", {
-      userId,
+      sessionUserId,
+      queryUserId,
       userEmail: (session.user as any).email,
       userName: (session.user as any).name,
-      hasUserId: !!userId
+      hasSessionUserId: !!sessionUserId
     })
 
-    if (!userId) {
+    if (!sessionUserId) {
       console.error("❌ [API-NOTIFICATIONS] userId is missing from session")
       return NextResponse.json({ error: "User ID not found in session" }, { status: 401 })
     }
 
-    const { searchParams } = new URL(req.url)
+    // Ensure user can only fetch their own notifications (security check - following orders pattern)
+    if (queryUserId && queryUserId !== sessionUserId) {
+      console.error("❌ [API-NOTIFICATIONS] Query userId doesn't match session userId", {
+        queryUserId,
+        sessionUserId
+      })
+      return NextResponse.json({ error: "Forbidden: Cannot access other user's notifications" }, { status: 403 })
+    }
+
+    // Use session userId for all queries (security first)
+    const userId = sessionUserId
     
     // Query parameters
     const type = searchParams.get('type') // INFO, WARNING, ERROR, SUCCESS

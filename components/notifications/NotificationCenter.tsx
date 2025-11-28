@@ -51,14 +51,17 @@ const formatTimeAgo = (dateString: string): string => {
 }
 
 interface NotificationCenterProps {
-  userId: string
+  userId?: string | null
   onClose?: () => void
 }
 
 type NotificationType = 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS'
 
 export function NotificationCenter({ userId, onClose }: NotificationCenterProps) {
-  console.log("🔔 [NOTIFICATION-CENTER] Component rendered with userId:", userId)
+  console.log("🔔 [NOTIFICATION-CENTER] Component rendered with userId:", userId, {
+    hasUserId: !!userId,
+    userIdType: typeof userId
+  })
   
   const { 
     notifications, 
