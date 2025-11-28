@@ -56,7 +56,7 @@ export async function PATCH(
       }
     }
 
-    // If rmId provided, validate RM exists and is a MODERATOR
+    // If rmId provided, validate RM exists and has appropriate role (ADMIN or MODERATOR can be RMs)
     if (rmId) {
       const rm = await prisma.user.findUnique({
         where: { id: rmId }
@@ -69,11 +69,34 @@ export async function PATCH(
         )
       }
 
-      if (rm.role !== 'MODERATOR') {
+      // ADMIN and MODERATOR can be RMs (can have users managed by them)
+      if (rm.role !== 'MODERATOR' && rm.role !== 'ADMIN') {
         return NextResponse.json(
-          { error: "User is not a Relationship Manager" },
+          { error: "Only Admin or Moderator can be a Relationship Manager" },
           { status: 400 }
         )
+      }
+
+      // Authorization: Check if current user can assign this RM
+      // SUPER_ADMIN can assign any ADMIN/MODERATOR as RM
+      // ADMIN can assign MODERATORs they manage as RM
+      // MODERATOR can only assign themselves
+      if (role === 'ADMIN' && rm.role === 'ADMIN') {
+        // Admin cannot assign another Admin as RM (only SUPER_ADMIN can)
+        if (rmId !== session.user.id) {
+          return NextResponse.json(
+            { error: "You can only assign Moderators or yourself as RM" },
+            { status: 403 }
+          )
+        }
+      } else if (role === 'ADMIN' && rm.role === 'MODERATOR') {
+        // Admin can assign Moderators they manage
+        if (rm.managedById !== session.user.id) {
+          return NextResponse.json(
+            { error: "You can only assign Moderators you manage as RM" },
+            { status: 403 }
+          )
+        }
       }
     }
 

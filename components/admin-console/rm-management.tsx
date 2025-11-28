@@ -53,12 +53,14 @@ interface RM {
   phone: string | null
   clientId: string | null
   isActive: boolean
+  role: string
   assignedUsersCount: number
   createdAt: Date
   managedBy?: {
     id: string
     name: string | null
     email: string | null
+    role: string
   } | null
 }
 
@@ -69,6 +71,7 @@ interface TeamMember {
   phone: string | null
   clientId: string | null
   isActive: boolean
+  role: string
   createdAt: Date
 }
 
@@ -86,6 +89,7 @@ export function RMManagement() {
     email: "",
     phone: "",
     password: "",
+    role: "MODERATOR" as string, // Default role
   })
 
   // Get current user role
@@ -187,7 +191,13 @@ export function RMManagement() {
       const response = await fetch("/api/admin/rms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm)
+        body: JSON.stringify({
+          name: createForm.name,
+          email: createForm.email,
+          phone: createForm.phone,
+          password: createForm.password,
+          role: createForm.role
+        })
       })
 
       if (!response.ok) {
@@ -197,11 +207,11 @@ export function RMManagement() {
 
       toast({
         title: "✅ Success",
-        description: "Relationship Manager created successfully"
+        description: "Team member created successfully"
       })
 
       setShowCreateDialog(false)
-      setCreateForm({ name: "", email: "", phone: "", password: "" })
+      setCreateForm({ name: "", email: "", phone: "", password: "", role: "MODERATOR" })
       fetchRMs()
     } catch (error: any) {
       console.error("❌ [RM-MANAGEMENT] Error creating RM:", error)
@@ -224,8 +234,8 @@ export function RMManagement() {
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       {/* Header */}
       <PageHeader
-        title="RM & Team"
-        description="Manage Relationship Managers and view their team members. For detailed user management, use User Management tab."
+        title="RM & Teams"
+        description="Manage teams hierarchically: Admins and Moderators can be RMs (have users managed by them). Super Admin manages Admins/Moderators/Users, Admin manages Moderators/Users, Moderator manages Users."
         icon={<UserCheck className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
         actions={
           <>
@@ -338,7 +348,8 @@ export function RMManagement() {
                   <TableHeader>
                     <TableRow className="border-border">
                       <TableHead className="text-muted-foreground w-8"></TableHead>
-                      <TableHead className="text-muted-foreground">RM Details</TableHead>
+                      <TableHead className="text-muted-foreground">User Details</TableHead>
+                      <TableHead className="text-muted-foreground">Role</TableHead>
                       <TableHead className="text-muted-foreground">Contact</TableHead>
                       <TableHead className="text-muted-foreground">Team Size</TableHead>
                       <TableHead className="text-muted-foreground">Status</TableHead>
@@ -383,12 +394,27 @@ export function RMManagement() {
                               <div>
                                 <p className="font-medium text-foreground">{rm.name || "N/A"}</p>
                                 <p className="text-xs text-muted-foreground">ID: {rm.id.slice(0, 8)}...</p>
-                                {rm.managedBy && currentUserRole === 'SUPER_ADMIN' && (
+                                {rm.managedBy && (
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    Managed by: {rm.managedBy.name || rm.managedBy.email || 'N/A'}
+                                    Managed by: {rm.managedBy.name || rm.managedBy.email || 'N/A'} ({rm.managedBy.role})
                                   </p>
                                 )}
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                className={
+                                  rm.role === 'SUPER_ADMIN' ? 'bg-purple-400/20 text-purple-400 border-purple-400/30' :
+                                  rm.role === 'ADMIN' ? 'bg-blue-400/20 text-blue-400 border-blue-400/30' :
+                                  rm.role === 'MODERATOR' ? 'bg-green-400/20 text-green-400 border-green-400/30' :
+                                  'bg-gray-400/20 text-gray-400 border-gray-400/30'
+                                }
+                              >
+                                {rm.role === 'SUPER_ADMIN' ? 'Super Admin' :
+                                 rm.role === 'ADMIN' ? 'Admin' :
+                                 rm.role === 'MODERATOR' ? 'Moderator' :
+                                 'User'}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
@@ -469,7 +495,7 @@ export function RMManagement() {
                                           <Card key={member.id} className="bg-card/50 border-border/50">
                                             <CardContent className="p-3">
                                               <div className="space-y-2">
-                                                <div className="flex items-start justify-between">
+                                                <div className="flex items-start justify-between gap-2">
                                                   <div className="min-w-0 flex-1">
                                                     <p className="font-medium text-sm text-foreground truncate">
                                                       {member.name || "N/A"}
@@ -478,15 +504,28 @@ export function RMManagement() {
                                                       {member.clientId || member.id.slice(0, 8)}...
                                                     </p>
                                                   </div>
-                                                  {member.isActive ? (
-                                                    <Badge className="bg-green-400/20 text-green-400 border-green-400/30 text-xs">
-                                                      Active
+                                                  <div className="flex flex-col gap-1 items-end">
+                                                    <Badge 
+                                                      className={
+                                                        member.role === 'ADMIN' ? 'bg-blue-400/20 text-blue-400 border-blue-400/30 text-xs' :
+                                                        member.role === 'MODERATOR' ? 'bg-green-400/20 text-green-400 border-green-400/30 text-xs' :
+                                                        'bg-gray-400/20 text-gray-400 border-gray-400/30 text-xs'
+                                                      }
+                                                    >
+                                                      {member.role === 'ADMIN' ? 'Admin' :
+                                                       member.role === 'MODERATOR' ? 'Moderator' :
+                                                       'User'}
                                                     </Badge>
-                                                  ) : (
-                                                    <Badge className="bg-red-400/20 text-red-400 border-red-400/30 text-xs">
-                                                      Inactive
-                                                    </Badge>
-                                                  )}
+                                                    {member.isActive ? (
+                                                      <Badge className="bg-green-400/20 text-green-400 border-green-400/30 text-xs">
+                                                        Active
+                                                      </Badge>
+                                                    ) : (
+                                                      <Badge className="bg-red-400/20 text-red-400 border-red-400/30 text-xs">
+                                                        Inactive
+                                                      </Badge>
+                                                    )}
+                                                  </div>
                                                 </div>
                                                 {member.email && (
                                                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -555,10 +594,12 @@ export function RMManagement() {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="w-[95vw] sm:w-full sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto mx-2 sm:mx-4">
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
-            <DialogTitle className="text-lg sm:text-xl font-bold text-primary">Create Relationship Manager</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl font-bold text-primary">Create Team Member</DialogTitle>
             <DialogDescription className="text-sm sm:text-base text-muted-foreground">
-              Create a new Relationship Manager (RM) account. RMs can access the admin console
-              and manage their assigned team members.
+              Create a new team member. Role will be assigned based on your permissions:
+              {currentUserRole === 'SUPER_ADMIN' && ' You can create Admin, Moderator, or User.'}
+              {currentUserRole === 'ADMIN' && ' You can create Moderator or User.'}
+              {currentUserRole === 'MODERATOR' && ' You can create User.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -600,12 +641,40 @@ export function RMManagement() {
                 placeholder="Enter password"
               />
             </div>
+            {(currentUserRole === 'SUPER_ADMIN' || currentUserRole === 'ADMIN') && (
+              <div>
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  value={createForm.role}
+                  onValueChange={(value) => setCreateForm({ ...createForm, role: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currentUserRole === 'SUPER_ADMIN' && (
+                      <>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="MODERATOR">Moderator</SelectItem>
+                        <SelectItem value="USER">User</SelectItem>
+                      </>
+                    )}
+                    {currentUserRole === 'ADMIN' && (
+                      <>
+                        <SelectItem value="MODERATOR">Moderator</SelectItem>
+                        <SelectItem value="USER">User</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                 Cancel
               </Button>
               <Button onClick={handleCreateRM}>
-                Create RM
+                Create Team Member
               </Button>
             </div>
           </div>
