@@ -1,3 +1,11 @@
+/**
+ * @file AdvancedChart.tsx
+ * @module components/charts
+ * @description Full-screen lightweight chart with deterministic mock data for enterprise watchlist flows.
+ * @author BharatERP
+ * @created 2025-12-06
+ */
+
 "use client"
 
 import React, { useEffect, useRef, useState, useMemo } from "react"
@@ -5,34 +13,25 @@ import { createChart, ColorType, CrosshairMode, Time } from "lightweight-charts"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { AlertTriangle, Maximize2, Minimize2, X } from "lucide-react"
+import { buildMockCandles, type MockCandle } from "@/lib/charts/mock-candles"
 
 export interface AdvancedChartProps {
   symbol: string
   className?: string
   height?: number
   onClose?: () => void
+  mockSeedPrice?: number
+  mockSeries?: MockCandle[]
 }
 
-// Demo candle generator: intraday-like 5m bars
-function generateDemoCandles(seedPrice: number, numBars: number = 120) {
-  const candles: Array<{ time: Time; open: number; high: number; low: number; close: number; volume: number }> = []
-  let lastClose = seedPrice
-  const baseTime = Math.floor(Date.now() / 1000) - numBars * 300
-  for (let i = 0; i < numBars; i++) {
-    const t = (baseTime + i * 300) as Time
-    const drift = (Math.random() - 0.5) * 0.4
-    const open = lastClose
-    const close = Math.max(0.01, open * (1 + drift / 100))
-    const high = Math.max(open, close) * (1 + Math.random() * 0.003)
-    const low = Math.min(open, close) * (1 - Math.random() * 0.003)
-    const volume = Math.floor(50000 + Math.random() * 50000)
-    candles.push({ time: t, open, high, low, close, volume })
-    lastClose = close
-  }
-  return candles
-}
-
-export function AdvancedChart({ symbol, className, height = 520, onClose }: AdvancedChartProps) {
+export function AdvancedChart({
+  symbol,
+  className,
+  height = 520,
+  onClose,
+  mockSeedPrice,
+  mockSeries,
+}: AdvancedChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
   const candleSeriesRef = useRef<any>(null)
@@ -40,7 +39,13 @@ export function AdvancedChart({ symbol, className, height = 520, onClose }: Adva
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const [isFull, setIsFull] = useState(true)
 
-  const demoData = useMemo(() => generateDemoCandles(100 + Math.random() * 50), [symbol])
+  const chartCandles = useMemo<MockCandle[]>(() => {
+    if (mockSeries && mockSeries.length > 0) {
+      return mockSeries
+    }
+    const fallbackSeed = mockSeedPrice ?? Math.max(100 + Math.random() * 50, 1)
+    return buildMockCandles(fallbackSeed, 240, symbol)
+  }, [mockSeries, mockSeedPrice, symbol])
 
   useEffect(() => {
     const el = containerRef.current
@@ -70,7 +75,7 @@ export function AdvancedChart({ symbol, className, height = 520, onClose }: Adva
       borderVisible: false,
     })
 
-    candleSeries.setData(demoData)
+    candleSeries.setData(chartCandles as unknown as Array<{ time: Time; open: number; high: number; low: number; close: number }>)
 
     const volumeSeries = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
@@ -80,9 +85,12 @@ export function AdvancedChart({ symbol, className, height = 520, onClose }: Adva
       lineWidth: 1,
       lastValueVisible: false,
     })
-    volumeSeries.setData(
-      demoData.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "#10B98188" : "#EF444488" }))
-    )
+    const histogramData = chartCandles.map((candle) => ({
+      time: candle.time as Time,
+      value: candle.volume,
+      color: candle.close >= candle.open ? "#10B98188" : "#EF444488",
+    }))
+    volumeSeries.setData(histogramData)
 
     chart.timeScale().fitContent()
 
@@ -120,7 +128,7 @@ export function AdvancedChart({ symbol, className, height = 520, onClose }: Adva
         volumeSeriesRef.current = null
       }
     }
-  }, [symbol, height, demoData])
+  }, [symbol, height, chartCandles])
 
   return (
     <div className={cn("relative w-full", className)}>
@@ -128,7 +136,7 @@ export function AdvancedChart({ symbol, className, height = 520, onClose }: Adva
         <div className="flex items-center gap-2">
           <span className="font-semibold">{symbol}</span>
           <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-            <AlertTriangle className="inline h-3 w-3 mr-1" /> Data feed paused; demo candles shown
+            <AlertTriangle className="inline h-3 w-3 mr-1" /> Data feed paused; deterministic mock candles
           </span>
         </div>
         <div className="flex items-center gap-2">
