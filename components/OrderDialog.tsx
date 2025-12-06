@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -69,7 +69,6 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const [lots, setLots] = useState(1)
   const [price, setPrice] = useState<number | null>(null)
   const [currentOrderType, setCurrentOrderType] = useState("CNC")
-  const [loading, setLoading] = useState(false)
   const [selectedStock, setSelectedStock] = useState<any>(() => normalizeStockData(stock))
   const [isMarket, setIsMarket] = useState(true)
   const [riskConfig, setRiskConfig] = useState<{
@@ -78,13 +77,19 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
     brokerageRate: number | null
     brokerageCap: number | null
   } | null>(null)
+  const submittingRef = useRef(false)
 
   const { quotes } = useMarketData()
   const q = selectedStock ? quotes?.[selectedStock.instrumentId] : null
 
   // Get realtime hooks for immediate UI updates
   const userId = session?.user?.id
-  const { optimisticUpdate: optimisticUpdateOrder, refresh: refreshOrders, mutate: mutateOrders } = useRealtimeOrders(userId)
+  const { 
+    optimisticUpdate: optimisticUpdateOrder, 
+    resolveOptimisticOrder,
+    rejectOptimisticOrder,
+    refresh: refreshOrders
+  } = useRealtimeOrders(userId)
   const { optimisticAddPosition, refresh: refreshPositions } = useRealtimePositions(userId)
   const { optimisticBlockMargin, optimisticReleaseMargin, optimisticUpdateBalance, refresh: refreshAccount } = useRealtimeAccount(userId)
 
@@ -234,13 +239,40 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const isMarketBlocked = !allowDevOrders && sessionStatus !== 'open'
 
   const handleSubmit = async () => {
-    if (!selectedStock || units <= 0) {
-      toast({ title: "Invalid Order", description: "Check quantity and price.", variant: "destructive" })
+    if (submittingRef.current) return
+    submittingRef.current = true
+
+    if (!selectedStock) {
+      toast({ title: "Select a Stock", description: "Please pick a stock first.", variant: "destructive" })
+      submittingRef.current = false
       return
     }
 
     if (!portfolio?.account?.id) {
       toast({ title: "Trading Account Missing", description: "No trading account available for this user.", variant: "destructive" })
+      submittingRef.current = false
+      return
+    }
+
+    if (!session?.user?.id) {
+      toast({ title: "Not Signed In", description: "Please sign in to place orders.", variant: "destructive" })
+      submittingRef.current = false
+      return
+    }
+
+    if (!allowDevOrders && sessionStatus !== 'open') {
+      toast({
+        title: "Market Closed",
+        description: "Orders are allowed only during live market hours (09:15–15:30 IST).",
+        variant: "destructive"
+      })
+      submittingRef.current = false
+      return
+    }
+
+    if (units <= 0) {
+      toast({ title: "Invalid Order", description: "Check quantity and price.", variant: "destructive" })
+      submittingRef.current = false
       return
     }
 
@@ -250,183 +282,162 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
         description: `Need ₹${totalCost.toFixed(2)} (margin + charges) but only have ₹${availableMargin.toFixed(2)}`,
         variant: "destructive",
       })
+      submittingRef.current = false
       return
     }
 
-    setLoading(true)
-    try {
-      // Use dialog price directly (4th attempt - INSTANT execution)
-      const orderPrice = price || selectedStock.ltp || 0
-      
-      if (!orderPrice || orderPrice <= 0) {
-        toast({ 
-          title: "Invalid Price", 
-          description: "Cannot determine price for order. Please refresh and try again.", 
-          variant: "destructive" 
-        })
-        setLoading(false)
-        return
-      }
-      
-      console.log("📤 [ORDER-DIALOG] Submitting order with price:", orderPrice)
-      
-      const instrumentId = selectedStock.instrumentId || (selectedStock.exchange && selectedStock.token != null
-        ? `${selectedStock.exchange}-${selectedStock.token}`
-        : undefined)
-
-      // Create temporary order ID for optimistic update
-      const tempOrderId = `temp-${Date.now()}`
-      const timestamp = new Date().toISOString()
-      
-      // 1. IMMEDIATELY show pending order in UI (optimistic update)
-      try {
-        optimisticUpdateOrder({
-          id: tempOrderId,
-          symbol: selectedStock.symbol,
-          quantity: orderSide === "BUY" ? units : -units,
-          orderType: isMarket ? "MARKET" : "LIMIT",
-          orderSide,
-          price: orderPrice,
-          averagePrice: orderPrice,
-          filledQuantity: 0,
-          productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
-          status: "PENDING",
-          createdAt: timestamp,
-          executedAt: null,
-          stock: selectedStock
-        })
-      } catch (e) {
-        console.error("❌ [ORDER-DIALOG] Optimistic order update failed:", e)
-      }
-      
-      // 2. IMMEDIATELY block margin (optimistic update)
-      try { 
-        optimisticBlockMargin(marginRequired)
-      } catch (e) {
-        console.error("❌ [ORDER-DIALOG] Optimistic margin block failed:", e)
-      }
-      
-      // 3. Show immediate feedback
+    const orderPrice = price || selectedStock.ltp || 0
+    if (!orderPrice || orderPrice <= 0) {
       toast({ 
-        title: "Order Submitted", 
-        description: `${orderSide} ${quantity} ${selectedStock.symbol} @ ₹${orderPrice.toFixed(2)} - Processing...`,
-        duration: 2000
+        title: "Invalid Price", 
+        description: "Cannot determine price for order. Please refresh and try again.", 
+        variant: "destructive" 
       })
+      submittingRef.current = false
+      return
+    }
 
-      // 3.5 Close the sheet immediately and notify parent
-      onOrderPlaced()
-      onClose()
+    const instrumentId = selectedStock.instrumentId || (selectedStock.exchange && selectedStock.token != null
+      ? `${selectedStock.exchange}-${selectedStock.token}`
+      : undefined)
+    const tempOrderId = `temp-${Date.now()}`
+    const timestamp = new Date().toISOString()
 
-      // 4. Place actual order on backend (do not block the sheet)
-      ;(async () => {
-        const result = await placeOrder({
-        tradingAccountId: portfolio.account.id,
-        userId: session?.user?.id,
-        userName: session?.user?.name,
-        userEmail: session?.user?.email,
-        stockId: selectedStock.stockId,
+    try {
+      optimisticUpdateOrder({
+        id: tempOrderId,
         symbol: selectedStock.symbol,
-        quantity: units,
-        price: orderPrice,
+        quantity: orderSide === "BUY" ? units : -units,
         orderType: isMarket ? "MARKET" : "LIMIT",
         orderSide,
-        segment: selectedStock.segment,
-        exchange: selectedStock.exchange,
+        price: orderPrice,
+        averagePrice: orderPrice,
+        filledQuantity: 0,
         productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
-        instrumentId,
-        token: selectedStock.token,
-        name: selectedStock.name,
-        ltp: selectedStock.ltp,
-        close: selectedStock.close,
-        strikePrice: selectedStock.strikePrice,
-        optionType: selectedStock.optionType,
-        expiry: selectedStock.expiry,
-        lotSize: selectedStock.lot_size,
-        watchlistItemId: selectedStock.watchlistItemId,
-        session
-        })
-        
-        console.log("✅ [ORDER-DIALOG] Order submitted successfully:", result)
-        
-        // Refresh data to pull the official order and any position update
-        setTimeout(async () => {
-          await Promise.all([
-            refreshOrders(),
-            refreshPositions(),
-            refreshAccount()
-          ])
-        }, 500)
-        setTimeout(async () => {
-          await Promise.all([
-            refreshOrders(),
-            refreshPositions(),
-            refreshAccount()
-          ])
-        }, 3000)
-      })().catch(async (error: any) => {
-        console.error("❌ [ORDER-DIALOG] Backend order placement failed:", error)
-        // Mark the optimistic order as REJECTED with reason
-        try {
-          await mutateOrders((current: any) => {
-            if (!current || !Array.isArray(current.orders)) return current
-            return {
-              ...current,
-              orders: current.orders.map((o: any) =>
-                o.id === tempOrderId
-                  ? { ...o, status: 'REJECTED', failureReason: error?.message || 'Order failed' }
-                  : o
-              )
-            }
-          }, false)
-        } catch (e) {
-          console.warn('⚠️ [ORDER-DIALOG] Could not mark order as REJECTED optimistically', e)
-        }
-        
-        // Release previously blocked margin
-        try { optimisticReleaseMargin(marginRequired) } catch {}
-        
-        // Trigger a refresh so server truth is reflected
-        await refreshOrders()
-        await refreshAccount()
+        status: "PENDING",
+        createdAt: timestamp,
+        executedAt: null,
+        stock: selectedStock
       })
-      
-    } catch (error: any) {
-      console.error("❌ [ORDER-DIALOG] Order submission failed:", error)
-      
-      // Enhanced error messages
-      let errorMessage = "Please try again."
-      let errorTitle = "Failed to Place Order"
-      
-      if (error.message) {
-        if (error.message.includes("Insufficient funds")) {
-          errorTitle = "Insufficient Funds"
-          errorMessage = error.message
-        } else if (error.message.includes("Stock not found")) {
-          errorTitle = "Stock Not Available"
-          errorMessage = "Please refresh the stock data and try again."
-        } else if (error.message.includes("Invalid price")) {
-          errorTitle = "Invalid Price"
-          errorMessage = "Cannot determine valid price. Please refresh and try again."
-        } else if (error.message.includes("timeout") || error.message.includes("timed out")) {
-          errorTitle = "Order Timeout"
-          errorMessage = "Order took too long to process. Please check your orders tab."
-        } else if (error.message.includes("network") || error.message.includes("fetch")) {
-          errorTitle = "Network Error"
-          errorMessage = "Please check your connection and try again."
-        } else {
-          errorMessage = error.message
-        }
-      }
-      
-      toast({ 
-        title: errorTitle, 
-        description: errorMessage, 
-        variant: "destructive",
-        duration: 7000
-      })
-    } finally {
-      setLoading(false)
+    } catch (e) {
+      console.error("❌ [ORDER-DIALOG] Optimistic order update failed:", e)
     }
+
+    try { 
+      optimisticBlockMargin(marginRequired)
+    } catch (e) {
+      console.error("❌ [ORDER-DIALOG] Optimistic margin block failed:", e)
+    }
+
+    toast({ 
+      title: "Order Submitted", 
+      description: `${orderSide} ${Math.abs(units)} ${selectedStock.symbol} @ ₹${orderPrice.toFixed(2)} - Processing...`,
+      duration: 2000
+    })
+
+    onOrderPlaced()
+    onClose()
+
+    const finalizeOrder = async () => {
+      try {
+        const result = await placeOrder({
+          tradingAccountId: portfolio.account.id,
+          userId: session?.user?.id,
+          userName: session?.user?.name,
+          userEmail: session?.user?.email,
+          stockId: selectedStock.stockId,
+          symbol: selectedStock.symbol,
+          quantity: units,
+          price: orderPrice,
+          orderType: isMarket ? "MARKET" : "LIMIT",
+          orderSide,
+          segment: selectedStock.segment,
+          exchange: selectedStock.exchange,
+          productType: currentOrderType === "MIS" ? "INTRADAY" : "DELIVERY",
+          instrumentId,
+          token: selectedStock.token,
+          name: selectedStock.name,
+          ltp: selectedStock.ltp,
+          close: selectedStock.close,
+          strikePrice: selectedStock.strikePrice,
+          optionType: selectedStock.optionType,
+          expiry: selectedStock.expiry,
+          lotSize: selectedStock.lot_size,
+          watchlistItemId: selectedStock.watchlistItemId,
+          session
+        })
+
+        console.log("✅ [ORDER-DIALOG] Order submitted successfully:", result)
+        const backendOrderId = result?.orderId ?? null
+        if (backendOrderId) {
+          resolveOptimisticOrder(tempOrderId, {
+            id: backendOrderId,
+            status: result.executionScheduled ? "PENDING" : "EXECUTED",
+            executedAt: result.executionScheduled ? null : new Date().toISOString(),
+            filledQuantity: result.executionScheduled ? 0 : units
+          })
+        } else {
+          resolveOptimisticOrder(tempOrderId)
+        }
+
+        Promise.allSettled([
+          refreshOrders(),
+          refreshPositions(),
+          refreshAccount()
+        ]).catch(() => {})
+
+        toast({
+          title: "Order Confirmed",
+          description: backendOrderId
+            ? `Order #${backendOrderId.slice(0, 8)} placed successfully.`
+            : `${selectedStock.symbol} order accepted.`,
+          duration: 3500
+        })
+      } catch (error: any) {
+        console.error("❌ [ORDER-DIALOG] Backend order placement failed:", error)
+        rejectOptimisticOrder(tempOrderId, error?.message)
+        try { optimisticReleaseMargin(marginRequired) } catch {}
+        Promise.allSettled([
+          refreshOrders(),
+          refreshAccount()
+        ]).catch(() => {})
+
+        let errorMessage = "Please try again."
+        let errorTitle = "Failed to Place Order"
+        
+        if (error?.message) {
+          if (error.message.includes("Insufficient funds")) {
+            errorTitle = "Insufficient Funds"
+            errorMessage = error.message
+          } else if (error.message.includes("Stock not found")) {
+            errorTitle = "Stock Not Available"
+            errorMessage = "Please refresh the stock data and try again."
+          } else if (error.message.includes("Invalid price")) {
+            errorTitle = "Invalid Price"
+            errorMessage = "Cannot determine valid price. Please refresh and try again."
+          } else if (error.message.includes("timeout") || error.message.includes("timed out")) {
+            errorTitle = "Order Timeout"
+            errorMessage = "Order took too long to process. Please check your orders tab."
+          } else if (error.message.includes("network") || error.message.includes("fetch")) {
+            errorTitle = "Network Error"
+            errorMessage = "Please check your connection and try again."
+          } else {
+            errorMessage = error.message
+          }
+        }
+        
+        toast({ 
+          title: errorTitle, 
+          description: errorMessage, 
+          variant: "destructive",
+          duration: 7000
+        })
+      } finally {
+        submittingRef.current = false
+      }
+    }
+
+    finalizeOrder()
   }
 
   const formatCurrency = (amt: number) =>
@@ -650,7 +661,7 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             orderSide={orderSide}
             onSideChange={setOrderSide}
             onPlaceOrder={handleSubmit}
-            loading={loading}
+            loading={false}
             disabled={totalCost > availableMargin || isMarketBlocked}
           />
           

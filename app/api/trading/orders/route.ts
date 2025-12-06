@@ -5,8 +5,7 @@ import { createTradingLogger } from '@/lib/services/logging/TradingLogger'
 import { placeOrderSchema, modifyOrderSchema, cancelOrderSchema } from '@/lib/server/validation'
 import { checkRateLimit, getRateLimitKey, RateLimitPresets } from '@/lib/services/security/RateLimiter'
 import { trackOperation } from '@/lib/services/monitoring/PerformanceMonitor'
-import { getServerMarketSession } from '@/lib/server/market-timing'
-import { prisma } from '@/lib/prisma'
+import { getSegmentTradingSession } from '@/lib/server/market-timing'
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ORDERS] POST request received")
@@ -15,16 +14,21 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log("📝 [API-ORDERS] Request body:", body)
     
-    // Enforce market hours (block during closed and pre-open)
-    // Uses server-side helper which checks DB force_closed setting first
-    const session = await getServerMarketSession()
-    if (session !== 'open') {
-      console.warn(`⛔ [API-ORDERS] Blocked by market session: ${session}`)
+    const segmentHint = typeof body?.segment === 'string'
+      ? body.segment
+      : (typeof body?.exchange === 'string' ? body.exchange : undefined)
+
+    // Enforce market hours per segment (NSE vs MCX windows)
+    const { session: tradingWindow, reason: windowReason } = await getSegmentTradingSession(segmentHint)
+    if (tradingWindow !== 'open') {
+      console.warn(`⛔ [API-ORDERS] Blocked order outside trading window`, {
+        segment: segmentHint,
+        tradingWindow,
+        reason: windowReason
+      })
       return NextResponse.json({
-        error: session === 'pre-open' 
-          ? 'Orders are blocked during pre-open (09:00–09:15 IST).'
-          : 'Market is closed. Orders are allowed only during trading hours (09:15–15:30 IST).',
-        marketSession: session
+        error: windowReason || 'Orders are allowed only during active trading windows.',
+        marketSession: tradingWindow
       }, { status: 403 })
     }
     

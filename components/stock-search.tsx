@@ -73,7 +73,7 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
     }
   }, [clear])
 
-  const handleAddStock = async (stock: Stock) => {
+  const handleAddStock = (stock: Stock) => {
     setAddingStockId(stock.id)
     console.log('➕ [STOCK-SEARCH] Adding stock with metadata', { 
       stockId: stock.id, 
@@ -88,34 +88,23 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
       stock 
     })
     
-    try {
-      // Send complete metadata as object for token-based instruments
-      if (stock.token) {
-        const instrumentData = {
-          token: stock.token,
-          symbol: stock.symbol,
-          name: stock.name,
-          exchange: stock.exchange,
-          segment: stock.segment,
-          expiry: stock.expiry || stock.expiry_date,
-          strikePrice: stock.strike_price || stock.strikePrice,
-          optionType: stock.option_type,
-          lotSize: stock.lot_size || stock.lotSize,
-        }
-        await onAddStock(instrumentData)
-      } else {
-        // Fallback to stockId if no token
-        await onAddStock(stock.id)
-      }
-      // best-effort telemetry (non-blocking)
-      milliClient.telemetrySelection({ q: query, symbol: stock.symbol, instrumentToken: stock.token })
-      onClose()
-    } catch (error) {
-      console.error('❌ [STOCK-SEARCH] Failed to add stock', error)
-      throw error
-    } finally {
-      setAddingStockId(null)
+    const payload = {
+      ...stock,
+      stockId: stock.id
     }
+
+    Promise.resolve(onAddStock(payload))
+      .then(() => {
+        milliClient.telemetrySelection({ q: query, symbol: stock.symbol, instrumentToken: stock.token })
+      })
+      .catch((error) => {
+        console.error('❌ [STOCK-SEARCH] Failed to add stock', error)
+      })
+      .finally(() => {
+        setAddingStockId(null)
+      })
+
+    onClose()
   }
   
   // Get exchange badge config (similar to WatchlistItemCard)
