@@ -229,13 +229,12 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
     const stampDuty = turnover * 0.00003 // 0.003%
 
     return Math.floor(stt + transactionCharges + gst + stampDuty)
-  }, [selectedStock, quantity, price, currentOrderType, brokerage])
+  }, [selectedStock, quantity, price, currentOrderType, brokerage, segmentUpper])
 
   const totalCharges = brokerage + additionalCharges
   const totalCost = marginRequired + totalCharges
 
   // Get segment-aware market session
-  const segmentUpper: string = (selectedStock?.segment || selectedStock?.exchange || "NSE").toUpperCase()
   const { session: sessionStatus, reason: sessionReason } = getSegmentMarketSession(segmentUpper)
   const allowDevOrders = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ALLOW_DEV_ORDERS === 'true'
   const isMarketBlocked = !allowDevOrders && sessionStatus !== 'open'
