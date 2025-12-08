@@ -14,7 +14,7 @@ import { useMarketData } from "@/lib/hooks/MarketDataProvider"
 import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { useRealtimeAccount } from "@/lib/hooks/use-realtime-account"
-import { getMarketSession } from "@/lib/hooks/market-timing"
+import { getSegmentMarketSession } from "@/lib/hooks/market-timing"
 
 interface OrderDialogProps {
   isOpen: boolean
@@ -234,7 +234,9 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
   const totalCharges = brokerage + additionalCharges
   const totalCost = marginRequired + totalCharges
 
-  const sessionStatus = getMarketSession()
+  // Get segment-aware market session
+  const segmentUpper: string = (selectedStock?.segment || selectedStock?.exchange || "NSE").toUpperCase()
+  const { session: sessionStatus, reason: sessionReason } = getSegmentMarketSession(segmentUpper)
   const allowDevOrders = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ALLOW_DEV_ORDERS === 'true'
   const isMarketBlocked = !allowDevOrders && sessionStatus !== 'open'
 
@@ -261,9 +263,15 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
     }
 
     if (!allowDevOrders && sessionStatus !== 'open') {
+      // Show segment-specific error message
+      const errorMessage = sessionReason || 
+        (segmentUpper.includes('MCX') 
+          ? "MCX orders are allowed between 09:00–23:55 IST."
+          : "NSE orders are allowed between 09:15–15:30 IST.")
+      
       toast({
         title: "Market Closed",
-        description: "Orders are allowed only during live market hours (09:15–15:30 IST).",
+        description: errorMessage,
         variant: "destructive"
       })
       submittingRef.current = false
@@ -498,7 +506,9 @@ export function OrderDialog({ isOpen, onClose, stock, portfolio, onOrderPlaced, 
             <div className="p-2 rounded-md border text-xs bg-yellow-50 border-yellow-200 text-yellow-800">
               {sessionStatus === 'pre-open'
                 ? 'Pre-Open (09:00–09:15 IST): Orders are temporarily blocked.'
-                : 'Market Closed: Orders are allowed only between 09:15–15:30 IST.'}
+                : segmentUpper.includes('MCX')
+                  ? 'Market Closed: MCX orders are allowed between 09:00–23:55 IST.'
+                  : 'Market Closed: NSE orders are allowed between 09:15–15:30 IST.'}
             </div>
           )}
           {/* Dev override banner */}

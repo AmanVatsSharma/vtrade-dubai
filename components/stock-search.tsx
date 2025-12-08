@@ -231,9 +231,14 @@ export function StockSearch({ onAddStock, onClose }: StockSearchProps) {
                 ? parseFloat((instrument as any).strike_price as any)
                 : (instrument as any)?.strike_price
               
+              // Build proper instrumentId format: EXCHANGE-TOKEN or EXCHANGE_SEGMENT-TOKEN
+              const instrumentId = instrument.token && instrument.exchange
+                ? `${instrument.exchange}-${instrument.token}`
+                : instrument.exchange || 'UNKNOWN'
+              
               const stock: Stock = {
                 id: `token-${instrument.token}`,
-                instrumentId: instrument.exchange,
+                instrumentId, // Proper format: EXCHANGE-TOKEN
                 token: instrument.token,
                 exchange: instrument.exchange,
                 ticker: instrument.symbol,

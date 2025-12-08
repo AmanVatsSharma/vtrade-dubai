@@ -11,7 +11,7 @@ import { withAddWatchlistItemTransaction } from '@/lib/watchlist-transactions'
 
 const addItemSchema = z.object({
   stockId: z.string().uuid().optional(), // Optional, kept for backward compatibility
-  token: z.number(), // Required - token is the unique identifier
+  token: z.number().optional(), // Optional - will be extracted from instrumentId if missing
   symbol: z.string(),
   exchange: z.string(),
   segment: z.string(),
@@ -22,10 +22,16 @@ const addItemSchema = z.object({
   optionType: z.enum(['CE', 'PE']).optional(),
   expiry: z.string().optional(), // ISO date string or YYYYMMDD format
   lotSize: z.number().optional(),
+  instrumentId: z.string().optional(), // Can be used to extract token if missing
   // Watchlist item specific fields
   notes: z.string().max(500).optional(),
   alertPrice: z.number().positive().optional(),
   alertType: z.enum(['ABOVE', 'BELOW', 'BOTH']).optional(),
+}).refine((data) => {
+  // Either token or stockId must be provided
+  return data.token !== undefined || data.stockId !== undefined
+}, {
+  message: "Either token or stockId must be provided"
 })
 
 // POST /api/watchlists/[id]/items - Add item to watchlist
@@ -41,7 +47,30 @@ export async function POST(
     }
 
     const body = await request.json()
-    const validatedData = addItemSchema.parse(body)
+    let validatedData = addItemSchema.parse(body)
+
+    // Extract token from instrumentId if token is missing
+    if (!validatedData.token && validatedData.instrumentId) {
+      try {
+        // Parse token from instrumentId format: "EXCHANGE-TOKEN" or "EXCHANGE_SEGMENT-TOKEN"
+        const parts = validatedData.instrumentId.split('-')
+        const lastPart = parts[parts.length - 1]
+        const parsedToken = parseInt(lastPart, 10)
+        if (!isNaN(parsedToken) && parsedToken > 0) {
+          validatedData.token = parsedToken
+          console.log(`✅ [WATCHLIST-API] Extracted token ${parsedToken} from instrumentId ${validatedData.instrumentId}`)
+        }
+      } catch (e) {
+        console.warn(`⚠️ [WATCHLIST-API] Failed to extract token from instrumentId:`, e)
+      }
+    }
+
+    // Validate that we have token or stockId after extraction attempt
+    if (!validatedData.token && !validatedData.stockId) {
+      return NextResponse.json({ 
+        error: 'Token or stockId is required. Could not extract token from instrumentId.' 
+      }, { status: 400 })
+    }
 
     // Add item to watchlist with atomic transaction
     // If token is provided without stockId, we'll create/find the Stock record
