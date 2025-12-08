@@ -271,16 +271,30 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       console.log('TradingDashboard Debug:', {
+        userId,
         tradingAccountId,
         realtimeOrders: orders?.length || 0,
         realtimePositions: positions?.length || 0,
         hasRealtimeAccount: !!realtimeAccountData,
         currentTab,
         anyLoading,
-        error
+        error,
+        sessionUserId: (session?.user as any)?.id,
+        sessionEmail: (session?.user as any)?.email
       })
     }
-  }, [tradingAccountId, orders, positions, realtimeAccountData, currentTab, anyLoading, error])
+  }, [userId, tradingAccountId, orders, positions, realtimeAccountData, currentTab, anyLoading, error, session])
+  
+  // Log notification bell setup
+  useEffect(() => {
+    console.log('🔔 [TRADING-DASHBOARD] Notification bell setup:', {
+      userId,
+      hasUserId: !!userId,
+      userIdType: typeof userId,
+      sessionUserId: (session?.user as any)?.id,
+      timestamp: new Date().toISOString()
+    })
+  }, [userId, session])
 
   // Error state
   if (error) {
@@ -385,7 +399,13 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
             </div>
 
             {/* Notification Bell */}
-            <NotificationBell userId={userId} />
+            {userId ? (
+              <NotificationBell userId={userId} />
+            ) : (
+              <div className="h-9 w-9 flex items-center justify-center" title="User ID not available">
+                <Bell className="h-5 w-5 text-muted-foreground/50" />
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -456,17 +476,39 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 // Wrapper Component with Session Management
 const TradingDashboardWrapper: React.FC = () => {
   const { data: session, status } = useSession()
-  const userId = session?.user?.id as string | undefined
+  
+  // Extract userId with multiple fallbacks for robustness
+  const userId = (session?.user as any)?.id || 
+                 (session?.user as any)?.sub || 
+                 undefined
+
+  console.log('🚀 [TRADING-DASHBOARD] Wrapper initialized:', {
+    status,
+    hasSession: !!session,
+    hasUser: !!session?.user,
+    userId,
+    userIdSource: (session?.user as any)?.id ? 'id' : (session?.user as any)?.sub ? 'sub' : 'none',
+    sessionKeys: session?.user ? Object.keys(session.user) : [],
+    timestamp: new Date().toISOString()
+  })
 
   if (status === "loading") {
-    return <LoadingScreen />
+    return <LoadingScreen message="Loading session..." />
   }
 
   if (!userId) {
-    return <LoadingScreen />
+    console.warn('⚠️ [TRADING-DASHBOARD] No userId found in session:', {
+      session,
+      user: session?.user,
+      status
+    })
+    return <LoadingScreen message="Setting up your dashboard..." />
   }
 
-  console.log('🚀 [TRADING-DASHBOARD] Using WebSocket Market Data Provider')
+  console.log('🚀 [TRADING-DASHBOARD] Using WebSocket Market Data Provider', {
+    userId,
+    timestamp: new Date().toISOString()
+  })
 
   return (
     <WebSocketMarketDataProvider

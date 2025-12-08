@@ -225,18 +225,35 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
               <div className="flex flex-col items-center justify-center py-12 px-4">
                 <AlertCircle className="h-12 w-12 text-destructive/50 mb-2" />
                 <p className="text-sm font-medium text-destructive mb-1">Failed to load notifications</p>
-                <p className="text-xs text-muted-foreground text-center mb-3">
+                <p className="text-xs text-muted-foreground text-center mb-3 max-w-xs">
                   {error.message || "An error occurred while fetching notifications"}
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => refresh()}
-                  className="mt-2"
-                >
-                  <RefreshCw className="h-3 w-3 mr-2" />
-                  Retry
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      console.log("🔔 [NOTIFICATION-CENTER] Manual retry triggered")
+                      refresh()
+                    }}
+                    className="mt-2"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Retry
+                  </Button>
+                  {notifications.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        console.log("🔔 [NOTIFICATION-CENTER] Showing cached notifications")
+                      }}
+                      className="mt-2"
+                    >
+                      Show Cached ({notifications.length})
+                    </Button>
+                  )}
+                </div>
               </div>
             ) : isLoading && notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -247,8 +264,20 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
               <div className="flex flex-col items-center justify-center py-12">
                 <Bell className="h-12 w-12 text-muted-foreground/30 mb-2" />
                 <p className="text-sm text-muted-foreground font-medium">No notifications</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">
-                  You're all caught up!
+                <p className="text-xs text-muted-foreground/70 mt-1 text-center px-4">
+                  {error ? (
+                    <>
+                      Could not load notifications. 
+                      <button 
+                        onClick={() => refresh()} 
+                        className="underline ml-1 hover:text-primary"
+                      >
+                        Try again
+                      </button>
+                    </>
+                  ) : (
+                    "You're all caught up!"
+                  )}
                 </p>
               </div>
             ) : (

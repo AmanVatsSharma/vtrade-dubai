@@ -44,28 +44,110 @@ interface UseNotificationsReturn {
 }
 
 const fetcher = async (url: string) => {
-  console.log("🔔 [USE-NOTIFICATIONS] Fetching notifications from:", url)
-  try {
-    const response = await fetch(url)
-    console.log("🔔 [USE-NOTIFICATIONS] Response status:", response.status, response.statusText)
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("🔔 [USE-NOTIFICATIONS] Error response:", errorText)
-      throw new Error(`Failed to fetch notifications: ${response.status} ${response.statusText}`)
+  console.log("🔔 [USE-NOTIFICATIONS] Fetching notifications from:", url, {
+    timestamp: new Date().toISOString()
+  })
+  
+  let lastError: Error | null = null
+  
+  // Retry mechanism - try up to 3 times
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Add timeout to prevent hanging requests
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      })
+      
+      console.log("🔔 [USE-NOTIFICATIONS] Response status:", response.status, response.statusText, {
+        attempt,
+        url
+      })
+      
+      if (!response.ok) {
+        // For 401/403, don't retry - it's an auth issue
+        if (response.status === 401 || response.status === 403) {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          console.error("🔔 [USE-NOTIFICATIONS] Auth error (no retry):", errorText)
+          throw new Error(`Authentication failed: ${response.status} ${response.statusText}`)
+        }
+        
+        // For other errors, retry
+        const errorText = await response.text().catch(() => 'Unknown error')
+        lastError = new Error(`Failed to fetch notifications: ${response.status} ${response.statusText}`)
+        console.warn(`🔔 [USE-NOTIFICATIONS] Attempt ${attempt} failed:`, errorText)
+        
+        if (attempt < 3) {
+          // Exponential backoff: 1s, 2s, 4s
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000))
+          continue
+        }
+        
+        throw lastError
+      }
+      
+      const data = await response.json()
+      
+      // Validate response structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format')
+      }
+      
+      // Ensure notifications is an array
+      const notifications = Array.isArray(data.notifications) ? data.notifications : []
+      const unreadCount = typeof data.unreadCount === 'number' ? data.unreadCount : 0
+      
+      console.log("🔔 [USE-NOTIFICATIONS] Fetched data successfully:", {
+        notificationsCount: notifications.length,
+        unreadCount,
+        hasNotifications: notifications.length > 0,
+        attempt,
+        hasError: !!data.error
+      })
+      
+      // Return normalized data
+      return {
+        notifications,
+        unreadCount,
+        pagination: data.pagination || {
+          total: notifications.length,
+          limit: 50,
+          offset: 0,
+          hasMore: false
+        },
+        error: data.error || null
+      }
+    } catch (error: any) {
+      lastError = error
+      
+      // Don't retry on abort (timeout) or auth errors
+      if (error.name === 'AbortError' || error.message?.includes('Authentication failed')) {
+        console.error("🔔 [USE-NOTIFICATIONS] Non-retryable error:", error.message)
+        throw error
+      }
+      
+      console.warn(`🔔 [USE-NOTIFICATIONS] Attempt ${attempt} error:`, {
+        error: error.message,
+        name: error.name,
+        willRetry: attempt < 3
+      })
+      
+      // If last attempt, throw the error
+      if (attempt === 3) {
+        console.error("🔔 [USE-NOTIFICATIONS] All retry attempts failed")
+        throw lastError
+      }
+      
+      // Exponential backoff before retry
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000))
     }
-    
-    const data = await response.json()
-    console.log("🔔 [USE-NOTIFICATIONS] Fetched data:", {
-      notificationsCount: data.notifications?.length || 0,
-      unreadCount: data.unreadCount || 0,
-      hasNotifications: !!data.notifications
-    })
-    return data
-  } catch (error: any) {
-    console.error("🔔 [USE-NOTIFICATIONS] Fetcher error:", error)
-    throw error
   }
+  
+  // Should never reach here, but TypeScript needs it
+  throw lastError || new Error('Failed to fetch notifications after retries')
 }
 
 export function useNotifications(userId: string | undefined | null): UseNotificationsReturn {
@@ -217,9 +299,26 @@ export function useNotifications(userId: string | undefined | null): UseNotifica
     }
   }, [])
 
+  // Normalize return values - ensure arrays and numbers are always valid
+  const notifications = Array.isArray(data?.notifications) ? data.notifications : []
+  const unreadCount = typeof data?.unreadCount === 'number' ? data.unreadCount : 0
+  
+  // Log final state for debugging
+  useEffect(() => {
+    if (!isLoading && data) {
+      console.log("🔔 [USE-NOTIFICATIONS] Final state:", {
+        notificationsCount: notifications.length,
+        unreadCount,
+        hasError: !!error,
+        errorMessage: error?.message,
+        userId
+      })
+    }
+  }, [isLoading, data, notifications.length, unreadCount, error, userId])
+
   return {
-    notifications: data?.notifications || [],
-    unreadCount: data?.unreadCount || 0,
+    notifications,
+    unreadCount,
     isLoading,
     error,
     refresh,
