@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { withAddWatchlistItemTransaction } from '@/lib/watchlist-transactions'
 
 const addItemSchema = z.object({
-  stockId: z.string().uuid().optional(), // Optional, kept for backward compatibility
+  stockId: z.string().optional(), // Optional, kept for backward compatibility (no UUID validation - not used in transaction)
   token: z.number().optional(), // Optional - will be extracted from instrumentId if missing
   symbol: z.string().optional(), // Optional - will be extracted or defaulted
   exchange: z.string().optional(), // Optional - will be extracted or defaulted
@@ -23,12 +23,18 @@ const addItemSchema = z.object({
   expiry: z.string().optional(), // ISO date string or YYYYMMDD format
   lotSize: z.number().optional(),
   instrumentId: z.string().optional(), // Can be used to extract token if missing
+  // Additional fields that may be sent but not required
+  ticker: z.string().optional(),
+  last_price: z.number().optional(),
+  change: z.number().optional(),
+  changePercent: z.number().optional(),
+  id: z.string().optional(), // May be sent but not used
   // Watchlist item specific fields
   notes: z.string().max(500).optional(),
   alertPrice: z.number().positive().optional(),
   alertType: z.enum(['ABOVE', 'BELOW', 'BOTH']).optional(),
 }).refine((data) => {
-  // Either token or stockId must be provided
+  // Either token or stockId or instrumentId must be provided
   return data.token !== undefined || data.stockId !== undefined || data.instrumentId !== undefined
 }, {
   message: "Either token, stockId, or instrumentId must be provided"
@@ -51,6 +57,12 @@ export async function POST(
     console.log('📥 [WATCHLIST-API] Received request body:', JSON.stringify(body, null, 2))
     
     let validatedData = addItemSchema.parse(body)
+
+    // Map last_price to ltp if ltp is not provided
+    if (validatedData.ltp === undefined && validatedData.last_price !== undefined) {
+      validatedData.ltp = validatedData.last_price
+      console.log(`✅ [WATCHLIST-API] Mapped last_price to ltp: ${validatedData.ltp}`)
+    }
 
     // Extract token and other fields from instrumentId if missing
     if (validatedData.instrumentId) {
