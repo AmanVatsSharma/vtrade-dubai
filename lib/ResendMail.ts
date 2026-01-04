@@ -2,13 +2,30 @@ import { Resend } from "resend";
 
 // Lazy initialization to avoid build-time errors
 let resendClient: Resend | null = null;
+let apiKeyChecked = false;
 
 function getResendClient(): Resend {
   if (!resendClient) {
     const apiKey = process.env.RESEND_API_KEY ?? process.env.NEXT_PUBLIC_RESEND_API_KEY ?? 'dummy-key-for-build';
+    
+    // Log API key status (without exposing the key)
+    if (!apiKeyChecked) {
+      if (apiKey === 'dummy-key-for-build') {
+        console.warn("[RESEND] ⚠️ Resend API key not configured! Using dummy key. Email sending will fail.");
+      } else {
+        console.log("[RESEND] ✅ Resend API key found and initialized");
+      }
+      apiKeyChecked = true;
+    }
+    
     resendClient = new Resend(apiKey);
   }
   return resendClient;
+}
+
+function isResendConfigured(): boolean {
+  const apiKey = process.env.RESEND_API_KEY ?? process.env.NEXT_PUBLIC_RESEND_API_KEY;
+  return apiKey !== undefined && apiKey !== 'dummy-key-for-build' && apiKey.trim() !== '';
 }
 
 const resend = new Proxy({} as Resend, {
@@ -135,6 +152,22 @@ export const sendOtpEmail = async (
   maskedPhone?: string
 ) => {
   try {
+    // Validate Resend configuration
+    if (!isResendConfigured()) {
+      const errorMsg = "Resend API key not configured. Please set RESEND_API_KEY environment variable.";
+      console.error(`[RESEND] ❌ ${errorMsg}`);
+      return { success: false, error: errorMsg } as const;
+    }
+
+    // Validate email format
+    if (!email || !email.includes('@')) {
+      const errorMsg = `Invalid email address: ${email}`;
+      console.error(`[RESEND] ❌ ${errorMsg}`);
+      return { success: false, error: errorMsg } as const;
+    }
+
+    console.log(`[RESEND] 📧 Sending OTP email to ${email} for purpose: ${purpose}`);
+
     const subjectPurpose = purpose ? purpose.charAt(0).toUpperCase() + purpose.slice(1) : "Verification";
     const expiryText = expiresAt ? ` This OTP expires at ${expiresAt.toLocaleTimeString()}.` : " Valid for 5 minutes.";
     const phoneText = maskedPhone ? ` Mobile: ${maskedPhone}.` : "";
@@ -148,16 +181,27 @@ export const sendOtpEmail = async (
       </div>
     `;
 
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: "onboarding@marketpulse360.live",
       to: email,
       subject: `Your ${subjectPurpose} OTP`,
       html,
     });
 
-    return { success: true } as const;
+    if (result.error) {
+      console.error(`[RESEND] ❌ Failed to send OTP email to ${email}:`, result.error);
+      return { 
+        success: false, 
+        error: result.error instanceof Error ? result.error.message : JSON.stringify(result.error)
+      } as const;
+    }
+
+    console.log(`[RESEND] ✅ OTP email sent successfully to ${email}. Message ID: ${result.data?.id || 'N/A'}`);
+    return { success: true, messageId: result.data?.id } as const;
   } catch (error) {
-    console.error("Error sending OTP email:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" } as const;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[RESEND] ❌ Exception sending OTP email to ${email}:`, errorMessage);
+    console.error(`[RESEND] Error details:`, error);
+    return { success: false, error: errorMessage } as const;
   }
 };
