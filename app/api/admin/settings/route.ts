@@ -13,8 +13,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 console.log("⚙️ [API-ADMIN-SETTINGS] Route loaded")
 
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
   console.log("🌐 [API-ADMIN-SETTINGS] GET request received")
   
   try {
-    // Authenticate admin (optional for reading settings)
-    const session = await auth()
+    const authResult = await requireAdminPermissions(req, "admin.settings.manage")
+    if (!authResult.ok) return authResult.response
     const { searchParams } = new URL(req.url)
     const key = searchParams.get('key')
     const category = searchParams.get('category')
@@ -76,13 +76,9 @@ export async function POST(req: NextRequest) {
   console.log("🌐 [API-ADMIN-SETTINGS] POST request received")
   
   try {
-    // Authenticate admin
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-SETTINGS] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.settings.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     console.log("✅ [API-ADMIN-SETTINGS] Admin authenticated:", session.user.email)
 
@@ -143,13 +139,8 @@ export async function DELETE(req: NextRequest) {
   console.log("🌐 [API-ADMIN-SETTINGS] DELETE request received")
   
   try {
-    // Authenticate admin
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-SETTINGS] Unauthorized access attempt (DELETE):", role)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.settings.manage")
+    if (!authResult.ok) return authResult.response
 
     const { searchParams } = new URL(req.url)
     const key = searchParams.get('key')

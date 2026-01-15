@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server"
 import { createAdminFundService } from "@/lib/services/admin/AdminFundService"
-import { auth } from "@/auth"
 import { NotificationService } from "@/lib/services/notifications/NotificationService"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-WITHDRAWALS] GET request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.withdrawals.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    const role = authResult.role
 
     console.log("📋 [API-ADMIN-WITHDRAWALS] Fetching pending withdrawals")
 
@@ -40,11 +39,10 @@ export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-WITHDRAWALS] POST request received (approve/reject)")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.withdrawals.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    const role = authResult.role
 
     const body = await req.json()
     console.log("📝 [API-ADMIN-WITHDRAWALS] Request body:", body)

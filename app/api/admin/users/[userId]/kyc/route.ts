@@ -8,8 +8,8 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
 import { KycStatus } from "@prisma/client"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function POST(
   req: Request,
@@ -18,11 +18,8 @@ export async function POST(
   console.log("🌐 [API-ADMIN-KYC] POST request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.kyc")
+    if (!authResult.ok) return authResult.response
 
     const userId = params.userId
     const body = await req.json()

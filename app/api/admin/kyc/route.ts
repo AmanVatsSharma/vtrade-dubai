@@ -1,7 +1,7 @@
 // app/api/admin/kyc/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { requireAdminPermissions } from '@/lib/rbac/admin-guard';
 
 // Force this route to be dynamic; it uses auth() which depends on cookies/headers
 export const dynamic = 'force-dynamic';
@@ -9,27 +9,8 @@ export const dynamic = 'force-dynamic';
 // GET - Fetch all KYC applications with user details
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Check if user has admin or moderator role
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true }
-    });
-
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR' && user.role !== 'SUPER_ADMIN')) {
-      return NextResponse.json(
-        { error: 'Access denied. Admin or Moderator role required.' },
-        { status: 403 }
-      );
-    }
+    const authResult = await requireAdminPermissions(request, 'admin.users.kyc');
+    if (!authResult.ok) return authResult.response;
 
     // Get query parameters for filtering and pagination
     const { searchParams } = new URL(request.url);
@@ -112,27 +93,9 @@ export async function GET(request: NextRequest) {
 // PUT - Update KYC status (approve/reject)
 export async function PUT(request: NextRequest) {
   try {
-    const session = await auth();
-    
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Check if user has admin or moderator role
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true, name: true }
-    });
-
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR' && user.role !== 'SUPER_ADMIN')) {
-      return NextResponse.json(
-        { error: 'Access denied. Admin or Moderator role required.' },
-        { status: 403 }
-      );
-    }
+    const authResult = await requireAdminPermissions(request, 'admin.users.kyc');
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const body = await request.json();
     const { kycId, status, reason } = body;

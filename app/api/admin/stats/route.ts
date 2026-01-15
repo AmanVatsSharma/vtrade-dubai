@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-STATS] GET request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-STATS] Unauthorized role attempting GET:", role)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    
-    console.log("✅ [API-ADMIN-STATS] Admin/SuperAdmin authenticated:", session.user.email)
+    const authResult = await requireAdminPermissions(req, "admin.stats.read")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    console.log("✅ [API-ADMIN-STATS] Admin authenticated:", session.user.email)
 
     console.log("📊 [API-ADMIN-STATS] Fetching platform statistics")
 

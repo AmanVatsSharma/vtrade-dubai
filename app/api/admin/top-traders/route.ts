@@ -8,20 +8,16 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-TOP-TRADERS] GET request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-TOP-TRADERS] Unauthorized role attempting GET:", role)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    
-    console.log("✅ [API-ADMIN-TOP-TRADERS] Admin/SuperAdmin authenticated:", session.user.email)
+    const authResult = await requireAdminPermissions(req, "admin.top-traders.read")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    console.log("✅ [API-ADMIN-TOP-TRADERS] Admin authenticated:", session.user.email)
 
     const { searchParams } = new URL(req.url)
     const limit = parseInt(searchParams.get('limit') || '10')

@@ -10,8 +10,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { getS3Service } from "@/lib/aws-s3"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 console.log("📤 [API-ADMIN-UPLOAD] Route loaded")
 
@@ -19,13 +19,9 @@ export async function POST(req: NextRequest) {
   console.log("🌐 [API-ADMIN-UPLOAD] POST request received")
   
   try {
-    // Authenticate admin
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-UPLOAD] Unauthorized role attempting POST:", role)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.upload.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     console.log("✅ [API-ADMIN-UPLOAD] Admin/SuperAdmin authenticated:", session.user.email)
 

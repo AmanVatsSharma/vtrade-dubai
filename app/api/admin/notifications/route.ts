@@ -7,18 +7,16 @@
  */
 
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-NOTIFICATIONS] GET request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.notifications.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     const userId = (session.user as any).id
 
@@ -90,11 +88,9 @@ export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-NOTIFICATIONS] POST request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.notifications.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     const body = await req.json()
     const { title, message, type, priority, target, targetUserIds, expiresAt } = body

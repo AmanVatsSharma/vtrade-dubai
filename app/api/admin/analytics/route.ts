@@ -8,18 +8,15 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-ANALYTICS] GET request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.analytics.read")
+    if (!authResult.ok) return authResult.response
 
     const { searchParams } = new URL(req.url)
     const range = searchParams.get('range') || '7d'

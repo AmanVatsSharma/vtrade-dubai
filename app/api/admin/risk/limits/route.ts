@@ -7,19 +7,16 @@
  */
 
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-RISK-LIMITS] GET request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.risk.read")
+    if (!authResult.ok) return authResult.response
 
     // Fetch risk limits from database
     const limits = await prisma.riskLimit.findMany({
@@ -67,11 +64,8 @@ export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-RISK-LIMITS] POST request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.risk.manage")
+    if (!authResult.ok) return authResult.response
 
     const body = await req.json()
     const { userId, maxDailyLoss, maxPositionSize, maxLeverage, maxDailyTrades } = body

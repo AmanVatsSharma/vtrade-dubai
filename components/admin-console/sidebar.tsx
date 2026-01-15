@@ -9,7 +9,7 @@
  */
 
 import { motion } from "framer-motion"
-import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck } from "lucide-react"
+import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck, KeyRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -53,12 +53,17 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname()
   
-  // Read role from localStorage/session via window (client-only sidebar)
+  // Read role and permissions from localStorage/session via window (client-only sidebar)
   let role: string | null = null
+  let permissions: string[] = []
   if (typeof window !== 'undefined') {
     try {
       const raw = window.localStorage.getItem('session_user_role')
       role = raw || null
+    } catch {}
+    try {
+      const rawPermissions = window.localStorage.getItem('session_user_permissions')
+      permissions = rawPermissions ? JSON.parse(rawPermissions) : []
     } catch {}
   }
 
@@ -71,6 +76,17 @@ export function Sidebar({
   const computedMenu = [...menuItems]
   if (role === 'SUPER_ADMIN') {
     computedMenu.splice(3, 0, { id: 'financial-overview', label: 'Financial Overview', icon: Wallet })
+  }
+  const canViewAccessControl =
+    permissions.includes("admin.access-control.view") || permissions.includes("admin.all")
+  if (canViewAccessControl) {
+    const settingsIndex = computedMenu.findIndex((item) => item.id === "settings")
+    const accessControlItem = { id: "access-control", label: "Access Control", icon: KeyRound }
+    if (settingsIndex >= 0) {
+      computedMenu.splice(settingsIndex, 0, accessControlItem)
+    } else {
+      computedMenu.push(accessControlItem)
+    }
   }
   return (
     <>

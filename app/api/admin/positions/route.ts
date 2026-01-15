@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { createOrderExecutionService } from '@/lib/services/order/OrderExecutionService'
 import { createTradingLogger } from '@/lib/services/logging/TradingLogger'
+import { requireAdminPermissions } from '@/lib/rbac/admin-guard'
 
 // GET /api/admin/positions
 export async function GET(req: Request) {
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, 'admin.positions.read')
+    if (!authResult.ok) return authResult.response
 
     const { searchParams } = new URL(req.url)
     const page = Math.max(parseInt(searchParams.get('page') || '1'), 1)
@@ -95,12 +92,8 @@ export async function GET(req: Request) {
 // PATCH /api/admin/positions
 export async function PATCH(req: Request) {
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error('❌ [API-ADMIN-POSITIONS] Unauthorized role attempting PATCH:', role)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, 'admin.positions.manage')
+    if (!authResult.ok) return authResult.response
 
     const body = await req.json()
     const { positionId, updates, action, options } = body as {
@@ -323,12 +316,9 @@ export async function PATCH(req: Request) {
 // Create a position by placing an opening order under admin control (auto-creates order and transactions)
 export async function POST(req: Request) {
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error('❌ [API-ADMIN-POSITIONS] Unauthorized role attempting POST:', role)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, 'admin.positions.manage')
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     const body = await req.json()
     const {

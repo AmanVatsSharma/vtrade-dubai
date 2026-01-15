@@ -3,9 +3,12 @@ import { NextResponse } from 'next/server';
 import { getQuotesBatcherState, manualFlush } from '@/lib/vortex/quotes-batcher';
 import { getQuotesBatcherConfig, setQuotesBatcherConfig } from '@/lib/vortex/quotes-batcher-config';
 import { logger, LogCategory } from '@/lib/vortex/vortexLogger';
+import { requireAdminPermissions } from '@/lib/rbac/admin-guard';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const authResult = await requireAdminPermissions(req, 'admin.queue.read');
+    if (!authResult.ok) return authResult.response;
     const state = getQuotesBatcherState();
     const config = getQuotesBatcherConfig();
     logger.info(LogCategory.VORTEX_QUOTES, 'Quotes batcher status requested');
@@ -18,6 +21,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const authResult = await requireAdminPermissions(request, 'admin.queue.read');
+    if (!authResult.ok) return authResult.response;
     const body = await request.json().catch(() => ({}));
     if (body?.action === 'flush') {
       const mode = body?.mode || 'ltp';

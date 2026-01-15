@@ -2,17 +2,13 @@
  * Admin Logs API - Get trading logs for admin console
  */
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { requireAdminPermissions } from '@/lib/rbac/admin-guard'
 
 export async function GET(req: Request) {
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error('❌ [API-ADMIN-LOGS] Unauthorized role attempting GET:', role)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, 'admin.logs.read')
+    if (!authResult.ok) return authResult.response
 
     const { searchParams } = new URL(req.url)
     const category = searchParams.get('category') as any

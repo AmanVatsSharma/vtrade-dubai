@@ -8,8 +8,8 @@
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/auth"
 import { Role } from "@prisma/client"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 /**
  * Helper function to determine which roles a user can manage based on their role
@@ -39,14 +39,10 @@ export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-RMS] GET request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role as Role
-    
-    // Allow ADMIN, SUPER_ADMIN, and MODERATOR
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-RMS] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.rm")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    const role = authResult.role as Role
 
     // Get roles that the current user can manage
     const manageableRoles = getManageableRoles(role)
@@ -219,14 +215,10 @@ export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-RMS] POST request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    
-    // Only ADMIN and SUPER_ADMIN can create RMs
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-RMS] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.rm")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    const role = authResult.role
 
     const body = await req.json()
     const { name, email, phone, password } = body

@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 /**
  * PATCH /api/admin/users/[userId]/assign-rm
@@ -21,14 +21,10 @@ export async function PATCH(
   console.log("🌐 [API-ADMIN-ASSIGN-RM] PATCH request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    
-    // Allow ADMIN, SUPER_ADMIN, and MODERATOR (RMs can assign themselves)
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-ASSIGN-RM] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.rm")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    const role = authResult.role
 
     const { userId } = params
     const body = await req.json()

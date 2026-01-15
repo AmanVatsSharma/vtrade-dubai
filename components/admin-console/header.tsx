@@ -53,6 +53,10 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
         try {
           window.localStorage.setItem('session_user_role', data.user.role)
         } catch {}
+        try {
+          const permissions = Array.isArray(data.permissions) ? data.permissions : []
+          window.localStorage.setItem('session_user_permissions', JSON.stringify(permissions))
+        } catch {}
       } else {
         console.error("❌ [HEADER] Failed to load admin user")
       }

@@ -8,20 +8,16 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-CHARTS-ACTIVITY] GET request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-CHARTS-ACTIVITY] Unauthorized role attempting GET:", role)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    
-    console.log("✅ [API-ADMIN-CHARTS-ACTIVITY] Admin/SuperAdmin authenticated:", session.user.email)
+    const authResult = await requireAdminPermissions(req, "admin.charts.read")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    console.log("✅ [API-ADMIN-CHARTS-ACTIVITY] Admin authenticated:", session.user.email)
 
     const { searchParams } = new URL(req.url)
     const days = parseInt(searchParams.get('days') || '7')

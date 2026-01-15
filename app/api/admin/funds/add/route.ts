@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server"
 import { createAdminFundService } from "@/lib/services/admin/AdminFundService"
 import { createTradingLogger } from "@/lib/services/logging/TradingLogger"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-ADD-FUNDS] POST request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-ADD-FUNDS] Unauthorized role attempting POST:", role)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.funds.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     const body = await req.json()
     console.log("📝 [API-ADMIN-ADD-FUNDS] Request body:", body)
