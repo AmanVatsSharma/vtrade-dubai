@@ -121,6 +121,20 @@ export function StatusBadge({ status, type, className = "", children }: StatusBa
     if (statusUpper === 'HIGH') {
       return 'bg-orange-400/20 text-orange-400 border-orange-400/30'
     }
+
+    // Compliance statuses
+    if (statusUpper === 'CLEAR' || statusUpper === 'CLEARED') {
+      return 'bg-green-400/20 text-green-400 border-green-400/30'
+    }
+    if (statusUpper === 'REVIEW') {
+      return 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30'
+    }
+    if (statusUpper === 'HIT' || statusUpper === 'ESCALATED') {
+      return 'bg-red-400/20 text-red-400 border-red-400/30'
+    }
+    if (statusUpper === 'NONE') {
+      return 'bg-gray-400/20 text-gray-400 border-gray-400/30'
+    }
     
     // Notification types
     if (statusUpper === 'INFO') {

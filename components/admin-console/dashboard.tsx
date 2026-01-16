@@ -1,15 +1,24 @@
+/**
+ * @file dashboard.tsx
+ * @module admin-console
+ * @description Admin console dashboard with data source clarity and live status
+ * @author BharatERP
+ * @created 2026-01-15
+ */
+
 "use client"
 
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight, ArrowDownRight, Eye, AlertTriangle, LayoutDashboard } from "lucide-react"
-import { PageHeader, RefreshButton } from "@/components/admin-console/shared"
+import { PageHeader, RefreshButton, StatusBadge } from "@/components/admin-console/shared"
 import { TradingChart } from "./trading-chart"
 import { UserActivityChart } from "./user-activity-chart"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useEffect, useState } from "react"
 import { toast } from "@/hooks/use-toast"
+import { deriveDataSourceStatus, type DataSourceStatus } from "@/lib/admin/data-source"
 
 // Mock data as fallback
 const mockStats = [
@@ -79,47 +88,58 @@ export function Dashboard() {
   const [recentActivity, setRecentActivity] = useState<typeof mockRecentActivity>([])
   const [alerts, setAlerts] = useState<Array<{ id: string; type: string; message: string; time: string }>>([])
   const [topTraders, setTopTraders] = useState<Array<{ id: string; name: string; clientId: string; profit: number; trades: number; winRate: number }>>([])
-  const [isUsingMockData, setIsUsingMockData] = useState(false)
+  const [useSampleData, setUseSampleData] = useState(false)
+  const [dataSourceStatus, setDataSourceStatus] = useState<DataSourceStatus>("loading")
+  const [dataSourceErrors, setDataSourceErrors] = useState<string[]>([])
+  const [dataSourceSummary, setDataSourceSummary] = useState<{ okCount: number; total: number } | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const getIstTimestamp = () => new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+
+  const getResponseErrorMessage = async (response: Response, fallback: string) => {
+    const data = await response.json().catch(() => null)
+    return data?.error || data?.message || fallback
+  }
+
   const fetchRealData = async () => {
-    console.log("🔄 [ADMIN-DASHBOARD] Fetching real data...")
+    console.log(`[ADMIN-DASHBOARD] ${getIstTimestamp()} Fetching real data`)
     setLoading(true)
+    setDataSourceStatus("loading")
+
+    const statsResult = { name: "Stats API", ok: false, error: "" }
+    const activityResult = { name: "Activity API", ok: false, error: "" }
+    const alertsResult = { name: "Alerts API", ok: false, error: "" }
+    const tradersResult = { name: "Top Traders API", ok: false, error: "" }
 
     try {
-      // Fetch stats, activity, alerts, and top traders in parallel
       const [statsResponse, activityResponse, alertsResponse, tradersResponse] = await Promise.all([
-        fetch('/api/admin/stats').catch(e => {
-          console.error("❌ [ADMIN-DASHBOARD] Stats API failed:", e)
+        fetch("/api/admin/stats").catch((error) => {
+          statsResult.error = error?.message || "Stats request failed"
           return null
         }),
-        fetch('/api/admin/activity?limit=20').catch(e => {
-          console.error("❌ [ADMIN-DASHBOARD] Activity API failed:", e)
+        fetch("/api/admin/activity?limit=20").catch((error) => {
+          activityResult.error = error?.message || "Activity request failed"
           return null
         }),
-        fetch('/api/admin/alerts?limit=10').catch(e => {
-          console.error("❌ [ADMIN-DASHBOARD] Alerts API failed:", e)
+        fetch("/api/admin/alerts?limit=10").catch((error) => {
+          alertsResult.error = error?.message || "Alerts request failed"
           return null
         }),
-        fetch('/api/admin/top-traders?limit=5').catch(e => {
-          console.error("❌ [ADMIN-DASHBOARD] Top traders API failed:", e)
+        fetch("/api/admin/top-traders?limit=5").catch((error) => {
+          tradersResult.error = error?.message || "Top traders request failed"
           return null
-        })
+        }),
       ])
 
-      let hasRealData = false
-
-      // Process stats
       if (statsResponse && statsResponse.ok) {
         const data = await statsResponse.json()
-        console.log("✅ [ADMIN-DASHBOARD] Stats received:", data)
-
         if (data.success && data.stats) {
           const realStats = [
             {
               title: "Total Users",
               value: data.stats.users.total.toLocaleString(),
-              change: "+12.5%", // Can calculate from historical data
+              change: "+12.5%",
               trend: "up" as const,
               icon: Users,
               color: "text-blue-400",
@@ -154,16 +174,17 @@ export function Dashboard() {
             },
           ]
           setStats(realStats)
-          hasRealData = true
-          console.log("✅ [ADMIN-DASHBOARD] Real stats loaded!")
+          statsResult.ok = true
         }
+      } else if (statsResponse) {
+        statsResult.error = await getResponseErrorMessage(statsResponse, "Failed to load stats")
+        setStats([])
+      } else {
+        setStats([])
       }
 
-      // Process activity
       if (activityResponse && activityResponse.ok) {
         const data = await activityResponse.json()
-        console.log("✅ [ADMIN-DASHBOARD] Activity received:", data)
-
         if (data.success && data.activities) {
           const realActivity = data.activities.slice(0, 8).map((activity: any) => ({
             id: activity.id,
@@ -176,69 +197,85 @@ export function Dashboard() {
             type: activity.type.toLowerCase(),
           }))
           setRecentActivity(realActivity)
-          hasRealData = true
-          console.log("✅ [ADMIN-DASHBOARD] Real activity loaded!")
+          activityResult.ok = true
         }
+      } else if (activityResponse) {
+        activityResult.error = await getResponseErrorMessage(activityResponse, "Failed to load activity")
+        setRecentActivity([])
+      } else {
+        setRecentActivity([])
       }
 
-      // Process alerts
       if (alertsResponse && alertsResponse.ok) {
         const data = await alertsResponse.json()
-        console.log("✅ [ADMIN-DASHBOARD] Alerts received:", data)
-
         if (data.success && data.alerts) {
           setAlerts(data.alerts)
-          hasRealData = true
-          console.log("✅ [ADMIN-DASHBOARD] Real alerts loaded!")
+          alertsResult.ok = true
         }
+      } else if (alertsResponse) {
+        alertsResult.error = await getResponseErrorMessage(alertsResponse, "Failed to load alerts")
+        setAlerts([])
+      } else {
+        setAlerts([])
       }
 
-      // Process top traders
       if (tradersResponse && tradersResponse.ok) {
         const data = await tradersResponse.json()
-        console.log("✅ [ADMIN-DASHBOARD] Top traders received:", data)
-
         if (data.success && data.traders) {
           setTopTraders(data.traders)
-          hasRealData = true
-          console.log("✅ [ADMIN-DASHBOARD] Real top traders loaded!")
+          tradersResult.ok = true
         }
+      } else if (tradersResponse) {
+        tradersResult.error = await getResponseErrorMessage(tradersResponse, "Failed to load top traders")
+        setTopTraders([])
+      } else {
+        setTopTraders([])
       }
 
-      setIsUsingMockData(!hasRealData)
-      
-      // If no real data was loaded, use mock data as fallback
-      if (!hasRealData) {
-        console.warn("⚠️ [ADMIN-DASHBOARD] No real data available, using mock data")
-        setStats(mockStats)
-        setRecentActivity(mockRecentActivity)
-      }
-      
-      if (hasRealData) {
-        toast({
-          title: "✅ Real Data Loaded",
-          description: "Dashboard is showing live platform data",
-        })
-      }
-
-    } catch (error) {
-      console.error("❌ [ADMIN-DASHBOARD] Error fetching data:", error)
-      setIsUsingMockData(true)
-      // Fallback to mock data on error
-      setStats(mockStats)
-      setRecentActivity(mockRecentActivity)
+      const summary = deriveDataSourceStatus([statsResult, activityResult, alertsResult, tradersResult])
+      setDataSourceStatus(summary.status)
+      setDataSourceErrors(summary.errors)
+      setDataSourceSummary({ okCount: summary.okCount, total: summary.total })
+      setLastUpdatedAt(getIstTimestamp())
+    } catch (error: any) {
+      console.error("[ADMIN-DASHBOARD] Fetch failed", error)
+      setStats([])
+      setRecentActivity([])
+      setAlerts([])
+      setTopTraders([])
+      setDataSourceStatus("error")
+      setDataSourceErrors([error?.message || "Unable to fetch dashboard data"])
+      setDataSourceSummary({ okCount: 0, total: 4 })
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
+    if (useSampleData) return
+
     fetchRealData()
-    
-    // Auto-refresh every 30 seconds
     const interval = setInterval(fetchRealData, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [useSampleData])
+
+  const handleUseSampleData = () => {
+    setUseSampleData(true)
+    setLoading(false)
+    setStats(mockStats)
+    setRecentActivity(mockRecentActivity)
+    setAlerts([])
+    setTopTraders([])
+    setDataSourceStatus("sample")
+    setDataSourceErrors([])
+    setDataSourceSummary({ okCount: 0, total: 4 })
+    setLastUpdatedAt(getIstTimestamp())
+    toast({ title: "Sample data loaded", description: "Dashboard is now showing sample data." })
+  }
+
+  const handleUseLiveData = () => {
+    setUseSampleData(false)
+  }
 
   function getTimeAgo(date: Date): string {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
@@ -251,26 +288,102 @@ export function Dashboard() {
     return `${days} day${days > 1 ? 's' : ''} ago`
   }
 
+  const dataBadge = (() => {
+    if (dataSourceStatus === "live") return { status: "SUCCESS", label: "Live" }
+    if (dataSourceStatus === "partial") {
+      const suffix = dataSourceSummary ? ` ${dataSourceSummary.okCount}/${dataSourceSummary.total}` : ""
+      return { status: "WARNING", label: `Partial${suffix}` }
+    }
+    if (dataSourceStatus === "error") return { status: "ERROR", label: "Error" }
+    if (dataSourceStatus === "sample") return { status: "INFO", label: "Sample" }
+    return { status: "PENDING", label: "Loading" }
+  })()
+
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
-      {/* Mock Data Warning */}
-      {isUsingMockData && !loading && (
-        <Alert variant="destructive" className="bg-yellow-500/10 border-yellow-500/50">
-          <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-          <AlertTitle className="text-yellow-500 text-sm sm:text-base">Using Mock Data</AlertTitle>
-          <AlertDescription className="text-yellow-500/80 text-xs sm:text-sm">
+      {/* Data Source Status */}
+      {dataSourceStatus === "error" && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+          <AlertTitle className="text-red-500 text-sm sm:text-base">Live data unavailable</AlertTitle>
+          <AlertDescription className="text-red-400 text-xs sm:text-sm space-y-2">
+            {dataSourceErrors.length > 0 && (
+              <div className="space-y-1">
+                {dataSourceErrors.map((message) => (
+                  <p key={message}>{message}</p>
+                ))}
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <span className="flex-1">Unable to load real data from backend. Displaying sample data. Check API endpoints or try refreshing.</span>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full sm:w-auto sm:ml-0 text-xs sm:text-sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
                 onClick={fetchRealData}
                 disabled={loading}
               >
                 Retry
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                onClick={handleUseSampleData}
+              >
+                Use Sample Data
+              </Button>
             </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {dataSourceStatus === "partial" && (
+        <Alert className="bg-yellow-500/10 border-yellow-500/50">
+          <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+          <AlertTitle className="text-yellow-500 text-sm sm:text-base">Partial data loaded</AlertTitle>
+          <AlertDescription className="text-yellow-500/80 text-xs sm:text-sm space-y-2">
+            {dataSourceErrors.length > 0 && (
+              <div className="space-y-1">
+                {dataSourceErrors.map((message) => (
+                  <p key={message}>{message}</p>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                onClick={fetchRealData}
+                disabled={loading}
+              >
+                Retry
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                onClick={handleUseSampleData}
+              >
+                Use Sample Data
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {dataSourceStatus === "sample" && (
+        <Alert className="bg-blue-500/10 border-blue-500/50">
+          <Activity className="h-4 w-4 text-blue-500 flex-shrink-0" />
+          <AlertTitle className="text-blue-500 text-sm sm:text-base">Sample data mode</AlertTitle>
+          <AlertDescription className="text-blue-500/80 text-xs sm:text-sm space-y-2">
+            <p>Sample data is active. Switch back to live data to run admin actions reliably.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto text-xs sm:text-sm"
+              onClick={handleUseLiveData}
+            >
+              Use Live Data
+            </Button>
           </AlertDescription>
         </Alert>
       )}
@@ -278,19 +391,20 @@ export function Dashboard() {
       {/* Header */}
       <PageHeader
         title="Trading Console Dashboard"
-        description={`Real-time monitoring and analytics for your trading platform${!isUsingMockData && !loading ? " • Live Data" : ""}`}
+        description="Real-time monitoring and analytics for your trading platform"
         icon={<LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
         actions={
           <>
-            <RefreshButton onClick={fetchRealData} loading={loading} />
-            {!loading && (
-              <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
-                <div className={`w-2 h-2 rounded-full ${isUsingMockData ? 'bg-yellow-400' : 'bg-green-400 pulse-glow'}`}></div>
-                <span className={`hidden sm:inline ${isUsingMockData ? 'text-yellow-400' : 'text-green-400'}`}>
-                  {isUsingMockData ? 'Mock Data' : 'Live Data'}
-                </span>
-              </div>
+            <StatusBadge status={dataBadge.status} type="general">
+              {dataBadge.label}
+            </StatusBadge>
+            {lastUpdatedAt && <span className="text-xs text-muted-foreground">Updated {lastUpdatedAt}</span>}
+            {!useSampleData && (
+              <Button variant="outline" size="sm" onClick={handleUseSampleData} className="text-xs sm:text-sm">
+                Load Sample
+              </Button>
             )}
+            <RefreshButton onClick={() => (useSampleData ? handleUseLiveData() : fetchRealData())} loading={loading} />
           </>
         }
       />

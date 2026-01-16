@@ -27,6 +27,29 @@ enum KycStatus {
   REJECTED
 }
 
+enum KycAmlStatus {
+  PENDING
+  CLEAR
+  REVIEW
+  HIT
+}
+
+enum KycSuspiciousStatus {
+  NONE
+  REVIEW
+  ESCALATED
+  CLEARED
+}
+
+enum KycReviewAction {
+  ASSIGNED
+  UNASSIGNED
+  STATUS_UPDATED
+  AML_UPDATED
+  SUSPICIOUS_UPDATED
+  NOTE_ADDED
+}
+
 enum AuthEventType {
   REGISTRATION_ATTEMPT
   REGISTRATION_SUCCESS
@@ -212,6 +235,8 @@ model User {
   riskAlerts RiskAlert[]
   resolvedAlerts RiskAlert[] @relation("ResolvedAlerts")
   createdNotifications Notification[] @relation("CreatedNotifications")
+  kycReviews          KycReviewLog[]  @relation("KycReviewer")
+  assignedKycs        KYC[]           @relation("KycAssignedTo")
 
   @@map("users")
   @@index([managedById])
@@ -225,11 +250,43 @@ model KYC {
   panNumber     String
   bankProofUrl  String
   status        KycStatus @default(PENDING)
+  assignedToId   String?             @map("assigned_to_id")
+  assignedTo     User?               @relation("KycAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedAt     DateTime?           @map("assigned_at")
+  slaDueAt       DateTime?           @map("sla_due_at")
+  slaBreachedAt  DateTime?           @map("sla_breached_at")
+  amlStatus      KycAmlStatus        @default(PENDING) @map("aml_status")
+  amlFlags       String[]            @default([]) @map("aml_flags")
+  suspiciousStatus KycSuspiciousStatus @default(NONE) @map("suspicious_status")
   submittedAt   DateTime  @default(now())
   approvedAt    DateTime?
   updatedAt     DateTime  @updatedAt
+  reviewLogs    KycReviewLog[]
 
   @@map("kyc")
+  @@index([status])
+  @@index([assignedToId])
+  @@index([slaDueAt])
+  @@index([amlStatus])
+  @@index([suspiciousStatus])
+}
+
+model KycReviewLog {
+  id         String          @id @default(uuid())
+  kycId      String          @map("kyc_id")
+  kyc        KYC             @relation(fields: [kycId], references: [id], onDelete: Cascade)
+  reviewerId String?         @map("reviewer_id")
+  reviewer   User?           @relation("KycReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  action     KycReviewAction
+  note       String?
+  metadata   Json?
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  @@map("kyc_review_logs")
+  @@index([kycId])
+  @@index([reviewerId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model PasswordResetToken {
