@@ -3,7 +3,7 @@
  * Module: notifications
  * Purpose: API endpoint for user notifications - fetch, mark as read/unread
  * Author: BharatERP
- * Last-updated: 2025-01-27
+ * Last-updated: 2026-01-20
  * Notes:
  * - Handles user-specific notifications (not admin notifications)
  * - Supports filtering by type, priority, read status
@@ -13,6 +13,11 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import {
+  buildTargetConditions,
+  canIncludeAdminTargets,
+  isNotificationVisibleToUser
+} from "@/lib/services/notifications/notification-targeting"
 
 /**
  * GET /api/notifications
@@ -63,6 +68,8 @@ export async function GET(req: Request) {
     
     // Get user role for proper filtering
     const userRole = (session.user as any)?.role || 'USER'
+    const includeAdminTargets = searchParams.get('includeAdminTargets') === 'true'
+    const allowAdminTargets = canIncludeAdminTargets(userRole, includeAdminTargets)
     
     // Enhanced logging for debugging
     console.log("🔔 [API-NOTIFICATIONS] Session details:", {
@@ -71,6 +78,8 @@ export async function GET(req: Request) {
       userEmail: (session.user as any)?.email,
       userName: (session.user as any)?.name,
       userRole,
+      includeAdminTargets,
+      allowAdminTargets,
       hasSessionUserId: !!sessionUserId,
       sessionKeys: Object.keys(session.user || {})
     })
@@ -101,6 +110,18 @@ export async function GET(req: Request) {
       }, { status: 403 })
     }
 
+    if (includeAdminTargets && !allowAdminTargets) {
+      console.error("❌ [API-NOTIFICATIONS] Admin targets requested by non-admin user", {
+        userRole,
+        sessionUserId
+      })
+      return NextResponse.json({ 
+        error: "Forbidden: Admin targets require admin role",
+        notifications: [],
+        unreadCount: 0
+      }, { status: 403 })
+    }
+
     // Use session userId for all queries (security first)
     const userId = sessionUserId.trim()
     
@@ -111,28 +132,21 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    console.log("📋 [API-NOTIFICATIONS] Query params:", { type, priority, read, limit, offset, userId, userRole })
+    console.log("📋 [API-NOTIFICATIONS] Query params:", { 
+      type, 
+      priority, 
+      read, 
+      limit, 
+      offset, 
+      userId, 
+      userRole, 
+      includeAdminTargets 
+    })
 
-    // Build where clause based on user role
+    // Build where clause based on user role + explicit admin-target opt-in
     // Regular users see: ALL, USERS, SPECIFIC (where they're included)
-    // Admins should use /api/admin/notifications, but if they use this endpoint, they also see ADMINS
-    const targetConditions: any[] = [
-      { target: 'ALL' },
-      { target: 'USERS' },
-      { 
-        AND: [
-          { target: 'SPECIFIC' },
-          { targetUserIds: { has: userId } }
-        ]
-      }
-    ]
-    
-    // If user is admin/moderator, also include ADMINS target
-    // (though they should ideally use /api/admin/notifications)
-    if (userRole === 'ADMIN' || userRole === 'MODERATOR' || userRole === 'SUPER_ADMIN') {
-      targetConditions.push({ target: 'ADMINS' })
-      console.log("🔔 [API-NOTIFICATIONS] User is admin, including ADMINS target")
-    }
+    // Admins should use /api/admin/notifications for admin-only targets
+    const targetConditions = buildTargetConditions(userId, allowAdminTargets)
 
     // Build where clause - match admin route structure for consistency
     const where: any = {
@@ -222,14 +236,17 @@ export async function GET(req: Request) {
       totalCount,
       userRole,
       userId,
+      includeAdminTargets,
       notificationTargets: notifications.map(n => ({ 
         id: n.id, 
         target: n.target, 
         targetUserIds: n.targetUserIds,
-        isForUser: n.target === 'ALL' || 
-                   n.target === 'USERS' || 
-                   (n.target === 'ADMINS' && (userRole === 'ADMIN' || userRole === 'MODERATOR' || userRole === 'SUPER_ADMIN')) ||
-                   (n.target === 'SPECIFIC' && n.targetUserIds.includes(userId))
+        isForUser: isNotificationVisibleToUser({
+          target: n.target,
+          targetUserIds: n.targetUserIds,
+          userId,
+          allowAdminTargets
+        })
       }))
     })
 
@@ -237,11 +254,12 @@ export async function GET(req: Request) {
     const formattedNotifications = notifications
       .map(notif => {
         // Double-check that notification is meant for this user (security)
-        const isForUser = 
-          notif.target === 'ALL' ||
-          notif.target === 'USERS' ||
-          (notif.target === 'ADMINS' && (userRole === 'ADMIN' || userRole === 'MODERATOR' || userRole === 'SUPER_ADMIN')) ||
-          (notif.target === 'SPECIFIC' && Array.isArray(notif.targetUserIds) && notif.targetUserIds.includes(userId))
+        const isForUser = isNotificationVisibleToUser({
+          target: notif.target,
+          targetUserIds: Array.isArray(notif.targetUserIds) ? notif.targetUserIds : [],
+          userId,
+          allowAdminTargets
+        })
         
         if (!isForUser) {
           console.warn("⚠️ [API-NOTIFICATIONS] Notification not meant for user, filtering out:", {
@@ -317,6 +335,7 @@ export async function GET(req: Request) {
     console.log("🔒 [API-NOTIFICATIONS] Security verification - notification breakdown:", {
       userRole,
       userId,
+      includeAdminTargets,
       targetBreakdown,
       total: formattedNotifications.length
     })

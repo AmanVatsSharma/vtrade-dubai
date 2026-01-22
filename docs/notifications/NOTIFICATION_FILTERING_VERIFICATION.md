@@ -22,14 +22,14 @@ Regular users (role: `USER` or no role) see notifications with:
 - ✅ `target: 'ALL'` - Everyone sees these
 - ✅ `target: 'USERS'` - Only regular users see these
 - ✅ `target: 'SPECIFIC'` - Only if their `userId` is in `targetUserIds` array
-- ❌ `target: 'ADMINS'` - Regular users do NOT see these
+- ❌ `target: 'ADMINS'` - Regular users do NOT see these (admin targets require `includeAdminTargets=true` + admin role)
 
 ### For Admins (`/api/notifications` or `/api/admin/notifications`)
 
 Admins (role: `ADMIN`, `MODERATOR`, or `SUPER_ADMIN`) see notifications with:
 - ✅ `target: 'ALL'` - Everyone sees these
 - ✅ `target: 'USERS'` - Admins also see user notifications
-- ✅ `target: 'ADMINS'` - Only admins see these
+- ✅ `target: 'ADMINS'` - Only via `/api/admin/notifications` or `/api/notifications?includeAdminTargets=true`
 - ✅ `target: 'SPECIFIC'` - Only if their `userId` is in `targetUserIds` array
 
 ---
@@ -45,7 +45,7 @@ The Prisma query filters notifications at the database level:
   OR: [
     { target: 'ALL' },
     { target: 'USERS' },
-    // Admins also get: { target: 'ADMINS' }
+    // Admin targets only when allowAdminTargets is true
     { 
       AND: [
         { target: 'SPECIFIC' },
@@ -64,7 +64,7 @@ After fetching, each notification is verified:
 const isForUser = 
   notif.target === 'ALL' ||
   notif.target === 'USERS' ||
-  (notif.target === 'ADMINS' && isAdmin) ||
+  (notif.target === 'ADMINS' && allowAdminTargets) ||
   (notif.target === 'SPECIFIC' && notif.targetUserIds.includes(userId))
 ```
 
@@ -101,7 +101,7 @@ curl http://localhost:3000/api/notifications/test
 #### Scenario 2: Admin User
 1. Create notification with `target: 'ALL'` → ✅ Admin should see it
 2. Create notification with `target: 'USERS'` → ✅ Admin should see it
-3. Create notification with `target: 'ADMINS'` → ✅ Admin should see it
+3. Create notification with `target: 'ADMINS'` → ✅ Admin should see it (via admin endpoint or includeAdminTargets)
 4. Create notification with `target: 'SPECIFIC'` and include admin's ID → ✅ Admin should see it
 5. Create notification with `target: 'SPECIFIC'` without admin's ID → ❌ Admin should NOT see it
 
@@ -216,6 +216,7 @@ If a notification that shouldn't be visible is found:
 ## 🚨 Important Notes
 
 1. **Regular users should NEVER see `ADMINS` notifications**
+   - Admin targets require `includeAdminTargets=true` plus admin role
    - This is enforced at both database and application level
    - Logged as warning if found
 
@@ -224,8 +225,8 @@ If a notification that shouldn't be visible is found:
    - Case-sensitive matching
 
 3. **Admins can see more notifications**
-   - They see ALL, USERS, ADMINS, and SPECIFIC (if included)
-   - This is intentional for admin oversight
+   - They see ALL, USERS, and SPECIFIC (if included) on `/api/notifications`
+   - ADMINS target is returned via `/api/admin/notifications` or opt-in parameter
 
 4. **Expired notifications are filtered**
    - Only active (not expired) notifications are shown

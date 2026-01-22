@@ -33,9 +33,10 @@ The user dashboard notification bell now works! Users can see notifications crea
 
 ### User Notifications
 ```
-GET  /api/notifications?userId={userId}
+GET  /api/notifications?userId={userId}[&includeAdminTargets=true]
 PATCH /api/notifications
 ```
+Note: `includeAdminTargets=true` requires an admin role; non-admin requests return 403.
 
 ### Admin Notifications  
 ```
@@ -69,7 +70,7 @@ import { AdminNotificationBell } from "@/components/admin-console/admin-notifica
 |--------|------------|
 | **ALL** | Everyone (users + admins) |
 | **USERS** | Regular users only |
-| **ADMINS** | Admins only |
+| **ADMINS** | Admins only (via admin endpoint or includeAdminTargets) |
 | **SPECIFIC** | Specific users (via targetUserIds) |
 
 ---

@@ -9,6 +9,11 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import {
+  buildTargetConditions,
+  canIncludeAdminTargets,
+  isNotificationVisibleToUser
+} from "@/lib/services/notifications/notification-targeting"
 
 /**
  * GET /api/notifications/test
@@ -27,6 +32,8 @@ export async function GET(req: Request) {
     // Test 1: Session validation
     const session = await auth()
     const sessionUserId = (session?.user as any)?.id
+    const { searchParams } = new URL(req.url)
+    const includeAdminTargets = searchParams.get('includeAdminTargets') === 'true'
     
     const diagnostics = {
       timestamp: new Date().toISOString(),
@@ -108,7 +115,16 @@ export async function GET(req: Request) {
 
       // Test 3.5: Role-based filtering verification
       const userRole = (session.user as any)?.role || 'USER'
-      const isAdmin = userRole === 'ADMIN' || userRole === 'MODERATOR' || userRole === 'SUPER_ADMIN'
+      const allowAdminTargets = canIncludeAdminTargets(userRole, includeAdminTargets)
+
+      if (includeAdminTargets && !allowAdminTargets) {
+        diagnostics.errors.push("Admin targets requested by non-admin user")
+        return NextResponse.json({
+          success: false,
+          diagnostics,
+          message: "Admin targets require admin role"
+        }, { status: 403 })
+      }
       
       // Count notifications user should see
       const userShouldSee = await prisma.notification.count({
@@ -118,7 +134,7 @@ export async function GET(req: Request) {
               OR: [
                 { target: 'ALL' },
                 { target: 'USERS' },
-                ...(isAdmin ? [{ target: 'ADMINS' }] : []),
+                ...(allowAdminTargets ? [{ target: 'ADMINS' }] : []),
                 { 
                   AND: [
                     { target: 'SPECIFIC' },
@@ -139,24 +155,11 @@ export async function GET(req: Request) {
 
       diagnostics.queryLogic.userShouldSee = userShouldSee
       diagnostics.queryLogic.userRole = userRole
-      diagnostics.queryLogic.isAdmin = isAdmin
+      diagnostics.queryLogic.allowAdminTargets = allowAdminTargets
+      diagnostics.queryLogic.includeAdminTargets = includeAdminTargets
 
       // Test 4: User-specific query (same as actual API with role-based filtering)
-      const targetConditions: any[] = [
-        { target: 'ALL' },
-        { target: 'USERS' },
-        { 
-          AND: [
-            { target: 'SPECIFIC' },
-            { targetUserIds: { has: sessionUserId } }
-          ]
-        }
-      ]
-      
-      // Include ADMINS if user is admin
-      if (isAdmin) {
-        targetConditions.push({ target: 'ADMINS' })
-      }
+      const targetConditions = buildTargetConditions(sessionUserId, allowAdminTargets)
 
       const userQuery = {
         AND: [
@@ -180,11 +183,12 @@ export async function GET(req: Request) {
 
       // Verify each notification is meant for this user
       const verifiedNotifications = userNotifications.map(n => {
-        const isForUser = 
-          n.target === 'ALL' ||
-          n.target === 'USERS' ||
-          (n.target === 'ADMINS' && isAdmin) ||
-          (n.target === 'SPECIFIC' && Array.isArray(n.targetUserIds) && n.targetUserIds.includes(sessionUserId))
+        const isForUser = isNotificationVisibleToUser({
+          target: n.target,
+          targetUserIds: Array.isArray(n.targetUserIds) ? n.targetUserIds : [],
+          userId: sessionUserId,
+          allowAdminTargets
+        })
         
         return {
           id: n.id,
@@ -211,7 +215,8 @@ export async function GET(req: Request) {
         verifiedCount: verifiedNotifications.filter(n => n.isForUser).length,
         invalidCount: invalidNotifications.length,
         userRole,
-        isAdmin,
+        allowAdminTargets,
+        includeAdminTargets,
         sampleNotifications: verifiedNotifications
       }
 

@@ -8,6 +8,17 @@
 
 # 🔔 Notification System Changelog
 
+## [2026-01-20] - User Notification Target Hardening
+
+### ✅ Improvements Made
+- **User Endpoint Hardening**: `/api/notifications` now excludes `ADMINS` targets unless explicitly requested with `includeAdminTargets=true` by an admin.
+- **Shared Targeting Helpers**: Centralized target visibility logic to reduce drift.
+- **Security Guardrails**: Non-admin requests for admin targets return 403.
+- **Documentation Updates**: Updated filtering verification and quick reference.
+
+### 🧪 Tests Added
+- Added unit coverage for target visibility helpers (admin opt-in logic).
+
 ## [2025-01-27] - Robustness & Error Handling Improvements
 
 ### 🎯 Objective
