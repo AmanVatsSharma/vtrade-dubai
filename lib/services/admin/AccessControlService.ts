@@ -154,8 +154,11 @@ export class AccessControlService {
       }
     }
 
-    const setting = await prisma.systemSettings.findUnique({
-      where: { key: RBAC_SETTINGS_KEY },
+    // NOTE: `SystemSettings.key` is not globally unique and `ownerId` is nullable, so we cannot
+    // reliably use `findUnique` for "global" settings. Prefer latest active entry for ownerId=null.
+    const setting = await prisma.systemSettings.findFirst({
+      where: { key: RBAC_SETTINGS_KEY, ownerId: null, isActive: true },
+      orderBy: { updatedAt: "desc" },
     })
 
     const parsedConfig = parseConfig(setting?.value || null)
@@ -202,22 +205,45 @@ export class AccessControlService {
     }
 
     // Persist in SystemSettings for runtime configuration.
-    await prisma.systemSettings.upsert({
-      where: { key: RBAC_SETTINGS_KEY },
-      update: {
-        value: JSON.stringify(config),
-        description: "Role-based access control configuration",
-        category: "ACCESS_CONTROL",
-        isActive: true,
-        updatedAt: new Date(),
-      },
-      create: {
-        key: RBAC_SETTINGS_KEY,
-        value: JSON.stringify(config),
-        description: "Role-based access control configuration",
-        category: "ACCESS_CONTROL",
-        isActive: true,
-      },
+    // NOTE: We intentionally avoid Prisma `upsert` here because `SystemSettings` does not have a
+    // globally-unique `key`, and `ownerId` is nullable (meaning `(ownerId,key)` is not unique for nulls
+    // in Postgres). We implement a safe "upsert" via a transaction on the record `id`.
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.systemSettings.findFirst({
+        where: { key: RBAC_SETTINGS_KEY, ownerId: null },
+        orderBy: { updatedAt: "desc" },
+      })
+
+      if (existing) {
+        await tx.systemSettings.update({
+          where: { id: existing.id },
+          data: {
+            value: JSON.stringify(config),
+            description: "Role-based access control configuration",
+            category: "ACCESS_CONTROL",
+            isActive: true,
+            updatedAt: new Date(),
+          },
+        })
+
+        // Soft-disable any accidental duplicates for the same global key.
+        await tx.systemSettings.updateMany({
+          where: { key: RBAC_SETTINGS_KEY, ownerId: null, id: { not: existing.id } },
+          data: { isActive: false, updatedAt: new Date() },
+        })
+
+        return
+      }
+
+      await tx.systemSettings.create({
+        data: {
+          key: RBAC_SETTINGS_KEY,
+          value: JSON.stringify(config),
+          description: "Role-based access control configuration",
+          category: "ACCESS_CONTROL",
+          isActive: true,
+        },
+      })
     })
 
     cacheState = buildCacheState(config, "db")

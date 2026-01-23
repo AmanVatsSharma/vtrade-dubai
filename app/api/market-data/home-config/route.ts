@@ -19,8 +19,11 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔹 [HOME-CONFIG] Fetching home tab configuration');
 
-    const setting = await prisma.systemSettings.findUnique({
-      where: { key: 'home_tab_config' },
+    const setting = await prisma.systemSettings.findFirst({
+      // NOTE: `SystemSettings.key` is not globally unique and `ownerId` is nullable, so we avoid
+      // `findUnique` and instead select the latest active global entry (ownerId = null).
+      where: { key: 'home_tab_config', ownerId: null, isActive: true },
+      orderBy: { updatedAt: 'desc' },
     });
 
     if (!setting || !setting.isActive) {
@@ -60,7 +63,45 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const config = JSON.parse(setting.value);
+    let config: unknown
+    try {
+      config = JSON.parse(setting.value)
+    } catch (parseErr) {
+      console.error('❌ [HOME-CONFIG] Invalid JSON in system setting home_tab_config; serving default', {
+        error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+      })
+      return NextResponse.json({
+        success: true,
+        config: {
+          tickerTapeSymbols: [
+            'NSE:NIFTY',
+            'NSE:BANKNIFTY',
+            'NSE:RELIANCE',
+            'NSE:TCS',
+            'NSE:HDFCBANK',
+            'NSE:INFY',
+            'NSE:ICICIBANK',
+            'NSE:SBIN',
+            'NSE:BHARTIARTL',
+            'NSE:ITC',
+          ],
+          chartSymbol: 'NSE:NIFTY',
+          enabledWidgets: {
+            tickerTape: true,
+            chart: true,
+            heatmap: true,
+            screener: false,
+            topMovers: true,
+            sectorPerformance: true,
+            ipoEvents: true,
+            marketNews: true,
+            marketStats: true,
+          },
+          defaultSectors: ['IT', 'Banking', 'Pharma', 'Auto', 'FMCG', 'Energy'],
+        },
+        isDefault: true,
+      })
+    }
 
     console.log('✅ [HOME-CONFIG] Configuration fetched');
 

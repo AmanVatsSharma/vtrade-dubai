@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
     console.log("📋 [API-ADMIN-SETTINGS] Query params:", { key, category })
 
     // Build query (global settings only for now; per-RM scoping will use ownerId in prod DB)
-    const where: any = { isActive: true }
+    // NOTE: `SystemSettings.key` is not globally unique. We treat "global" as ownerId = null.
+    const where: any = { isActive: true, ownerId: null }
     if (key) where.key = key
     if (category) where.category = category
 
@@ -96,23 +97,45 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Upsert setting (global for now). In prod DB with ownerId, scope by ownerId=session.user.id for ADMIN
-    const setting = await prisma.systemSettings.upsert({
-      where: { key },
-      update: {
-        value,
-        description,
-        category: category || 'GENERAL',
-        isActive: isActive !== undefined ? isActive : true,
-        updatedAt: new Date()
-      },
-      create: {
-        key,
-        value,
-        description,
-        category: category || 'GENERAL',
-        isActive: isActive !== undefined ? isActive : true
+    // "Upsert" setting (global for now).
+    // NOTE: `SystemSettings.key` is not globally unique and `ownerId` is nullable, so we avoid
+    // Prisma `upsert` and instead update by `id` when present.
+    const setting = await prisma.$transaction(async (tx) => {
+      const existing = await tx.systemSettings.findFirst({
+        where: { key, ownerId: null },
+        orderBy: { updatedAt: "desc" },
+      })
+
+      if (existing) {
+        const updated = await tx.systemSettings.update({
+          where: { id: existing.id },
+          data: {
+            value,
+            description,
+            category: category || "GENERAL",
+            isActive: isActive !== undefined ? isActive : true,
+            updatedAt: new Date(),
+          },
+        })
+
+        // Soft-disable accidental duplicates for the same global key.
+        await tx.systemSettings.updateMany({
+          where: { key, ownerId: null, id: { not: existing.id } },
+          data: { isActive: false, updatedAt: new Date() },
+        })
+
+        return updated
       }
+
+      return tx.systemSettings.create({
+        data: {
+          key,
+          value,
+          description,
+          category: category || "GENERAL",
+          isActive: isActive !== undefined ? isActive : true,
+        },
+      })
     })
 
     console.log("✅ [API-ADMIN-SETTINGS] Setting saved:", setting.key)
@@ -154,9 +177,9 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    // Delete setting
-    await prisma.systemSettings.delete({
-      where: { key }
+    // Delete setting (global only for now). `key` is not unique, so scope delete to ownerId = null.
+    await prisma.systemSettings.deleteMany({
+      where: { key, ownerId: null }
     })
 
     console.log("✅ [API-ADMIN-SETTINGS] Setting deleted")
