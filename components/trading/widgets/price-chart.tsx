@@ -9,7 +9,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts"
+import { createChart, LineSeries, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useMarketData } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
@@ -50,7 +50,7 @@ export function PriceChart({ symbols, defaultSymbolKey }: PriceChartProps) {
       crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
     })
 
-    const series = chart.addLineSeries({
+    const series = chart.addSeries(LineSeries, {
       lineWidth: 2,
       priceLineVisible: true,
     })
