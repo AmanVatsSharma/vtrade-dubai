@@ -15,6 +15,7 @@ import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
 import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { parseInstrumentId } from "@/lib/market-data/utils/instrumentMapper"
 import type { PnLData } from "@/types/trading"
+import { createClientLogger } from "@/lib/logging/client-logger"
 
 export type TradingRealtimeConnectionHealth = {
   lastRefreshAt: number | null
@@ -58,6 +59,7 @@ type TradingRealtimeProviderProps = {
 }
 
 export function TradingRealtimeProvider({ userId, session, children }: TradingRealtimeProviderProps) {
+  const log = useMemo(() => createClientLogger("TRADING-REALTIME"), [])
   const ordersHook = useRealtimeOrders(userId)
   const positionsHook = useRealtimePositions(userId)
   const accountHook = useRealtimeAccount(userId)
@@ -102,14 +104,13 @@ export function TradingRealtimeProvider({ userId, session, children }: TradingRe
   }, [positionInstrumentIds])
 
   const refreshAll = useCallback(async () => {
-    // keep logs for debugging, but avoid console.log (enterprise prod noise)
-    console.info("[TradingRealtimeProvider] refreshAll: start", {
+    log.info("refreshAll: start", {
       userId,
       tradingAccountId,
     })
     await Promise.all([ordersHook.refresh(), positionsHook.refresh(), accountHook.refresh()])
-    console.info("[TradingRealtimeProvider] refreshAll: done", { userId })
-  }, [ordersHook, positionsHook, accountHook, userId, tradingAccountId])
+    log.info("refreshAll: done", { userId })
+  }, [ordersHook, positionsHook, accountHook, userId, tradingAccountId, log])
 
   const value: TradingRealtimeContextValue = useMemo(
     () => ({
