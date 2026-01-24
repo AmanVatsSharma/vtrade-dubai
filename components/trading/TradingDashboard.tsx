@@ -9,7 +9,7 @@
 "use client"
 
 import React, { useState, useMemo, useCallback, useEffect } from "react"
-import { TrendingUp, Wallet, FileText, Eye, Loader2, RefreshCcw, Wifi, WifiOff, AlertCircle, Home, Bell } from "lucide-react"
+import { TrendingUp, Wallet, FileText, Eye, Loader2, RefreshCcw, Wifi, WifiOff, AlertCircle, Home } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -269,33 +269,18 @@ const TradingDashboard: React.FC = () => {
 
   // Debug logging (only in development)
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.debug("TradingDashboard Debug:", {
-        userId,
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('TradingDashboard Debug:', {
         tradingAccountId,
         realtimeOrders: orders?.length || 0,
         realtimePositions: positions?.length || 0,
         hasRealtimeAccount: !!realtimeAccountData,
         currentTab,
         anyLoading,
-        error,
-        sessionUserId: (session?.user as any)?.id,
-        sessionEmail: (session?.user as any)?.email
+        error
       })
     }
-  }, [userId, tradingAccountId, orders, positions, realtimeAccountData, currentTab, anyLoading, error, session])
-  
-  // Log notification bell setup
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return
-    console.debug("🔔 [TRADING-DASHBOARD] Notification bell setup:", {
-      userId,
-      hasUserId: !!userId,
-      userIdType: typeof userId,
-      sessionUserId: (session?.user as any)?.id,
-      timestamp: new Date().toISOString(),
-    })
-  }, [userId, session])
+  }, [tradingAccountId, orders, positions, realtimeAccountData, currentTab, anyLoading, error])
 
   const hasAnyData = (orders?.length || 0) > 0 || (positions?.length || 0) > 0 || !!realtimeAccountData
 
@@ -313,7 +298,7 @@ const TradingDashboard: React.FC = () => {
           <div className="space-y-4">
             <RiskMonitor />
             <TradingHome 
-              userName={session?.user?.name ?? undefined}
+              userName={session?.user?.name}
               session={session}
               portfolio={portfolio}
               pnl={{ totalPnL, dayPnL }}
@@ -344,7 +329,7 @@ const TradingDashboard: React.FC = () => {
               positions={positions} 
               quotes={quotes} 
               onPositionUpdate={handleRefreshAllData} 
-              tradingAccountId={tradingAccountId ?? undefined} 
+              tradingAccountId={tradingAccountId} 
             />
           </div>
         )
@@ -364,7 +349,7 @@ const TradingDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* Header - Responsive */}
-      <header className="border-b border-border sticky top-0 z-40 w-full backdrop-blur-lg bg-card/95">
+      <header className="bg-card border-b border-border sticky top-0 z-40 w-full backdrop-blur-lg bg-card/95">
         <div className="flex h-14 items-center justify-between px-3 sm:px-4 max-w-4xl mx-auto">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm">
@@ -403,13 +388,7 @@ const TradingDashboard: React.FC = () => {
             </div>
 
             {/* Notification Bell */}
-            {userId ? (
-              <NotificationBell userId={userId} />
-            ) : (
-              <div className="h-9 w-9 flex items-center justify-center" title="User ID not available">
-                <Bell className="h-5 w-5 text-muted-foreground/50" />
-              </div>
-            )}
+            <NotificationBell userId={userId} />
           </div>
         </div>
       </header>
@@ -512,25 +491,9 @@ const TradingDashboard: React.FC = () => {
 // Wrapper Component with Session Management
 const TradingDashboardWrapper: React.FC = () => {
   const { data: session, status } = useSession()
+  const userId = session?.user?.id as string | undefined
   const router = useRouter()
-
-  // Extract userId with multiple fallbacks for robustness
-  const userId = (session?.user as any)?.id || (session?.user as any)?.sub || undefined
-
   const shouldRedirectToLogin = status !== "loading" && !userId
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return
-    console.debug("🚀 [TRADING-DASHBOARD] Wrapper initialized:", {
-      status,
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId,
-      userIdSource: (session?.user as any)?.id ? "id" : (session?.user as any)?.sub ? "sub" : "none",
-      sessionKeys: session?.user ? Object.keys(session.user) : [],
-      timestamp: new Date().toISOString(),
-    })
-  }, [status, session, userId])
 
   useEffect(() => {
     if (!shouldRedirectToLogin) return
@@ -539,19 +502,14 @@ const TradingDashboardWrapper: React.FC = () => {
   }, [shouldRedirectToLogin, router])
 
   if (status === "loading") {
-    return <LoadingScreen message="Loading session..." />
+    return <LoadingScreen />
   }
 
   if (!userId) {
     return <LoadingScreen message="Redirecting to login..." />
   }
 
-  if (process.env.NODE_ENV === "development") {
-    console.info("🚀 [TRADING-DASHBOARD] Using WebSocket Market Data Provider", {
-      userId,
-      timestamp: new Date().toISOString(),
-    })
-  }
+  console.info('[TRADING-DASHBOARD] Using WebSocket Market Data Provider')
 
   return (
     <TradingRealtimeProvider userId={userId} session={session as any}>
