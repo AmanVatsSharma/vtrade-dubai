@@ -1,4 +1,12 @@
 /**
+ * @file use-realtime-orders.ts
+ * @module lib/hooks/use-realtime-orders
+ * @description Real-time orders hook with SSE + backoff-based polling fallback (visibility-aware).
+ * @author BharatERP
+ * @created 2026-01-24
+ */
+
+/**
  * Real-time Orders Hook
  * 
  * Provides real-time order updates with:
@@ -124,6 +132,8 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
   const retryCountRef = useRef(0)
   const maxRetries = 3
   const lastSyncRef = useRef<number>(Date.now())
+  const pollErrorStreakRef = useRef(0)
+  const DEBUG = process.env.NEXT_PUBLIC_DEBUG_REALTIME === 'true' || process.env.NODE_ENV === 'development'
   
   // Initial data fetch - polling handled by adaptive useEffect below
   const { data, error, isLoading, mutate } = useSWR<OrdersResponse>(
@@ -143,7 +153,7 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
       },
       onSuccess: () => {
         if (retryCountRef.current > 0) {
-          console.log('✅ [REALTIME-ORDERS] Recovered from error')
+          console.info('✅ [REALTIME-ORDERS] Recovered from error')
           retryCountRef.current = 0
         }
         lastSyncRef.current = Date.now()
@@ -157,47 +167,99 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
     if (message.event === 'order_placed' || 
         message.event === 'order_executed' || 
         message.event === 'order_cancelled') {
-      console.log(`📨 [REALTIME-ORDERS] Received ${message.event} event, refreshing orders`)
+      if (DEBUG) console.debug(`📨 [REALTIME-ORDERS] SSE ${message.event} → refresh`)
       mutate().catch(err => {
         console.error('❌ [REALTIME-ORDERS] Refresh after event failed:', err)
       })
       lastSyncRef.current = Date.now() // Update last sync time on event
     }
-  }, [mutate]))
+  }, [mutate, DEBUG]))
 
-  // Adaptive polling: adjust interval based on SSE connection state
-  // If SSE is connected: poll every 10 seconds (safety net)
-  // If SSE is disconnected: poll every 3 seconds (more aggressive)
+  // Adaptive polling with backoff + visibility-awareness
+  // - When SSE is open: low-frequency safety net polling
+  // - When SSE is not open: fallback polling with exponential backoff + jitter
+  // - When tab is hidden: reduce polling drastically
   useEffect(() => {
     if (!userId) return
-    
-    // Update SWR config dynamically based on SSE state
-    // SWR doesn't support dynamic refreshInterval, so we'll use a workaround
-    // by manually calling mutate at intervals
-    const adaptiveInterval = isConnected ? 10000 : 3000
-    const syncInterval = setInterval(() => {
-      mutate().catch(err => {
-        console.error('❌ [REALTIME-ORDERS] Periodic sync failed:', err)
-      })
-    }, adaptiveInterval)
 
-    return () => clearInterval(syncInterval)
-  }, [userId, isConnected, mutate])
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const computeDelayMs = () => {
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      if (hidden) return 60000
+
+      // Base polling interval (safety net even when SSE is up)
+      const base = isConnected ? 15000 : 3000
+      const max = isConnected ? 60000 : 20000
+      const streak = pollErrorStreakRef.current
+      const exp = Math.min(6, streak)
+      const raw = Math.min(max, base * Math.pow(2, exp))
+      const jitter = raw * 0.2 * (Math.random() - 0.5)
+      return Math.max(1000, Math.round(raw + jitter))
+    }
+
+    const schedule = () => {
+      if (cancelled) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(tick, computeDelayMs())
+    }
+
+    const tick = async () => {
+      if (cancelled) return
+
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      if (hidden) {
+        schedule()
+        return
+      }
+
+      try {
+        await mutate()
+        pollErrorStreakRef.current = 0
+        lastSyncRef.current = Date.now()
+      } catch (err) {
+        pollErrorStreakRef.current += 1
+        console.error('❌ [REALTIME-ORDERS] Poll sync failed:', err)
+      } finally {
+        schedule()
+      }
+    }
+
+    const onVisible = () => {
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      if (!hidden) {
+        if (DEBUG) console.debug('[REALTIME-ORDERS] visibilitychange → refresh')
+        mutate().catch((err) => console.error('❌ [REALTIME-ORDERS] Refresh on visible failed:', err))
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisible)
+    schedule()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [userId, isConnected, mutate, DEBUG])
 
   // Log sync status periodically
   useEffect(() => {
+    if (!DEBUG) return
+
     const syncCheckInterval = setInterval(() => {
       const timeSinceLastSync = Date.now() - lastSyncRef.current
       const syncStatus = isConnected ? 'SSE+Poll' : 'Poll-only'
-      console.log(`🔄 [REALTIME-ORDERS] Sync check - ${syncStatus}, last sync: ${Math.round(timeSinceLastSync / 1000)}s ago`)
-    }, 30000) // Log every 30 seconds
+      console.debug(`🔄 [REALTIME-ORDERS] Sync check - ${syncStatus}, last sync: ${Math.round(timeSinceLastSync / 1000)}s ago`)
+    }, 60000) // Log every 60 seconds in debug mode
 
     return () => clearInterval(syncCheckInterval)
-  }, [isConnected])
+  }, [isConnected, DEBUG])
 
   // Refresh function to call after placing order
   const refresh = useCallback(async () => {
-    console.log("🔄 [REALTIME-ORDERS] Manual refresh triggered")
+    console.info("🔄 [REALTIME-ORDERS] Manual refresh triggered")
     try {
       return await mutate()
     } catch (error) {
