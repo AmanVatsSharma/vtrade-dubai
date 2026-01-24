@@ -2,6 +2,11 @@
  * @file logger.ts
  * @description Comprehensive logging system for trading activities
  * Logs all trading operations by client ID for debugging and audit purposes
+ *
+ * NOTE (2026-01-24):
+ * - This logger writes via GraphQL (client-side) into `trading_logs`.
+ * - For server/API audit logs prefer `lib/services/logging/TradingLogger.ts` (Prisma) or `lib/server/logger.ts` (Supabase server).
+ * - For UI diagnostics prefer `lib/logging/client-logger.ts` (namespaced + gated).
  */
 
 import client from "@/lib/graphql/apollo-client"

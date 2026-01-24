@@ -18,6 +18,7 @@ export const runtime = "nodejs"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
+import { withApiTelemetry } from "@/lib/observability/api-telemetry"
 
 type ApiPositionPayload = {
   id: string
@@ -47,113 +48,109 @@ type ApiPositionPayload = {
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url)
-    const userId = searchParams.get("userId")
+    const { result } = await withApiTelemetry(req, { name: "trading_positions_list" }, async () => {
+      const { searchParams } = new URL(req.url)
+      const userId = searchParams.get("userId")
 
-    console.info("📡 [API-POSITIONS-LIST] Incoming request", { requestedUserId: userId })
+      // Get session for security
+      const session = await auth()
+      if (!session?.user) {
+        console.warn("⚠️ [API-POSITIONS-LIST] Unauthorized access attempt")
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
 
-    // Get session for security
-    const session = await auth()
-    if (!session?.user) {
-      console.warn("⚠️ [API-POSITIONS-LIST] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+      // Ensure user can only fetch their own data
+      if (userId && userId !== session.user.id) {
+        console.warn("🚫 [API-POSITIONS-LIST] Forbidden request", {
+          sessionUserId: session.user.id,
+          requestedUserId: userId
+        })
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
 
-    // Ensure user can only fetch their own data
-    if (userId && userId !== session.user.id) {
-      console.warn("🚫 [API-POSITIONS-LIST] Forbidden request", {
-        sessionUserId: session.user.id,
-        requestedUserId: userId
+      // Get trading account
+      const tradingAccount = await prisma.tradingAccount.findUnique({
+        where: { userId: session.user.id }
       })
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
 
-    // Get trading account
-    const tradingAccount = await prisma.tradingAccount.findUnique({
-      where: { userId: session.user.id }
-    })
-
-    if (!tradingAccount) {
-      console.info("ℹ️ [API-POSITIONS-LIST] No trading account found, returning empty list")
-      return NextResponse.json({ success: true, positions: [] })
-    }
-
-    // Fetch all positions (open + closed) so UI can show booked profits
-    const positions = await prisma.position.findMany({
-      where: {
-        tradingAccountId: tradingAccount.id
-      },
-      include: {
-        Stock: {
-          select: {
-            symbol: true,
-            name: true,
-            ltp: true,
-            instrumentId: true,
-            segment: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: "desc"
+      if (!tradingAccount) {
+        return NextResponse.json({ success: true, positions: [] })
       }
-    })
 
-    const openPositions: ApiPositionPayload[] = []
-    const closedPositions: ApiPositionPayload[] = []
-
-    positions.forEach((position) => {
-      const isClosed = position.quantity === 0
-      const averagePrice = Number(position.averagePrice)
-      const bookedPnL = Number(position.unrealizedPnL ?? 0)
-      const livePnL = Number(position.dayPnL ?? 0)
-
-      const mappedPosition: ApiPositionPayload = {
-        id: position.id,
-        symbol: position.symbol,
-        quantity: position.quantity,
-        averagePrice,
-        unrealizedPnL: Number(position.unrealizedPnL),
-        realizedPnL: bookedPnL,
-        bookedPnL,
-        dayPnL: livePnL,
-        stopLoss: position.stopLoss ? Number(position.stopLoss) : null,
-        target: position.target ? Number(position.target) : null,
-        createdAt: position.createdAt.toISOString(),
-        status: isClosed ? "CLOSED" : "OPEN",
-        isClosed,
-        currentPrice: position.Stock?.ltp || averagePrice,
-        currentValue: (position.Stock?.ltp || averagePrice) * position.quantity,
-        investedValue: averagePrice * position.quantity,
-        stock: position.Stock
-          ? {
-              symbol: position.Stock.symbol ?? null,
-              name: position.Stock.name ?? null,
-              ltp: position.Stock.ltp ?? null,
-              instrumentId: position.Stock.instrumentId ?? null,
-              segment: position.Stock.segment ?? null
+      // Fetch all positions (open + closed) so UI can show booked profits
+      const positions = await prisma.position.findMany({
+        where: {
+          tradingAccountId: tradingAccount.id
+        },
+        include: {
+          Stock: {
+            select: {
+              symbol: true,
+              name: true,
+              ltp: true,
+              instrumentId: true,
+              segment: true
             }
-          : null
-      }
+          }
+        },
+        orderBy: {
+          createdAt: "desc"
+        }
+      })
 
-      if (isClosed) {
-        closedPositions.push(mappedPosition)
-      } else {
-        openPositions.push(mappedPosition)
-      }
+      const openPositions: ApiPositionPayload[] = []
+      const closedPositions: ApiPositionPayload[] = []
+
+      positions.forEach((position) => {
+        const isClosed = position.quantity === 0
+        const averagePrice = Number(position.averagePrice)
+        const bookedPnL = Number(position.unrealizedPnL ?? 0)
+        const livePnL = Number(position.dayPnL ?? 0)
+
+        const mappedPosition: ApiPositionPayload = {
+          id: position.id,
+          symbol: position.symbol,
+          quantity: position.quantity,
+          averagePrice,
+          unrealizedPnL: Number(position.unrealizedPnL),
+          realizedPnL: bookedPnL,
+          bookedPnL,
+          dayPnL: livePnL,
+          stopLoss: position.stopLoss ? Number(position.stopLoss) : null,
+          target: position.target ? Number(position.target) : null,
+          createdAt: position.createdAt.toISOString(),
+          status: isClosed ? "CLOSED" : "OPEN",
+          isClosed,
+          currentPrice: position.Stock?.ltp || averagePrice,
+          currentValue: (position.Stock?.ltp || averagePrice) * position.quantity,
+          investedValue: averagePrice * position.quantity,
+          stock: position.Stock
+            ? {
+                symbol: position.Stock.symbol ?? null,
+                name: position.Stock.name ?? null,
+                ltp: position.Stock.ltp ?? null,
+                instrumentId: position.Stock.instrumentId ?? null,
+                segment: position.Stock.segment ?? null
+              }
+            : null
+        }
+
+        if (isClosed) {
+          closedPositions.push(mappedPosition)
+        } else {
+          openPositions.push(mappedPosition)
+        }
+      })
+
+      const orderedPositions = [...openPositions, ...closedPositions]
+
+      return NextResponse.json({
+        success: true,
+        positions: orderedPositions
+      })
     })
 
-    const orderedPositions = [...openPositions, ...closedPositions]
-
-    console.info("✅ [API-POSITIONS-LIST] Positions fetched", {
-      openCount: openPositions.length,
-      closedCount: closedPositions.length
-    })
-
-    return NextResponse.json({
-      success: true,
-      positions: orderedPositions
-    })
+    return result
   } catch (error: any) {
     console.error("❌ [API-POSITIONS-LIST] Error:", error)
     return NextResponse.json(
