@@ -76,6 +76,29 @@ This document describes the complete architecture of our **database-agnostic tra
 
 ---
 
+## 🧭 Dashboard Realtime Architecture (2026 Update)
+
+The `/dashboard` trading UI is driven by **two realtime channels**:
+
+- **Trading data** (orders/positions/account): SSE events + SWR fallback polling (visibility-aware, backoff + jitter).
+- **Market data** (quotes/LTP): WebSocket market data provider with token subscriptions (index + watchlist + positions).
+
+Key notes:
+- We use `TradingRealtimeProvider` (client) as the single source of truth for trading data.
+- The market-data provider derives position tokens from `TradingRealtimeProvider` to avoid duplicate position fetching.
+- External TradingView script widgets have been removed; the Home tab uses internal widgets (`lightweight-charts` based chart).
+
+```mermaid
+flowchart TD
+  DashboardPage-->TradingDashboardWrapper
+  TradingDashboardWrapper-->TradingRealtimeProvider
+  TradingRealtimeProvider-->SSEStream
+  TradingRealtimeProvider-->RestApiFallback
+  TradingDashboardWrapper-->WebSocketMarketDataProvider
+  WebSocketMarketDataProvider-->MarketDataWebSocket
+  TradingDashboardWrapper-->TradingDashboardUI
+```
+
 ## 🔄 Order Execution Flow
 
 ### **Complete Flow (with 3-second execution)**
