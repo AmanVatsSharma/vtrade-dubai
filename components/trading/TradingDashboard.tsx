@@ -11,6 +11,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react"
 import { TrendingUp, Wallet, FileText, Eye, Loader2, RefreshCcw, Wifi, WifiOff, AlertCircle, Home } from "lucide-react"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
@@ -88,6 +89,15 @@ const ErrorScreen: React.FC<ErrorScreenProps> = ({ error, onRetry }) => (
   </div>
 )
 
+// Lightweight skeleton to improve perceived performance while realtime data loads
+const DashboardSkeleton: React.FC = () => (
+  <div className="space-y-4">
+    <div className="h-20 rounded-xl bg-muted/40 animate-pulse" />
+    <div className="h-44 rounded-xl bg-muted/40 animate-pulse" />
+    <div className="h-44 rounded-xl bg-muted/40 animate-pulse" />
+  </div>
+)
+
 // Index Component - Use display_price for live animated updates
 const IndexDisplay: React.FC<IndexDisplayProps> = React.memo(({ name, instrumentId, quotes, isLoading }) => {
   // Parse token from instrumentId (format: "NSE_EQ-26000")
@@ -102,12 +112,14 @@ const IndexDisplay: React.FC<IndexDisplayProps> = React.memo(({ name, instrument
   // Debug logging for index quotes
   useEffect(() => {
     if (quote && token) {
-      console.log(`📊 [INDEX-DISPLAY] ${name} quote update`, {
-        instrumentId,
-        token,
-        price: quote.last_trade_price,
-        displayPrice: (quote as any)?.display_price,
-      });
+      if (process.env.NODE_ENV === "development") {
+        console.debug(`📊 [INDEX-DISPLAY] ${name} quote update`, {
+          instrumentId,
+          token,
+          price: quote.last_trade_price,
+          displayPrice: (quote as any)?.display_price,
+        });
+      }
     }
   }, [quote, name, instrumentId, token]);
   
@@ -133,8 +145,18 @@ IndexDisplay.displayName = "IndexDisplay"
 
 // Main Trading Dashboard Component
 const TradingDashboard: React.FC = () => {
-  const { userId, session, orders, positions, account: realtimeAccountData, tradingAccountId, refreshAll, error: realtimeError, pnl: apiPnL } =
-    useTradingRealtime()
+  const {
+    userId,
+    session,
+    orders,
+    positions,
+    account: realtimeAccountData,
+    tradingAccountId,
+    refreshAll,
+    error: realtimeError,
+    pnl: apiPnL,
+    isLoading: isRealtimeLoading,
+  } = useTradingRealtime()
   // State
   const [currentTab, setCurrentTab] = useState<"home" | "watchlist" | "orders" | "positions" | "account">("home")
   const [orderDialogOpen, setOrderDialogOpen] = useState(false)
@@ -191,7 +213,7 @@ const TradingDashboard: React.FC = () => {
         variant: "destructive"
       })
     }
-  }, [refreshOrders, refreshPositions, refreshAccount])
+  }, [refreshAll])
 
   const handleRetry: RetryHandler = useCallback(() => {
     setError(null)
@@ -260,8 +282,11 @@ const TradingDashboard: React.FC = () => {
     }
   }, [tradingAccountId, orders, positions, realtimeAccountData, currentTab, anyLoading, error])
 
-  // Error state
-  if (error) {
+  const hasAnyData = (orders?.length || 0) > 0 || (positions?.length || 0) > 0 || !!realtimeAccountData
+
+  // If we have zero data and a realtime error, show the full error screen.
+  // Otherwise, show a non-blocking banner so the user can keep trading with cached data.
+  if (error && !hasAnyData) {
     return <ErrorScreen error={error} onRetry={handleRetry} />
   }
 
@@ -324,7 +349,7 @@ const TradingDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* Header - Responsive */}
-      <header className="bg-card border-b border-border sticky top-0 z-40 w-screen backdrop-blur-lg bg-card/95">
+      <header className="bg-card border-b border-border sticky top-0 z-40 w-full backdrop-blur-lg bg-card/95">
         <div className="flex h-14 items-center justify-between px-3 sm:px-4 max-w-4xl mx-auto">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm">
@@ -370,7 +395,37 @@ const TradingDashboard: React.FC = () => {
 
       {/* Main Content - Responsive */}
       <main className="px-3 sm:px-4 pt-3 sm:pt-4 pb-20 sm:pb-24 max-w-4xl mx-auto">
-        {renderContent()}
+        {error && hasAnyData && (
+          <div className="mb-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-200">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-3.5 w-3.5" />
+                <span>
+                  Some trading data may be stale due to an error. You can continue, or retry to resync.
+                </span>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRetry}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
+        {!isWebSocketConnected && (
+          <div className="mb-3 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <WifiOff className="h-3.5 w-3.5 text-red-500" />
+                <span>
+                  Market data is offline. Showing last known prices; live updates will resume when reconnected.
+                </span>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRefreshAllData}>
+                Refresh
+              </Button>
+            </div>
+          </div>
+        )}
+        {!hasAnyData && isRealtimeLoading ? <DashboardSkeleton /> : renderContent()}
       </main>
 
       {/* Bottom Navigation - Premium Style & Responsive */}
@@ -381,6 +436,8 @@ const TradingDashboard: React.FC = () => {
               key={id}
               onClick={() => setCurrentTab(id)}
               variant="ghost"
+              aria-label={label}
+              aria-current={currentTab === id ? "page" : undefined}
               className={`flex flex-col items-center justify-center gap-0.5 sm:gap-1 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-0.5 sm:px-1 transition-all duration-200 relative group ${
                 currentTab === id 
                   ? "text-primary" 
@@ -435,13 +492,21 @@ const TradingDashboard: React.FC = () => {
 const TradingDashboardWrapper: React.FC = () => {
   const { data: session, status } = useSession()
   const userId = session?.user?.id as string | undefined
+  const router = useRouter()
+  const shouldRedirectToLogin = status !== "loading" && !userId
+
+  useEffect(() => {
+    if (!shouldRedirectToLogin) return
+    const callbackUrl = encodeURIComponent("/dashboard")
+    router.replace(`/auth/login?callbackUrl=${callbackUrl}`)
+  }, [shouldRedirectToLogin, router])
 
   if (status === "loading") {
     return <LoadingScreen />
   }
 
   if (!userId) {
-    return <LoadingScreen />
+    return <LoadingScreen message="Redirecting to login..." />
   }
 
   console.info('[TRADING-DASHBOARD] Using WebSocket Market Data Provider')
