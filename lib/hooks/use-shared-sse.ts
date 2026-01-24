@@ -41,6 +41,8 @@ class SharedSSEManager {
   private connections: Map<string, EventSource> = new Map()
   private subscribers: Map<string, Set<EventCallback>> = new Map()
   private reconnectAttempts: Map<string, number> = new Map()
+  private lastEventAt: Map<string, number> = new Map()
+  private lastErrorAt: Map<string, number> = new Map()
   private readonly maxReconnectAttempts = 5
 
   /**
@@ -105,16 +107,19 @@ class SharedSSEManager {
     const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
     this.connections.set(userId, eventSource)
     this.reconnectAttempts.set(userId, 0)
+    this.lastEventAt.set(userId, Date.now())
 
     eventSource.onopen = () => {
       console.log(`✅ [SHARED-SSE] SSE connection established for user: ${userId}`)
       this.reconnectAttempts.set(userId, 0) // Reset on successful connection
+      this.lastEventAt.set(userId, Date.now())
     }
 
     eventSource.onmessage = (event) => {
       try {
         const message: SSEMessage = JSON.parse(event.data)
         console.log(`📨 [SHARED-SSE] Received event: ${message.event} for user: ${userId}`)
+        this.lastEventAt.set(userId, Date.now())
 
         // Broadcast to all subscribers
         const subscribers = this.subscribers.get(userId)
@@ -134,6 +139,7 @@ class SharedSSEManager {
 
     eventSource.onerror = (error) => {
       console.error(`❌ [SHARED-SSE] SSE connection error for user ${userId}:`, error)
+      this.lastErrorAt.set(userId, Date.now())
       
       // Only attempt reconnection if we still have subscribers and connection is closed
       const hasSubscribers = this.subscribers.has(userId) && (this.subscribers.get(userId)?.size || 0) > 0
@@ -209,6 +215,14 @@ class SharedSSEManager {
         return 'closed'
     }
   }
+
+  getLastEventAt(userId: string): number | null {
+    return this.lastEventAt.get(userId) ?? null
+  }
+
+  getLastErrorAt(userId: string): number | null {
+    return this.lastErrorAt.get(userId) ?? null
+  }
 }
 
 // Singleton instance
@@ -262,11 +276,15 @@ export function useSharedSSE(
   // Only check connection state on client-side to avoid SSR issues
   const [connectionState, setConnectionState] = React.useState<'connecting' | 'open' | 'closed'>('closed')
   const [isConnected, setIsConnected] = React.useState(false)
+  const [lastEventAt, setLastEventAt] = React.useState<number | null>(null)
+  const [lastErrorAt, setLastErrorAt] = React.useState<number | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !userId) {
       setIsConnected(false)
       setConnectionState('closed')
+      setLastEventAt(null)
+      setLastErrorAt(null)
       return
     }
 
@@ -274,19 +292,37 @@ export function useSharedSSE(
     const checkState = () => {
       setIsConnected(sseManager.isConnected(userId))
       setConnectionState(sseManager.getConnectionState(userId))
+      setLastEventAt(sseManager.getLastEventAt(userId))
+      setLastErrorAt(sseManager.getLastErrorAt(userId))
     }
 
     checkState()
     
-    // Poll connection state periodically (for SSR-safe updates)
-    const interval = setInterval(checkState, 1000)
+    // Poll connection state periodically, but avoid 1s polling (can be noisy on slower devices).
+    const interval = setInterval(checkState, 5000)
+
+    const handleVisibilityOrNetwork = () => {
+      // quick probe when user comes back / network changes
+      checkState()
+    }
+
+    window.addEventListener('online', handleVisibilityOrNetwork)
+    window.addEventListener('offline', handleVisibilityOrNetwork)
+    document.addEventListener('visibilitychange', handleVisibilityOrNetwork)
     
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('online', handleVisibilityOrNetwork)
+      window.removeEventListener('offline', handleVisibilityOrNetwork)
+      document.removeEventListener('visibilitychange', handleVisibilityOrNetwork)
+    }
   }, [userId])
 
   return {
     isConnected,
-    connectionState
+    connectionState,
+    lastEventAt,
+    lastErrorAt,
   }
 }
 
