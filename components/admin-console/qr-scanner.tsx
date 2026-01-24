@@ -1,5 +1,13 @@
 "use client"
 
+/**
+ * @file qr-scanner.tsx
+ * @module admin-console
+ * @description QR code scanner component for fund management
+ * @author BharatERP
+ * @created 2025-01-27
+ */
+
 import { useState, useRef, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"

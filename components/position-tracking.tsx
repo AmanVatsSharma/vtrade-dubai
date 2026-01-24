@@ -555,24 +555,37 @@ export function PositionTracking({
           console.error("❌ [POSITION-TRACKING] Optimistic close failed:", e)
         }
         
-        await closePosition(
-          positionId, 
-          { 
-            user: { 
-              id: "current-user", 
-              clientId: "client-123", 
-              tradingAccountId 
-            } 
-          },
-          currentLtp  // Pass current price as fallback
-        )
-        toast({
-          title: "Position Closed",
-          description: "Your position has been closed successfully.",
-          className: "bg-green-500 text-white border-0"
-        })
-        // Ensure realtime list is synced promptly
-        try { await mutatePositions() } catch {}
+        const closeTask = async () => {
+          try {
+            await closePosition(
+              positionId, 
+              { 
+                user: { 
+                  id: "current-user", 
+                  clientId: "client-123", 
+                  tradingAccountId 
+                } 
+              },
+              currentLtp
+            )
+            toast({
+              title: "Position Closed",
+              description: "Your position has been closed successfully.",
+              className: "bg-green-500 text-white border-0"
+            })
+          } catch (error) {
+            toast({ 
+              title: "Failed to close position", 
+              description: error instanceof Error ? error.message : "Unknown error", 
+              variant: "destructive" 
+            })
+            await mutatePositions()
+          } finally {
+            try { await mutatePositions() } catch {}
+            onPositionUpdate()
+          }
+        }
+        closeTask()
       } else if (action === 'stoploss' && value) {
         await updateStopLoss(positionId, value)
         toast({
@@ -597,10 +610,6 @@ export function PositionTracking({
         description: error instanceof Error ? error.message : "Unknown error", 
         variant: "destructive" 
       })
-      // Revert by revalidating if optimistic removal happened
-      if (action === 'close') {
-        try { await mutatePositions() } catch {}
-      }
     } finally {
       setLoading(null)
     }

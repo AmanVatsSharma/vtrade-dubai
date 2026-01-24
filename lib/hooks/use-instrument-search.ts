@@ -233,8 +233,65 @@ export function useInstrumentSearch(
         return;
       }
 
+      if (tab === 'options') {
+        // Use internal OPTIONS proxy that forwards q query to Vedpragya instruments endpoint
+        console.log('🔵 [USE-INSTRUMENT-SEARCH] Searching options', { query, tab });
+        const url = `/api/market-data/options?q=${encodeURIComponent(query)}&limit=20&offset=0&ltp_only=true&include_ltp=true&is_active=true`;
+        console.log('🔵 [USE-INSTRUMENT-SEARCH] Options API URL', { url });
+        const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: abortControllerRef.current?.signal });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          console.error('❌ [USE-INSTRUMENT-SEARCH] Options search failed', { status: res.status, error: errText });
+          throw new Error(`Options search failed (${res.status}): ${errText || res.statusText}`);
+        }
+        const data = await res.json();
+        console.log('📊 [USE-INSTRUMENT-SEARCH] Options API response', { 
+          hasData: !!data?.data, 
+          instrumentCount: data?.data?.instruments?.length || 0 
+        });
+        const items: any[] = data?.data?.instruments || [];
+        const mapped: MilliInstrument[] = items.map((inst: any) => {
+          const strikeVal = typeof inst?.strike_price === 'string' ? parseFloat(inst.strike_price) : inst?.strike_price;
+          const lotVal = typeof inst?.lot_size === 'string' ? parseFloat(inst.lot_size) : inst?.lot_size;
+          return {
+            token: Number(inst?.token),
+            instrumentToken: Number(inst?.token),
+            symbol: String(inst?.symbol || ''),
+            tradingSymbol: String(inst?.symbol || ''),
+            companyName: String(inst?.symbol || ''),
+            exchange: inst?.exchange || 'NSE_FO',
+            segment: inst?.segment || inst?.exchange || 'NSE_FO',
+            instrumentType: 'OPTSTK',
+            instrument_name: inst?.instrument_name,
+            expiry_date: inst?.expiry_date,
+            expiryDate: inst?.expiry_date,
+            strike_price: isNaN(Number(strikeVal)) ? undefined : Number(strikeVal),
+            strike: isNaN(Number(strikeVal)) ? undefined : Number(strikeVal),
+            tick: inst?.tick ? Number(inst?.tick) : undefined,
+            lot_size: isNaN(Number(lotVal)) ? undefined : Number(lotVal),
+            lotSize: isNaN(Number(lotVal)) ? undefined : Number(lotVal),
+            description: inst?.description,
+            last_price: inst?.last_price != null ? Number(inst.last_price) : undefined,
+            is_active: inst?.is_active,
+            option_type: inst?.option_type && (inst.option_type === 'CE' || inst.option_type === 'PE') ? inst.option_type : undefined,
+          } as any;
+        });
+        // Only update if this is still the latest request
+        if (currentRequestId === requestIdRef.current) {
+          console.log('✅ [USE-INSTRUMENT-SEARCH] Options search complete', { 
+            query, 
+            resultCount: mapped.length,
+            mappedResults: mapped.slice(0, 3).map(m => ({ symbol: m.symbol, token: m.token, option_type: (m as any).option_type }))
+          });
+          setResults(mapped);
+          lastSuccessfulResultsRef.current = mapped;
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Fallback for any other tabs (should not reach here with current implementation)
       // Non-MCX tabs → milli client (fast suggest + later refine)
-      // At this point, tab can only be 'options' (equity, commodities, futures handled above)
       const mode: MilliMode = 'fno';
       const exchange = undefined;
       const searchResults = await milliClient.suggest({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) });
@@ -255,8 +312,8 @@ export function useInstrumentSearch(
         // Ignore if query changed during idle or if a newer request started
         if (currentSearchRef.current !== query || idleRequestId !== requestIdRef.current) return
         try {
-          // Skip refinement for equities (using proxy), commodities, and futures
-          if ((tab as any) === 'equity' || (tab as any) === 'commodities' || (tab as any) === 'futures') return
+          // Skip refinement for equities (using proxy), commodities, futures, and options
+          if ((tab as any) === 'equity' || (tab as any) === 'commodities' || (tab as any) === 'futures' || (tab as any) === 'options') return
           const fullResults = await milliClient.search({ q: query, mode, ltp_only: true, ...(exchange ? { exchange } : {}) })
           // Only update if still the latest request and query hasn't changed
           if (currentSearchRef.current === query && idleRequestId === requestIdRef.current && Array.isArray(fullResults) && fullResults.length > 0) {

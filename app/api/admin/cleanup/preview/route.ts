@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-CLEANUP] PREVIEW request received")
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error('❌ [API-ADMIN-CLEANUP] Unauthorized role attempting PREVIEW:', role)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.cleanup.read")
+    if (!authResult.ok) return authResult.response
 
     const { searchParams } = new URL(req.url)
     const beforeParam = searchParams.get('before')

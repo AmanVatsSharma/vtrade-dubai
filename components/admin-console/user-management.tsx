@@ -38,17 +38,21 @@ import {
   FileCheck,
   Clock,
   CheckCircle2,
+  RefreshCw,
 } from "lucide-react"
 import { StatusBadge, PageHeader, RefreshButton, FilterBar, Pagination, type FilterField } from "./shared"
+import { Label } from "@/components/ui/label"
 import { CreateUserDialog } from "./create-user-dialog"
 import { UserStatementDialog } from "./user-statement-dialog"
 import { AddFundsDialog } from "./add-funds-dialog"
 import { EditUserDialog } from "./edit-user-dialog"
 import { KYCManagementDialog } from "./kyc-management-dialog"
 import { UserActivityDialog } from "./user-activity-dialog"
+import { UserQuickActions } from "./user-quick-actions"
 import { toast } from "@/hooks/use-toast"
+import { deriveDataSourceStatus, type DataSourceStatus } from "@/lib/admin/data-source"
 
-// Mock data as fallback
+// Sample data for manual demos
 const mockUsers = [
   {
     id: "1",
@@ -72,6 +76,11 @@ const mockUsers = [
 export function UserManagement() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  
+  // Read query params for filtering
+  const rmIdFromUrl = searchParams.get('rmId')
+  const userIdFromUrl = searchParams.get('userId')
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -90,20 +99,26 @@ export function UserManagement() {
     kycStatus: 'all' as string,
     role: 'all' as string,
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
+    rmId: rmIdFromUrl || '',
+    userId: userIdFromUrl || ''
   })
   
-  // Real data states
-  const [users, setUsers] = useState(mockUsers)
-  const [isUsingMockData, setIsUsingMockData] = useState(true)
+  // Data states
+  const [users, setUsers] = useState<typeof mockUsers>([])
+  const [useSampleData, setUseSampleData] = useState(false)
+  const [dataSourceStatus, setDataSourceStatus] = useState<DataSourceStatus>("loading")
+  const [dataSourceErrors, setDataSourceErrors] = useState<string[]>([])
+  const [dataSourceSummary, setDataSourceSummary] = useState<{ okCount: number; total: number } | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [stats, setStats] = useState({
-    total: 12847,
-    active: 11234,
-    kycPending: 234,
-    totalBalance: 2400000
+    total: 0,
+    active: 0,
+    kycPending: 0,
+    totalBalance: 0
   })
 
   const buildQueryString = () => {
@@ -116,96 +131,165 @@ export function UserManagement() {
     if (filters.role !== 'all') params.set('role', filters.role)
     if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
     if (filters.dateTo) params.set('dateTo', filters.dateTo)
+    if (filters.rmId) params.set('rmId', filters.rmId)
+    if (filters.userId) params.set('userId', filters.userId)
     return params.toString()
+  }
+  
+  // Update filters when URL params change
+  useEffect(() => {
+    const rmId = searchParams.get('rmId')
+    const userId = searchParams.get('userId')
+    if (rmId || userId) {
+      setFilters(prev => ({
+        ...prev,
+        rmId: rmId || prev.rmId,
+        userId: userId || prev.userId
+      }))
+    }
+  }, [searchParams])
+
+  const getIstTimestamp = () => new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+
+  const getResponseErrorMessage = async (response: Response, fallback: string) => {
+    const data = await response.json().catch(() => null)
+    return data?.error || data?.message || fallback
   }
 
   const fetchRealData = async () => {
-    console.log("🔄 [USER-MANAGEMENT] Fetching real users...")
+    console.log(`[USER-MANAGEMENT] ${getIstTimestamp()} Fetching real users`)
     setLoading(true)
+    setDataSourceStatus("loading")
+
+    const queryString = buildQueryString()
+    const usersResult = { name: "Users API", ok: false, error: "" }
+    const statsResult = { name: "Stats API", ok: false, error: "" }
 
     try {
-      const queryString = buildQueryString()
       const [usersResponse, statsResponse] = await Promise.all([
-        fetch(`/api/admin/users?${queryString}`).catch(e => {
-          console.error("❌ [USER-MANAGEMENT] Users API failed:", e)
+        fetch(`/api/admin/users?${queryString}`).catch((error) => {
+          usersResult.error = error?.message || "Users request failed"
           return null
         }),
-        fetch('/api/admin/stats').catch(e => {
-          console.error("❌ [USER-MANAGEMENT] Stats API failed:", e)
+        fetch("/api/admin/stats").catch((error) => {
+          statsResult.error = error?.message || "Stats request failed"
           return null
-        })
+        }),
       ])
 
-      let hasRealData = false
-
-      // Process users
       if (usersResponse && usersResponse.ok) {
         const data = await usersResponse.json()
-        console.log("✅ [USER-MANAGEMENT] Users received:", data)
-
         if (data.users) {
           const realUsers = data.users.map((u: any) => ({
             id: u.id,
             clientId: u.clientId || u.id.slice(0, 10),
-            name: u.name || 'Unknown',
-            email: u.email || 'N/A',
-            phone: u.phone || 'N/A',
+            name: u.name || "Unknown",
+            email: u.email || "N/A",
+            phone: u.phone || "N/A",
             balance: u.tradingAccount?.balance || 0,
             availableMargin: u.tradingAccount?.availableMargin || 0,
             usedMargin: u.tradingAccount?.usedMargin || 0,
-            status: u.isActive ? 'active' : 'inactive',
-            kycStatus: u.kycStatus === 'APPROVED' ? 'verified' : u.kycStatus === 'PENDING' ? 'pending' : 'not_verified',
+            status: u.isActive ? "active" : "inactive",
+            kycStatus: u.kycStatus === "APPROVED" ? "verified" : u.kycStatus === "PENDING" ? "pending" : "not_verified",
             joinDate: new Date(u.createdAt).toLocaleDateString(),
             totalTrades: u.stats?.totalOrders || 0,
             activePositions: u.stats?.activePositions || 0,
             totalDeposits: u.stats?.totalDeposits || 0,
             totalWithdrawals: u.stats?.totalWithdrawals || 0,
             tradingAccount: u.tradingAccount,
-            stats: u.stats
+            stats: u.stats,
           }))
           setUsers(realUsers)
           setTotalPages(data.pages || 1)
-          hasRealData = true
-          console.log(`✅ [USER-MANAGEMENT] ${realUsers.length} real users loaded!`)
+          usersResult.ok = true
         }
+      } else if (usersResponse) {
+        usersResult.error = await getResponseErrorMessage(usersResponse, "Failed to load users")
+        setUsers([])
+        setTotalPages(1)
+      } else {
+        setUsers([])
+        setTotalPages(1)
       }
 
-      // Process stats
       if (statsResponse && statsResponse.ok) {
         const data = await statsResponse.json()
         if (data.success && data.stats) {
           setStats({
             total: data.stats.users.total,
             active: data.stats.users.active,
-            kycPending: 0, // Can add to AdminUserService if needed
-            totalBalance: data.stats.tradingAccounts.totalBalance
+            kycPending: 0,
+            totalBalance: data.stats.tradingAccounts.totalBalance,
           })
+          statsResult.ok = true
         }
+      } else if (statsResponse) {
+        statsResult.error = await getResponseErrorMessage(statsResponse, "Failed to load stats")
+        setStats({ total: 0, active: 0, kycPending: 0, totalBalance: 0 })
+      } else {
+        setStats({ total: 0, active: 0, kycPending: 0, totalBalance: 0 })
       }
 
-      setIsUsingMockData(!hasRealData)
-      
-      if (hasRealData) {
-        toast({
-          title: "✅ Real Data Loaded",
-          description: "User management is showing live data",
-        })
-      }
-
-    } catch (error) {
-      console.error("❌ [USER-MANAGEMENT] Error fetching data:", error)
-      setIsUsingMockData(true)
+      const summary = deriveDataSourceStatus([usersResult, statsResult])
+      setDataSourceStatus(summary.status)
+      setDataSourceErrors(summary.errors)
+      setDataSourceSummary({ okCount: summary.okCount, total: summary.total })
+      setLastUpdatedAt(getIstTimestamp())
+    } catch (error: any) {
+      console.error("[USER-MANAGEMENT] Fetch failed", error)
+      setUsers([])
+      setStats({ total: 0, active: 0, kycPending: 0, totalBalance: 0 })
+      setTotalPages(1)
+      setDataSourceStatus("error")
+      setDataSourceErrors([error?.message || "Unable to fetch user data"])
+      setDataSourceSummary({ okCount: 0, total: 2 })
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchRealData()
-    setSelectedUsers(new Set()) // Clear selections on data refresh
-  }, [page, searchTerm, filters])
+    if (!useSampleData) {
+      fetchRealData()
+    }
+    setSelectedUsers(new Set())
+  }, [page, searchTerm, filters, useSampleData])
+
+  const handleUseSampleData = () => {
+    const totalBalance = mockUsers.reduce((sum, user) => sum + (user.balance || 0), 0)
+    const activeCount = mockUsers.filter((user) => user.status === "active").length
+    const kycPending = mockUsers.filter((user) => user.kycStatus === "pending").length
+
+    setUseSampleData(true)
+    setLoading(false)
+    setUsers(mockUsers)
+    setTotalPages(1)
+    setStats({
+      total: mockUsers.length,
+      active: activeCount,
+      kycPending,
+      totalBalance,
+    })
+    setDataSourceStatus("sample")
+    setDataSourceErrors([])
+    setDataSourceSummary({ okCount: 0, total: 2 })
+    setLastUpdatedAt(getIstTimestamp())
+    toast({ title: "Sample data loaded", description: "User management is now showing sample data." })
+  }
+
+  const handleUseLiveData = () => {
+    setUseSampleData(false)
+  }
 
   const handleBulkAction = async (action: 'activate' | 'deactivate') => {
+    if (useSampleData) {
+      toast({
+        title: "Live data required",
+        description: "Switch to live data to perform bulk actions.",
+        variant: "destructive",
+      })
+      return
+    }
     if (selectedUsers.size === 0) {
       toast({
         title: "No Selection",
@@ -274,6 +358,17 @@ export function UserManagement() {
       user.clientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()),
   )
+
+  const dataBadge = (() => {
+    if (dataSourceStatus === "live") return { status: "SUCCESS", label: "Live" }
+    if (dataSourceStatus === "partial") {
+      const suffix = dataSourceSummary ? ` ${dataSourceSummary.okCount}/${dataSourceSummary.total}` : ""
+      return { status: "WARNING", label: `Partial${suffix}` }
+    }
+    if (dataSourceStatus === "error") return { status: "ERROR", label: "Error" }
+    if (dataSourceStatus === "sample") return { status: "INFO", label: "Sample" }
+    return { status: "PENDING", label: "Loading" }
+  })()
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text)
@@ -352,25 +447,91 @@ export function UserManagement() {
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
-      {/* Mock Data Warning */}
-      {isUsingMockData && (
-        <Alert variant="destructive" className="bg-yellow-500/10 border-yellow-500/50">
-          <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-          <AlertTitle className="text-yellow-500 text-sm sm:text-base">Using Mock Data</AlertTitle>
-          <AlertDescription className="text-yellow-500/80 text-xs sm:text-sm">
+      {/* Data Source Status */}
+      {dataSourceStatus === "error" && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+          <AlertTitle className="text-red-500 text-sm sm:text-base">Live data unavailable</AlertTitle>
+          <AlertDescription className="text-red-400 text-xs sm:text-sm space-y-2">
+            {dataSourceErrors.length > 0 && (
+              <div className="space-y-1">
+                {dataSourceErrors.map((message) => (
+                  <p key={message}>{message}</p>
+                ))}
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <span className="flex-1">Unable to load real users from backend. Displaying sample data.</span>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full sm:w-auto sm:ml-0 text-xs sm:text-sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
                 onClick={fetchRealData}
                 disabled={loading}
               >
-                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? "animate-spin" : ""}`} />
                 Retry
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                onClick={handleUseSampleData}
+              >
+                Use Sample Data
+              </Button>
             </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {dataSourceStatus === "partial" && (
+        <Alert className="bg-yellow-500/10 border-yellow-500/50">
+          <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+          <AlertTitle className="text-yellow-500 text-sm sm:text-base">Partial data loaded</AlertTitle>
+          <AlertDescription className="text-yellow-500/80 text-xs sm:text-sm space-y-2">
+            {dataSourceErrors.length > 0 && (
+              <div className="space-y-1">
+                {dataSourceErrors.map((message) => (
+                  <p key={message}>{message}</p>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                onClick={fetchRealData}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? "animate-spin" : ""}`} />
+                Retry
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto text-xs sm:text-sm"
+                onClick={handleUseSampleData}
+              >
+                Use Sample Data
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {dataSourceStatus === "sample" && (
+        <Alert className="bg-blue-500/10 border-blue-500/50">
+          <Activity className="h-4 w-4 text-blue-500 flex-shrink-0" />
+          <AlertTitle className="text-blue-500 text-sm sm:text-base">Sample data mode</AlertTitle>
+          <AlertDescription className="text-blue-500/80 text-xs sm:text-sm space-y-2">
+            <p>Sample data is active. Switch back to live data to run admin actions reliably.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto text-xs sm:text-sm"
+              onClick={handleUseLiveData}
+            >
+              Use Live Data
+            </Button>
           </AlertDescription>
         </Alert>
       )}
@@ -378,10 +539,19 @@ export function UserManagement() {
       {/* Header */}
       <PageHeader
         title="User Management"
-        description={`Manage user accounts, view statements, and create new users${!isUsingMockData ? " • Live Data" : ""}`}
+        description="Manage user accounts, view statements, and create new users"
         icon={<Users className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 flex-shrink-0" />}
         actions={
           <>
+            <StatusBadge status={dataBadge.status} type="general">
+              {dataBadge.label}
+            </StatusBadge>
+            {lastUpdatedAt && <span className="text-xs text-muted-foreground">Updated {lastUpdatedAt}</span>}
+            {!useSampleData && (
+              <Button variant="outline" size="sm" onClick={handleUseSampleData} className="text-xs sm:text-sm">
+                Load Sample
+              </Button>
+            )}
             <Button
               onClick={() => setShowAddFundsDialog(true)}
               className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
@@ -492,7 +662,10 @@ export function UserManagement() {
                     <Badge className="ml-1 sm:ml-2 bg-primary text-primary-foreground text-xs">{Object.values(filters).filter(v => v !== 'all' && v !== '').length}</Badge>
                   )}
                 </Button>
-                <RefreshButton onClick={fetchRealData} loading={loading} />
+                <RefreshButton
+                  onClick={() => (useSampleData ? handleUseLiveData() : fetchRealData())}
+                  loading={loading}
+                />
                 <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 bg-transparent text-xs sm:text-sm">
                   <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">Export</span>
@@ -664,7 +837,21 @@ export function UserManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user, index) => (
+                  {loading && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                        Loading users...
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!loading && filteredUsers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                        No users found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!loading && filteredUsers.map((user, index) => (
                     <motion.tr
                       key={user.id}
                       className={`border-border hover:bg-muted/30 transition-colors ${selectedUsers.has(user.id) ? 'bg-primary/5' : ''}`}
@@ -707,8 +894,8 @@ export function UserManagement() {
                       <TableCell>
                         <div>
                           <p className="font-bold text-green-400">₹{user.balance.toLocaleString()}</p>
-                          {user.availableMargin !== undefined && (
-                            <p className="text-xs text-muted-foreground">Avl: ₹{user.availableMargin.toLocaleString()}</p>
+                          {(user as any).availableMargin !== undefined && (
+                            <p className="text-xs text-muted-foreground">Avl: ₹{((user as any).availableMargin as number).toLocaleString()}</p>
                           )}
                         </div>
                       </TableCell>
@@ -717,7 +904,7 @@ export function UserManagement() {
                       <TableCell>
                         <div>
                           <p className="text-sm font-medium text-foreground">{user.totalTrades || user.stats?.totalOrders || 0} trades</p>
-                          <p className="text-xs text-green-400">{user.activePositions || user.stats?.activePositions || 0} positions</p>
+                          <p className="text-xs text-green-400">{(user as any).activePositions || user.stats?.activePositions || 0} positions</p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -739,9 +926,9 @@ export function UserManagement() {
                             size="sm"
                             className="h-8 w-8 p-0"
                             onClick={() => {
-                              // Open Advanced trades tab filtered by this user via URL
+                              // Open Advanced trades page filtered by this user via URL
                               const qp = new URLSearchParams({ user: user.clientId || user.id })
-                              router.push(`/admin-console?tab=advanced&${qp.toString()}`)
+                              router.push(`/admin-console/advanced?${qp.toString()}`)
                             }}
                             title="View Trades"
                           >
@@ -753,7 +940,7 @@ export function UserManagement() {
                             className="h-8 w-8 p-0"
                             onClick={() => {
                               const qp = new URLSearchParams({ user: user.clientId || user.id, openOnly: 'true' })
-                              router.push(`/admin-console?tab=positions&${qp.toString()}`)
+                              router.push(`/admin-console/positions?${qp.toString()}`)
                             }}
                             title="View Positions"
                           >
@@ -801,7 +988,7 @@ export function UserManagement() {
                             className="h-8 w-8 p-0"
                             onClick={() => {
                               const qp = new URLSearchParams({ user: user.clientId || user.id })
-                              router.push(`/admin-console?tab=orders&${qp.toString()}`)
+                              router.push(`/admin-console/orders?${qp.toString()}`)
                             }}
                             title="View Orders"
                           >
@@ -812,6 +999,14 @@ export function UserManagement() {
                             size="sm" 
                             className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
                             onClick={async () => {
+                              if (useSampleData) {
+                                toast({
+                                  title: "Live data required",
+                                  description: "Switch to live data to update user status.",
+                                  variant: "destructive"
+                                })
+                                return
+                              }
                               if (!confirm(`Are you sure you want to ${user.status === 'active' ? 'deactivate' : 'activate'} ${user.name}?`)) return
                               
                               try {
@@ -844,6 +1039,14 @@ export function UserManagement() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
+                          <UserQuickActions
+                            user={user}
+                            onActionCompleted={() => {
+                              fetchRealData()
+                            }}
+                            disabled={useSampleData}
+                            disabledReason="Switch to live data to run quick actions"
+                          />
                         </div>
                       </TableCell>
                     </motion.tr>

@@ -1,14 +1,11 @@
 "use client"
 
 /**
- * Admin Console Header
- * 
- * Shows:
- * - Real admin user data from API
- * - Profile image
- * - Search functionality
- * - Notifications
- * - Quick actions
+ * @file header.tsx
+ * @module admin-console
+ * @description Admin Console Header component with user profile, search, and notifications
+ * @author BharatERP
+ * @created 2025-01-27
  */
 
 import { motion } from "framer-motion"
@@ -55,6 +52,10 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
         setAdminUser(data.user)
         try {
           window.localStorage.setItem('session_user_role', data.user.role)
+        } catch {}
+        try {
+          const permissions = Array.isArray(data.permissions) ? data.permissions : []
+          window.localStorage.setItem('session_user_permissions', JSON.stringify(permissions))
         } catch {}
       } else {
         console.error("❌ [HEADER] Failed to load admin user")

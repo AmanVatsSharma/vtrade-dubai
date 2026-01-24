@@ -22,7 +22,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { formatOrderDateIST } from "@/lib/date-utils"
 
 interface Order {
-  id: string; symbol: string; quantity: number; price: number | null; orderType: string; orderSide: string; status: string; createdAt: string; filledQuantity?: number; averagePrice?: number;
+  id: string; symbol: string; quantity: number; price: number | null; orderType: string; orderSide: string; status: string; createdAt: string; filledQuantity?: number; averagePrice?: number; isOptimistic?: boolean; failureReason?: string;
 }
 
 interface OrderManagementProps {
@@ -70,11 +70,20 @@ export function OrderManagement({ orders, onOrderUpdate }: OrderManagementProps)
   const filteredOrders = useMemo(() => {
     switch (currentOrderTab) {
       case 'executed':
-        return orders.filter(order => order.status === OrderStatus.EXECUTED)
+        return orders.filter(order => order.status === OrderStatus.EXECUTED || order.status === 'EXECUTED')
       case 'pending':
-        return orders.filter(order => order.status === OrderStatus.PENDING)
+        // Include both PENDING status and optimistic orders that are still pending
+        return orders.filter(order => 
+          order.status === OrderStatus.PENDING || 
+          order.status === 'PENDING' ||
+          (order.isOptimistic && order.status === 'PENDING')
+        )
       case 'cancelled':
-        return orders.filter(order => order.status === OrderStatus.CANCELLED)
+        return orders.filter(order => 
+          order.status === OrderStatus.CANCELLED || 
+          order.status === 'CANCELLED' ||
+          order.status === 'REJECTED'
+        )
       default:
         return orders
     }
@@ -127,9 +136,24 @@ export function OrderManagement({ orders, onOrderUpdate }: OrderManagementProps)
                       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         <Badge variant={order.orderSide === 'BUY' ? 'success' : 'destructive'}>{order.orderSide}</Badge>
                         <Badge variant="outline">{order.orderType}</Badge>
-                        <Badge variant="outline">{order.status}</Badge>
+                        <Badge variant={order.status === 'REJECTED' ? 'destructive' : 'outline'}>
+                          {order.status}
+                          {order.isOptimistic && order.status === 'PENDING' && (
+                            <Loader2 className="ml-1 h-3 w-3 animate-spin inline" />
+                          )}
+                        </Badge>
                         {order.price && (<span className="font-medium">@ ₹{order.price.toFixed(2)}</span>)}
                         <span>Qty: {order.filledQuantity || 0}/{order.quantity}</span>
+                        {order.isOptimistic && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            Syncing...
+                          </Badge>
+                        )}
+                        {order.failureReason && (
+                          <Badge variant="destructive" className="text-xs">
+                            Failed: {order.failureReason}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

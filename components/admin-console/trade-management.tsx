@@ -52,8 +52,8 @@ export function TradeManagement() {
 
   useEffect(() => {
     // Sync URL
-    const base = "/admin-console?tab=advanced"
-    router.replace(`${base}&${params.toString()}`)
+    const base = "/admin-console/advanced"
+    router.replace(`${base}?${params.toString()}`)
   }, [params, router])
 
   const fetchData = useCallback(async () => {

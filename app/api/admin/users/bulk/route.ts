@@ -8,17 +8,14 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-BULK-USERS] POST request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.manage")
+    if (!authResult.ok) return authResult.response
 
     const body = await req.json()
     const { userIds, action, isActive } = body

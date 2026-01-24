@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(
   req: Request,
@@ -17,11 +17,8 @@ export async function GET(
   console.log("🌐 [API-ADMIN-USER-ACTIVITY] GET request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.activity.read")
+    if (!authResult.ok) return authResult.response
 
     const userId = params.userId
     const { searchParams } = new URL(req.url)

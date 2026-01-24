@@ -11,7 +11,7 @@
 
 "use client"
 
-import React, { useState, useCallback } from "react"
+import React, { useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Bell,
@@ -19,7 +19,6 @@ import {
   AlertCircle,
   XCircle,
   Info,
-  Filter,
   Check,
   X,
   Loader2,
@@ -39,7 +38,6 @@ interface AdminNotificationCenterProps {
 }
 
 type NotificationType = 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS'
-type FilterType = 'ALL' | NotificationType
 
 // Simple time formatter
 const formatTimeAgo = (dateString: string): string => {
@@ -60,7 +58,6 @@ const formatTimeAgo = (dateString: string): string => {
 
 export function AdminNotificationCenter({ onClose }: AdminNotificationCenterProps) {
   const router = useRouter()
-  const [filter, setFilter] = useState<FilterType>('ALL')
   const { 
     notifications, 
     unreadCount, 
@@ -70,27 +67,25 @@ export function AdminNotificationCenter({ onClose }: AdminNotificationCenterProp
     markAsUnread 
   } = useAdminNotifications()
 
-  // Filter notifications
-  const filteredNotifications = notifications
-    .filter(notif => filter === 'ALL' || notif.type === filter)
-    .slice(0, 10) // Show only latest 10 in dropdown
+  // Show all notifications - no filtering, limit to latest 10 for dropdown
+  const displayNotifications = notifications.slice(0, 10)
 
   const handleMarkAsRead = useCallback(async (notificationId: string) => {
     await markAsRead([notificationId])
   }, [markAsRead])
 
   const handleMarkAllAsRead = useCallback(async () => {
-    const unreadIds = filteredNotifications
+    const unreadIds = displayNotifications
       .filter(n => !n.read)
       .map(n => n.id)
     
     if (unreadIds.length > 0) {
       await markAsRead(unreadIds)
     }
-  }, [filteredNotifications, markAsRead])
+  }, [displayNotifications, markAsRead])
 
   const handleViewAll = useCallback(() => {
-    router.push('/admin-console?tab=notifications')
+    router.push('/admin-console/notifications')
     onClose?.()
   }, [router, onClose])
 
@@ -167,24 +162,6 @@ export function AdminNotificationCenter({ onClose }: AdminNotificationCenterProp
             </div>
           </div>
 
-          {/* Quick Filters */}
-          <div className="flex items-center gap-1 mt-3 overflow-x-auto scrollbar-hide">
-            {(['ALL', 'INFO', 'SUCCESS', 'WARNING', 'ERROR'] as FilterType[]).map((type) => (
-              <Button
-                key={type}
-                variant={filter === type ? "default" : "outline"}
-                size="sm"
-                className={cn(
-                  "h-7 text-xs px-2 whitespace-nowrap",
-                  filter === type && "bg-primary text-primary-foreground"
-                )}
-                onClick={() => setFilter(type)}
-              >
-                {type}
-              </Button>
-            ))}
-          </div>
-
           {/* Mark all as read */}
           {unreadCount > 0 && (
             <Button
@@ -207,7 +184,7 @@ export function AdminNotificationCenter({ onClose }: AdminNotificationCenterProp
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">Loading notifications...</p>
               </div>
-            ) : filteredNotifications.length === 0 ? (
+            ) : displayNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Bell className="h-12 w-12 text-muted-foreground/30 mb-2" />
                 <p className="text-sm text-muted-foreground font-medium">No notifications</p>
@@ -215,7 +192,7 @@ export function AdminNotificationCenter({ onClose }: AdminNotificationCenterProp
               </div>
             ) : (
               <AnimatePresence>
-                {filteredNotifications.map((notification, index) => (
+                {displayNotifications.map((notification, index) => (
                   <motion.div
                     key={notification.id}
                     initial={{ opacity: 0, x: -20 }}
@@ -257,13 +234,6 @@ export function AdminNotificationCenter({ onClose }: AdminNotificationCenterProp
                           </p>
 
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Badge 
-                              variant="outline" 
-                              className={cn("text-xs h-5", getTypeBadgeColor(notification.type))}
-                            >
-                              {notification.type}
-                            </Badge>
-
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock className="h-3 w-3" />
                               {formatTimeAgo(notification.createdAt)}

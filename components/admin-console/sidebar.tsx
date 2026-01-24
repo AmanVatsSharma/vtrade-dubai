@@ -1,12 +1,22 @@
 "use client"
 
+/**
+ * @file sidebar.tsx
+ * @module admin-console
+ * @description Sidebar navigation component for admin console
+ * @author BharatERP
+ * @created 2025-01-27
+ */
+
 import { motion } from "framer-motion"
-import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck } from "lucide-react"
+import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck, KeyRound, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 interface SidebarProps {
   activeTab: string
-  setActiveTab: (tab: string) => void
+  setActiveTab?: (tab: string) => void // Optional now since we use Link
   collapsed: boolean
   setCollapsed: (collapsed: boolean) => void
   mobileMenuOpen: boolean
@@ -16,6 +26,7 @@ interface SidebarProps {
 const menuItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "users", label: "User Management", icon: Users },
+  { id: "kyc", label: "KYC Queue", icon: ShieldCheck },
   { id: "rms", label: "RM & Team", icon: UserCheck },
   { id: "funds", label: "Fund Management", icon: Wallet },
   { id: "analytics", label: "Analytics", icon: TrendingUp },
@@ -41,18 +52,42 @@ export function Sidebar({
   mobileMenuOpen,
   setMobileMenuOpen,
 }: SidebarProps) {
-  // Read role from localStorage/session via window (client-only sidebar)
+  const pathname = usePathname()
+  
+  // Read role and permissions from localStorage/session via window (client-only sidebar)
   let role: string | null = null
+  let permissions: string[] = []
   if (typeof window !== 'undefined') {
     try {
       const raw = window.localStorage.getItem('session_user_role')
       role = raw || null
     } catch {}
+    try {
+      const rawPermissions = window.localStorage.getItem('session_user_permissions')
+      permissions = rawPermissions ? JSON.parse(rawPermissions) : []
+    } catch {}
+  }
+
+  // Map menu item IDs to routes
+  const getRoute = (id: string) => {
+    if (id === 'dashboard') return '/admin-console'
+    return `/admin-console/${id}`
   }
 
   const computedMenu = [...menuItems]
   if (role === 'SUPER_ADMIN') {
     computedMenu.splice(3, 0, { id: 'financial-overview', label: 'Financial Overview', icon: Wallet })
+  }
+  const canViewAccessControl =
+    permissions.includes("admin.access-control.view") || permissions.includes("admin.all")
+  if (canViewAccessControl) {
+    const settingsIndex = computedMenu.findIndex((item) => item.id === "settings")
+    const accessControlItem = { id: "access-control", label: "Access Control", icon: KeyRound }
+    if (settingsIndex >= 0) {
+      computedMenu.splice(settingsIndex, 0, accessControlItem)
+    } else {
+      computedMenu.push(accessControlItem)
+    }
   }
   return (
     <>
@@ -104,36 +139,40 @@ export function Sidebar({
         <nav className="p-1 sm:p-2 space-y-1 overflow-y-auto flex-1">
           {computedMenu.map((item) => {
             const Icon = item.icon
-            const isActive = activeTab === item.id
+            const route = getRoute(item.id)
+            const isActive = pathname === route || (item.id === 'dashboard' && pathname === '/admin-console')
 
             return (
-              <motion.button
+              <Link
                 key={item.id}
+                href={route}
                 onClick={() => {
-                  setActiveTab(item.id)
                   setMobileMenuOpen(false)
                 }}
-                className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-left transition-all duration-200 touch-manipulation ${
-                  isActive
-                    ? "bg-primary/10 text-primary border border-primary/20 neon-border"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                aria-label={item.label}
               >
-                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${isActive ? "text-primary" : ""}`} />
-                {!collapsed && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="font-medium text-xs sm:text-sm truncate flex-1"
-                  >
-                    {item.label}
-                  </motion.span>
-                )}
-              </motion.button>
+                <motion.div
+                  className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-left transition-all duration-200 touch-manipulation cursor-pointer ${
+                    isActive
+                      ? "bg-primary/10 text-primary border border-primary/20 neon-border"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  aria-label={item.label}
+                >
+                  <Icon className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${isActive ? "text-primary" : ""}`} />
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="font-medium text-xs sm:text-sm truncate flex-1"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </motion.div>
+              </Link>
             )
           })}
         </nav>

@@ -2,10 +2,12 @@
 import { NextResponse } from "next/server";
 import { requestQueue } from "@/lib/vortex/request-queue";
 import { logger, LogCategory } from "@/lib/vortex/vortexLogger";
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    // No auth previously; allow SUPER_ADMIN implicitly as well
+    const authResult = await requireAdminPermissions(req, "admin.queue.read");
+    if (!authResult.ok) return authResult.response;
     logger.info(LogCategory.VORTEX_API, 'Queue status requested');
 
     const status = requestQueue.getQueueStatus();
@@ -36,9 +38,10 @@ export async function GET() {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   try {
-    // No auth previously; allow SUPER_ADMIN implicitly as well
+    const authResult = await requireAdminPermissions(req, "admin.queue.read");
+    if (!authResult.ok) return authResult.response;
     logger.info(LogCategory.VORTEX_API, 'Clearing request queue');
     
     requestQueue.clearQueue();

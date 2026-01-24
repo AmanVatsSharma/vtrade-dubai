@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function PUT(
   req: Request,
@@ -17,17 +17,8 @@ export async function PUT(
   console.log("🌐 [API-ADMIN-USER-TRADING-ACCOUNT] PUT request received")
   
   try {
-    const session = await auth()
-    const currentUserRole = (session?.user as any)?.role
-    
-    // Only SUPER_ADMIN can update trading account funds
-    if (!session?.user || currentUserRole !== 'SUPER_ADMIN') {
-      console.error("❌ [API-ADMIN-USER-TRADING-ACCOUNT] Unauthorized role attempting PUT:", currentUserRole)
-      return NextResponse.json(
-        { error: "Unauthorized: Only Super Admins can update trading account funds" },
-        { status: 403 }
-      )
-    }
+    const authResult = await requireAdminPermissions(req, "admin.funds.override")
+    if (!authResult.ok) return authResult.response
 
     const userId = params.userId
     const body = await req.json()

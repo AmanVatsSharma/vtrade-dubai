@@ -3,18 +3,15 @@
  * Supports filtering, pagination, and updates.
  */
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { requireAdminPermissions } from '@/lib/rbac/admin-guard'
 
 export async function GET(req: Request) {
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error('❌ [API-ADMIN-TRANSACTIONS] Unauthorized role attempting GET:', role)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    console.log('✅ [API-ADMIN-TRANSACTIONS] Admin/SuperAdmin authenticated:', session.user.email)
+    const authResult = await requireAdminPermissions(req, 'admin.funds.read')
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    console.log('✅ [API-ADMIN-TRANSACTIONS] Admin authenticated:', session.user.email)
 
     const { searchParams } = new URL(req.url)
     const page = Math.max(parseInt(searchParams.get('page') || '1'), 1)
@@ -114,12 +111,8 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error('❌ [API-ADMIN-TRANSACTIONS] Unauthorized role attempting PATCH:', role)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, 'admin.funds.override')
+    if (!authResult.ok) return authResult.response
 
     const body = await req.json()
     const { transactionId, amount, description, reconcile } = body

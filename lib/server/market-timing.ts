@@ -10,6 +10,9 @@ import { prisma } from "@/lib/prisma"
 import { getCurrentISTDate } from "@/lib/date-utils"
 import type { MarketSession } from "@/lib/hooks/market-timing"
 
+const NSE_SEGMENTS = new Set(["NSE", "NSE_EQ", "NSEEQ", "NSE_FO", "NSEFO", "NFO", "EQ"])
+const MCX_SEGMENTS = new Set(["MCX", "MCX_FO", "MCXFO"])
+
 // Cache for force closed setting (5 second TTL)
 let cachedForceClosed: boolean | null = null
 let cacheTimestamp: number = 0
@@ -175,6 +178,20 @@ function isMarketOpenTime(date?: Date): boolean {
   }
 }
 
+const minutesSinceMidnight = (d: Date): number => (d.getHours() * 60) + d.getMinutes()
+
+const isWeekend = (d: Date): boolean => {
+  const day = d.getDay()
+  return day === 0 || day === 6
+}
+
+const isMcxWindow = (d: Date): boolean => {
+  const start = 9 * 60 // 09:00
+  const end = 23 * 60 + 55 // 23:55
+  const minutes = minutesSinceMidnight(d)
+  return minutes >= start && minutes <= end
+}
+
 /**
  * Get market session from server (checks DB force_closed first)
  * 
@@ -231,6 +248,56 @@ export async function isServerMarketOpen(date?: Date): Promise<boolean> {
   } catch (error) {
     console.error("[MARKET-TIMING-DB] isServerMarketOpen failed, defaulting to false", error)
     return false
+  }
+}
+
+/**
+ * Segment-aware trading session helper
+ * MCX derivatives trade 09:00–23:55 IST, while NSE equities/F&O trade 09:15–15:30 IST (09:00–09:15 pre-open).
+ */
+export async function getSegmentTradingSession(
+  segment?: string | null,
+  date?: Date
+): Promise<{ session: MarketSession; reason?: string }> {
+  try {
+    const normalizedSegment = (segment || "NSE").toUpperCase()
+    const d = date ? new Date(date) : nowIST()
+
+    const forceClosed = await getMarketForceClosedFromDB()
+    if (forceClosed) {
+      return { session: "closed", reason: "Market is force-closed by operations" }
+    }
+
+    if (isWeekend(d)) {
+      return { session: "closed", reason: "Weekend (markets closed)" }
+    }
+
+    if (MCX_SEGMENTS.has(normalizedSegment)) {
+      const open = isMcxWindow(d)
+      return {
+        session: open ? "open" : "closed",
+        reason: open ? undefined : "MCX_FO orders are accepted between 09:00–23:55 IST"
+      }
+    }
+
+    // Default to NSE logic (includes NSE_EQ & NSE_FO)
+    const isHoliday = await isNSEHolidayFromDB(d)
+    if (isHoliday) {
+      return { session: "closed", reason: "NSE holiday (DB configured)" }
+    }
+
+    if (isPreOpenTime(d)) {
+      return { session: "pre-open", reason: "NSE pre-open window 09:00–09:15 IST" }
+    }
+
+    if (isMarketOpenTime(d)) {
+      return { session: "open" }
+    }
+
+    return { session: "closed", reason: "NSE trading hours are 09:15–15:30 IST" }
+  } catch (error) {
+    console.warn("[MARKET-TIMING-DB] getSegmentTradingSession failed, defaulting to closed", error)
+    return { session: "closed", reason: "Unable to confirm trading window" }
   }
 }
 

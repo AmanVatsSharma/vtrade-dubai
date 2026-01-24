@@ -1,28 +1,35 @@
 /**
  * File: app/api/super-admin/deposits/audit/route.ts
  * Module: admin-console
- * Purpose: Super admin endpoint exposing deposit approval & rejection audit trail
- * Author: Cursor / GPT-5 Codex
- * Last-updated: 2025-11-12
+ * Purpose: Serve super-admin deposit approval and rejection audit trail.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-01-15
  * Notes:
- * - Delegates to DepositAuditService with query parameter filters
- * - Restricts access to SUPER_ADMIN role
+ * - Uses RBAC permission checks for super-admin financial read.
+ * - Emits structured logs with IST timestamps.
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { DepositAuditService } from "@/lib/services/admin/DepositAuditService"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { withRequest } from "@/lib/observability/logger"
+
+const getIstTimestamp = () =>
+  new Date().toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+  })
 
 export async function GET(req: NextRequest) {
-  console.log("🌐 [/api/super-admin/deposits/audit] GET request received")
-  try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
+  const logger = withRequest({
+    requestId: req.headers.get("x-request-id") || undefined,
+    route: "/api/super-admin/deposits/audit",
+  })
 
-    if (!session?.user || role !== "SUPER_ADMIN") {
-      console.warn("🚫 [/api/super-admin/deposits/audit] Unauthorized access attempt")
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
+  logger.debug({ timeIst: getIstTimestamp() }, "GET deposit audit - start")
+
+  try {
+    const authResult = await requireAdminPermissions(req, "admin.super.financial.read")
+    if (!authResult.ok) return authResult.response
 
     const { searchParams } = new URL(req.url)
     const statusParam = searchParams.get("status") || undefined
@@ -38,17 +45,6 @@ export async function GET(req: NextRequest) {
     const from = fromParam ? new Date(fromParam) : undefined
     const to = toParam ? new Date(toParam) : undefined
 
-    console.log("📝 [/api/super-admin/deposits/audit] Parsed filters:", {
-      statusParam: normalizedStatus,
-      adminId,
-      adminName,
-      search,
-      from,
-      to,
-      pageParam,
-      pageSizeParam,
-    })
-
     const data = await DepositAuditService.list({
       status: normalizedStatus as any,
       adminId,
@@ -60,14 +56,19 @@ export async function GET(req: NextRequest) {
       pageSize: Number.isNaN(pageSizeParam) ? 20 : pageSizeParam,
     })
 
-    console.log("✅ [/api/super-admin/deposits/audit] Returning audit payload:", {
-      count: data.records.length,
-      total: data.total,
-    })
+    logger.debug(
+      {
+        timeIst: getIstTimestamp(),
+        count: data.records.length,
+        total: data.total,
+        status: normalizedStatus,
+      },
+      "GET deposit audit - success"
+    )
 
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
-    console.error("❌ [/api/super-admin/deposits/audit] Error:", error)
+    logger.error({ timeIst: getIstTimestamp(), err: error }, "GET deposit audit - error")
     return NextResponse.json({ error: error?.message || "Internal Server Error" }, { status: 500 })
   }
 }

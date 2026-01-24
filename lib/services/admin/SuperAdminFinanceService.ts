@@ -154,7 +154,10 @@ export class SuperAdminFinanceService {
   }
 
   static async getCommissionRules(): Promise<CommissionRules> {
-    const entry = await prisma.systemSettings.findFirst({ where: { key: 'finance_commission_rules', isActive: true } })
+    const entry = await prisma.systemSettings.findFirst({
+      // `key` is not globally unique. Global settings are stored under ownerId = null.
+      where: { key: 'finance_commission_rules', ownerId: null, isActive: true },
+    })
     if (!entry) {
       return { depositCommissionRate: 0.005, withdrawalCommissionRate: 0.002, includeWithdrawalCharges: true }
     }
@@ -167,10 +170,29 @@ export class SuperAdminFinanceService {
 
   static async updateCommissionRules(rules: CommissionRules) {
     const value = JSON.stringify(rules)
-    await prisma.systemSettings.upsert({
-      where: { key: 'finance_commission_rules' },
-      update: { value, isActive: true },
-      create: { key: 'finance_commission_rules', value, category: 'FINANCE', isActive: true }
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.systemSettings.findFirst({
+        where: { key: "finance_commission_rules", ownerId: null },
+        orderBy: { updatedAt: "desc" },
+      })
+
+      if (existing) {
+        await tx.systemSettings.update({
+          where: { id: existing.id },
+          data: { value, isActive: true, updatedAt: new Date() },
+        })
+
+        await tx.systemSettings.updateMany({
+          where: { key: "finance_commission_rules", ownerId: null, id: { not: existing.id } },
+          data: { isActive: false, updatedAt: new Date() },
+        })
+
+        return
+      }
+
+      await tx.systemSettings.create({
+        data: { key: "finance_commission_rules", value, category: "FINANCE", isActive: true },
+      })
     })
     return { success: true }
   }

@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * @file use-realtime-orders.ts
  * @module lib/hooks/use-realtime-orders
@@ -19,10 +21,8 @@
  * - Retry logic
  */
 
-"use client"
-
 import useSWR from 'swr'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSharedSSE } from './use-shared-sse'
 
 // Types
@@ -40,6 +40,8 @@ interface Order {
   createdAt: string
   executedAt?: string | null
   stock?: any
+  isOptimistic?: boolean
+  failureReason?: string
 }
 
 interface OrdersResponse {
@@ -54,9 +56,20 @@ interface UseRealtimeOrdersReturn {
   error: Error | null
   refresh: () => Promise<any>
   optimisticUpdate: (newOrder: Partial<Order>) => void
+  resolveOptimisticOrder: (tempId: string, updates?: Partial<Order>) => void
+  rejectOptimisticOrder: (tempId: string, reason?: string) => void
   mutate: any
   retryCount: number
 }
+
+interface OptimisticOrderEntry {
+  order: Order
+  timeoutId?: ReturnType<typeof setTimeout>
+  resolved?: boolean
+}
+
+const OPTIMISTIC_TTL_MS = 15000
+const OPTIMISTIC_RESOLVE_TTL_MS = 5000
 
 // Enhanced fetcher with better error handling
 const fetcher = async (url: string): Promise<OrdersResponse> => {
@@ -133,6 +146,8 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
   const maxRetries = 3
   const lastSyncRef = useRef<number>(Date.now())
   const pollErrorStreakRef = useRef(0)
+  const optimisticOrdersRef = useRef<Record<string, OptimisticOrderEntry>>({})
+  const [optimisticRevision, setOptimisticRevision] = useState(0)
   const DEBUG = process.env.NEXT_PUBLIC_DEBUG_REALTIME === 'true' || process.env.NODE_ENV === 'development'
   
   // Initial data fetch - polling handled by adaptive useEffect below
@@ -160,6 +175,88 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
       }
     }
   )
+
+  const scheduleOptimisticCleanup = useCallback((tempId: string, delay: number) => {
+    const entry = optimisticOrdersRef.current[tempId]
+    if (!entry) return
+    if (entry.timeoutId) {
+      clearTimeout(entry.timeoutId)
+    }
+    entry.timeoutId = setTimeout(() => {
+      delete optimisticOrdersRef.current[tempId]
+      setOptimisticRevision((prev) => prev + 1)
+    }, delay)
+  }, [])
+
+  const resolveOptimisticOrder = useCallback((tempId: string, updates?: Partial<Order>) => {
+    const entry = optimisticOrdersRef.current[tempId]
+    if (!entry) return
+
+    const updatedOrder: Order = {
+      ...entry.order,
+      ...updates,
+      id: updates?.id || entry.order.id,
+      status: updates?.status || entry.order.status,
+      executedAt: updates?.executedAt ?? entry.order.executedAt,
+      filledQuantity: updates?.filledQuantity ?? entry.order.filledQuantity,
+      isOptimistic: false,
+      failureReason: undefined
+    }
+
+    entry.order = updatedOrder
+    entry.resolved = true
+    scheduleOptimisticCleanup(tempId, OPTIMISTIC_RESOLVE_TTL_MS)
+    setOptimisticRevision((prev) => prev + 1)
+
+    mutate((currentData: OrdersResponse | undefined) => {
+      if (!currentData || !Array.isArray(currentData.orders)) {
+        return currentData
+      }
+      
+      return {
+        ...currentData,
+        orders: currentData.orders.map((order: Order) =>
+          order.id === entry.order.id || order.id === tempId ? updatedOrder : order
+        )
+      }
+    }, false).catch(() => {
+      // ignore cache mutation errors
+    })
+  }, [mutate, scheduleOptimisticCleanup])
+
+  const rejectOptimisticOrder = useCallback((tempId: string, reason?: string) => {
+    const entry = optimisticOrdersRef.current[tempId]
+    if (!entry) return
+
+    entry.order = {
+      ...entry.order,
+      status: 'REJECTED',
+      failureReason: reason || 'Order failed',
+      isOptimistic: true
+    }
+    scheduleOptimisticCleanup(tempId, OPTIMISTIC_RESOLVE_TTL_MS)
+    setOptimisticRevision((prev) => prev + 1)
+  }, [scheduleOptimisticCleanup])
+
+  useEffect(() => {
+    if (!data?.orders) return
+    const serverIds = new Set(data.orders.map(order => order.id))
+    let changed = false
+
+    Object.entries(optimisticOrdersRef.current).forEach(([tempId, entry]) => {
+      if (serverIds.has(entry.order.id)) {
+        if (entry.timeoutId) {
+          clearTimeout(entry.timeoutId)
+        }
+        delete optimisticOrdersRef.current[tempId]
+        changed = true
+      }
+    })
+
+    if (changed) {
+      setOptimisticRevision((prev) => prev + 1)
+    }
+  }, [data])
 
   // Shared SSE connection for real-time updates
   const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
@@ -270,59 +367,76 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
 
   // Optimistic update function with validation
   const optimisticUpdate = useCallback((newOrder: Partial<Order>) => {
-    // Validate input
     if (!validateOrder(newOrder)) {
       console.error('❌ [REALTIME-ORDERS] Cannot perform optimistic update: Invalid order')
       return
     }
     
-    console.log("⚡ [REALTIME-ORDERS] Optimistic update:", newOrder.id)
+    const ensuredId = typeof newOrder.id === 'string' ? newOrder.id : `temp-${Date.now()}`
+    const normalizedOrder: Order = {
+      id: ensuredId,
+      symbol: newOrder.symbol || 'UNKNOWN',
+      quantity: newOrder.quantity ?? 0,
+      orderType: newOrder.orderType || 'MARKET',
+      orderSide: newOrder.orderSide || 'BUY',
+      price: newOrder.price ?? null,
+      averagePrice: newOrder.averagePrice ?? null,
+      filledQuantity: newOrder.filledQuantity ?? 0,
+      productType: newOrder.productType,
+      status: newOrder.status || 'PENDING',
+      createdAt: newOrder.createdAt || new Date().toISOString(),
+      executedAt: newOrder.executedAt ?? null,
+      stock: newOrder.stock,
+      isOptimistic: true
+    }
+
+    optimisticOrdersRef.current[ensuredId] = {
+      order: normalizedOrder
+    }
+    scheduleOptimisticCleanup(ensuredId, OPTIMISTIC_TTL_MS)
+    setOptimisticRevision((prev) => prev + 1)
+    
+    console.log("⚡ [REALTIME-ORDERS] Optimistic update:", ensuredId)
     
     try {
       mutate(
         (currentData: OrdersResponse | undefined) => {
-          // Safety check
-          if (!currentData) {
-            console.warn('⚠️ [REALTIME-ORDERS] No current data for optimistic update')
-            return currentData
-          }
-          
-          if (!Array.isArray(currentData.orders)) {
-            console.warn('⚠️ [REALTIME-ORDERS] Invalid orders array in current data')
+          if (!currentData || !Array.isArray(currentData.orders)) {
             return currentData
           }
           
           return {
             ...currentData,
-            orders: [newOrder as Order, ...currentData.orders]
+            orders: [normalizedOrder, ...currentData.orders]
           }
         },
-        false // Don't revalidate immediately
+        false
       )
-      
-      // Revalidate after a short delay to confirm
-      setTimeout(() => {
-        mutate().catch(err => {
-          console.error('❌ [REALTIME-ORDERS] Delayed revalidation failed:', err)
-        })
-      }, 500)
     } catch (error) {
       console.error('❌ [REALTIME-ORDERS] Optimistic update failed:', error)
     }
-  }, [mutate])
+  }, [mutate, scheduleOptimisticCleanup])
 
   // Safe data extraction with fallback
-  const orders: Order[] = (() => {
+  const orders: Order[] = useMemo(() => {
     try {
-      if (data?.orders && Array.isArray(data.orders)) {
-        return data.orders
-      }
-      return []
+      const baseOrders = data?.orders && Array.isArray(data.orders) ? data.orders : []
+      const serverIds = new Set(baseOrders.map(order => order.id))
+      const optimisticOrders = Object.values(optimisticOrdersRef.current)
+        .map(entry => entry.order)
+        .filter(order => !serverIds.has(order.id))
+        .sort((a, b) => {
+          const aTime = new Date(a.createdAt || 0).getTime()
+          const bTime = new Date(b.createdAt || 0).getTime()
+          return bTime - aTime
+        })
+      
+      return [...optimisticOrders, ...baseOrders]
     } catch (err) {
       console.error('❌ [REALTIME-ORDERS] Error extracting orders:', err)
       return []
     }
-  })()
+  }, [data, optimisticRevision])
 
   return {
     orders,
@@ -330,6 +444,8 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
     error: error || null,
     refresh,
     optimisticUpdate,
+    resolveOptimisticOrder,
+    rejectOptimisticOrder,
     mutate,
     retryCount: retryCountRef.current
   }

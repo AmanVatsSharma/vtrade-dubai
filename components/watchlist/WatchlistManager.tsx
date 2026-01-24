@@ -391,7 +391,7 @@ export function WatchlistManager({
     }
   }, [deleteWatchlist, activeTab])
 
-  const handleAddStock = useCallback(async (stockData: string | { stockId?: string; token?: number; symbol?: string; name?: string; exchange?: string; segment?: string; strikePrice?: number; optionType?: 'CE' | 'PE'; expiry?: string; lotSize?: number }) => {
+  const handleAddStock = useCallback(async (stockData: string | { stockId?: string; token?: number; symbol?: string; name?: string; exchange?: string; segment?: string; strikePrice?: number; optionType?: 'CE' | 'PE'; expiry?: string; lotSize?: number; instrumentId?: string }) => {
     if (!activeTab) {
       toast({
         title: "No Watchlist Selected",
@@ -423,13 +423,58 @@ export function WatchlistManager({
           await addItem({ stockId: stockData })
         }
       } else {
-        // Object with metadata
-        await addItem(stockData)
+        // Object with metadata - ensure token is included or can be extracted
+        const itemData: any = { ...stockData }
+        
+        console.log('📝 [WATCHLIST-MANAGER] Adding stock with data:', {
+          hasToken: !!itemData.token,
+          hasStockId: !!itemData.stockId,
+          hasInstrumentId: !!itemData.instrumentId,
+          symbol: itemData.symbol,
+          exchange: itemData.exchange,
+          segment: itemData.segment
+        })
+        
+        // If token is missing but instrumentId exists, try to extract it
+        if (!itemData.token && itemData.instrumentId) {
+          try {
+            const parts = itemData.instrumentId.split('-')
+            const lastPart = parts[parts.length - 1]
+            const parsedToken = parseInt(lastPart, 10)
+            if (!isNaN(parsedToken) && parsedToken > 0) {
+              itemData.token = parsedToken
+              console.log(`✅ [WATCHLIST-MANAGER] Extracted token ${parsedToken} from instrumentId ${itemData.instrumentId}`)
+            }
+          } catch (e) {
+            console.warn(`⚠️ [WATCHLIST-MANAGER] Failed to extract token:`, e)
+          }
+        }
+        
+        // Ensure required fields are present
+        if (!itemData.token && !itemData.stockId) {
+          const errorMsg = 'Token or stockId is required to add instrument to watchlist. Please ensure the instrument has a valid token.'
+          console.error('❌ [WATCHLIST-MANAGER] Missing token and stockId:', itemData)
+          throw new Error(errorMsg)
+        }
+        
+        console.log('✅ [WATCHLIST-MANAGER] Calling addItem with:', {
+          token: itemData.token,
+          symbol: itemData.symbol,
+          exchange: itemData.exchange,
+          segment: itemData.segment
+        })
+        
+        await addItem(itemData)
       }
       setShowSearchDialog(false)
       await refetchWatchlists()
     } catch (error) {
-      // Error is handled by the hook
+      console.error('❌ [WATCHLIST-MANAGER] Failed to add stock:', error)
+      toast({
+        title: "Failed to Add Stock",
+        description: error instanceof Error ? error.message : "Could not add stock to watchlist.",
+        variant: "destructive"
+      })
     }
   }, [activeTab, addItem, refetchWatchlists])
 

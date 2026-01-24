@@ -2,6 +2,11 @@
 
 This document tracks major milestones, features, and improvements in the Trading Pro Platform.
 
+## 2026-01-15
+- Hardened admin RBAC with permission catalog and Access Control UI.
+- Added super-admin financial manage permission and restricted gating.
+- Introduced AppError base with domain error set and tests.
+
 ## Key Milestones
 
 ### System Architecture

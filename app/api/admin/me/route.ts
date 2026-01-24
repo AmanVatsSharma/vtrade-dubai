@@ -8,8 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 console.log("👤 [API-ADMIN-ME] Route loaded")
 
@@ -20,13 +20,9 @@ export async function GET(req: NextRequest) {
   console.log("🌐 [API-ADMIN-ME] GET request received")
   
   try {
-    // Authenticate admin
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-ME] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.profile.read")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     console.log("✅ [API-ADMIN-ME] Admin authenticated:", session.user.email)
 
@@ -57,10 +53,14 @@ export async function GET(req: NextRequest) {
 
     console.log("✅ [API-ADMIN-ME] User details retrieved")
 
-    return NextResponse.json({
-      success: true,
-      user
-    }, { status: 200 })
+    return NextResponse.json(
+      {
+        success: true,
+        user,
+        permissions: Array.from(authResult.permissions),
+      },
+      { status: 200 }
+    )
 
   } catch (error: any) {
     console.error("❌ [API-ADMIN-ME] GET error:", error)
@@ -78,13 +78,9 @@ export async function PATCH(req: NextRequest) {
   console.log("🌐 [API-ADMIN-ME] PATCH request received")
   
   try {
-    // Authenticate admin
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-ME] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.profile.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     console.log("✅ [API-ADMIN-ME] Admin authenticated:", session.user.email)
 

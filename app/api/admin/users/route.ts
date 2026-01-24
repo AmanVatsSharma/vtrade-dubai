@@ -9,20 +9,17 @@
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
 import { createTradingLogger } from "@/lib/services/logging/TradingLogger"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 import { Role, KycStatus } from "@prisma/client"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] GET request received")
   
   try {
-    // Get session and verify role
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-USERS] Unauthorized access attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.read")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    const role = authResult.role
 
     const { searchParams } = new URL(req.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -103,12 +100,9 @@ export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] POST request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error("❌ [API-ADMIN-USERS] Unauthorized role attempting POST:", role)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     const body = await req.json()
     console.log("📝 [API-ADMIN-USERS] Create user request:", { 
@@ -195,11 +189,8 @@ export async function PATCH(req: Request) {
   console.log("🌐 [API-ADMIN-USERS] PATCH request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.manage")
+    if (!authResult.ok) return authResult.response
 
     const body = await req.json()
     console.log("📝 [API-ADMIN-USERS] Update request:", body)

@@ -710,7 +710,9 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
                           <SelectItem value="none">No RM (Unassign)</SelectItem>
                           {rms.map((rm) => (
                             <SelectItem key={rm.id} value={rm.id}>
-                              {rm.name || rm.email || rm.id.slice(0, 8)} ({rm.assignedUsersCount} users)
+                              {rm.name || rm.email || rm.id.slice(0, 8)} 
+                              {rm.role && ` (${rm.role === 'ADMIN' ? 'Admin' : rm.role === 'MODERATOR' ? 'Moderator' : rm.role})`}
+                              {rm.assignedUsersCount > 0 && ` - ${rm.assignedUsersCount} users`}
                             </SelectItem>
                           ))}
                         </SelectContent>

@@ -7,35 +7,42 @@
  */
 
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(req: Request) {
   console.log("🌐 [API-ADMIN-NOTIFICATIONS] GET request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.notifications.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     const userId = (session.user as any).id
 
     // Fetch notifications - filter by target audience
     const notifications = await prisma.notification.findMany({
       where: {
-        OR: [
-          { target: 'ALL' },
-          { target: 'ADMINS' },
-          { target: 'SPECIFIC', targetUserIds: { has: userId } }
-        ],
-        expiresAt: {
-          OR: [
-            { gt: new Date() },
-            { equals: null }
-          ]
-        }
+        AND: [
+          {
+            OR: [
+              { target: 'ALL' },
+              { target: 'ADMINS' },
+              { 
+                AND: [
+                  { target: 'SPECIFIC' },
+                  { targetUserIds: { has: userId } }
+                ]
+              }
+            ]
+          },
+          {
+            OR: [
+              { expiresAt: { gt: new Date() } },
+              { expiresAt: null }
+            ]
+          }
+        ]
       },
       include: {
         createdByUser: {
@@ -61,7 +68,7 @@ export async function GET(req: Request) {
       target: notif.target,
       createdAt: notif.createdAt,
       expiresAt: notif.expiresAt,
-      read: notif.readBy.includes(userId)
+      read: Array.isArray(notif.readBy) ? notif.readBy.includes(userId) : false
     }))
 
     console.log("✅ [API-ADMIN-NOTIFICATIONS] Notifications fetched:", formattedNotifications.length)
@@ -81,11 +88,9 @@ export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-NOTIFICATIONS] POST request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.notifications.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
 
     const body = await req.json()
     const { title, message, type, priority, target, targetUserIds, expiresAt } = body

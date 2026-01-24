@@ -165,6 +165,69 @@ export function getMarketSession(date?: Date): MarketSession {
   }
 }
 
+/**
+ * Segment-aware market session check
+ * MCX: 09:00-23:55 IST (Mon-Fri)
+ * NSE (Equity/Futures/Options): 09:15-15:30 IST (Mon-Fri, 09:00-09:15 pre-open)
+ * 
+ * @param segment - Market segment (NSE, NSE_EQ, NSE_FO, NFO, MCX, MCX_FO, etc.)
+ * @param date - Optional date to check (defaults to now in IST)
+ * @returns MarketSession and optional reason
+ */
+export function getSegmentMarketSession(
+  segment?: string | null,
+  date?: Date
+): { session: MarketSession; reason?: string } {
+  try {
+    // Check force closed first
+    if (getMarketForceClosed()) {
+      return { session: "closed", reason: "Market is force-closed by operations" }
+    }
+
+    const d = date ? new Date(date) : nowIST()
+    const day = d.getDay()
+    
+    // Weekend check
+    if (day === 0 || day === 6) {
+      return { session: "closed", reason: "Weekend (markets closed)" }
+    }
+
+    const normalizedSegment = (segment || "NSE").toUpperCase()
+    const minutes = d.getHours() * 60 + d.getMinutes()
+
+    // MCX segments: 09:00-23:55 IST
+    if (normalizedSegment.includes('MCX')) {
+      const mcxStart = 9 * 60 // 09:00
+      const mcxEnd = 23 * 60 + 55 // 23:55
+      const isMcxOpen = minutes >= mcxStart && minutes <= mcxEnd
+      
+      return {
+        session: isMcxOpen ? "open" : "closed",
+        reason: isMcxOpen ? undefined : "MCX orders are accepted between 09:00–23:55 IST"
+      }
+    }
+
+    // NSE segments (Equity, Futures, Options): 09:15-15:30 IST
+    // Pre-open: 09:00-09:15 IST
+    if (isNSEHoliday(d)) {
+      return { session: "closed", reason: "NSE holiday" }
+    }
+
+    if (isPreOpen(d)) {
+      return { session: "pre-open", reason: "NSE pre-open window 09:00–09:15 IST" }
+    }
+
+    if (isMarketOpen(d)) {
+      return { session: "open" }
+    }
+
+    return { session: "closed", reason: "NSE trading hours are 09:15–15:30 IST" }
+  } catch (error) {
+    console.warn("[MARKET-TIMING] getSegmentMarketSession failed, defaulting to closed", error)
+    return { session: "closed", reason: "Unable to confirm trading window" }
+  }
+}
+
 /** Allow runtime override of holiday set (e.g., after fetching from server). */
 export function setNSEHolidays(datesYyyyMmDd: string[]): void {
   try {

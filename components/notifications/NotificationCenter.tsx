@@ -1,19 +1,19 @@
 /**
  * File: components/notifications/NotificationCenter.tsx
  * Module: notifications
- * Purpose: Beautiful notification center panel with filters and real-time updates
+ * Purpose: Notification center panel with unified notification list (no filters)
  * Author: BharatERP
  * Last-updated: 2025-01-27
  * Notes:
  * - Modern, responsive design
- * - Filter by type and read status
+ * - Shows all notifications in a single list (no filters)
  * - Mark as read/unread functionality
  * - Smooth animations
  */
 
 "use client"
 
-import React, { useState, useCallback, useEffect } from "react"
+import React, { useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Bell,
@@ -21,12 +21,10 @@ import {
   AlertCircle,
   XCircle,
   Info,
-  Filter,
   Check,
   X,
   Loader2,
   RefreshCw,
-  Trash2,
   Clock
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,6 +32,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useNotifications } from "@/lib/hooks/use-notifications"
+
 // Simple time formatter - no external dependency needed
 const formatTimeAgo = (dateString: string): string => {
   const date = new Date(dateString)
@@ -52,31 +51,53 @@ const formatTimeAgo = (dateString: string): string => {
 }
 
 interface NotificationCenterProps {
-  userId: string
+  userId?: string | null
   onClose?: () => void
 }
 
 type NotificationType = 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS'
-type FilterType = 'ALL' | NotificationType
 
 export function NotificationCenter({ userId, onClose }: NotificationCenterProps) {
-  const [filter, setFilter] = useState<FilterType>('ALL')
-  const [showRead, setShowRead] = useState(true)
+  console.log("🔔 [NOTIFICATION-CENTER] Component rendered with userId:", userId, {
+    hasUserId: !!userId,
+    userIdType: typeof userId
+  })
+  
   const { 
     notifications, 
     unreadCount, 
     isLoading, 
+    error,
     refresh,
     markAsRead,
     markAsUnread 
   } = useNotifications(userId)
 
-  // Filter notifications
-  const filteredNotifications = notifications.filter(notif => {
-    if (filter !== 'ALL' && notif.type !== filter) return false
-    if (!showRead && notif.read) return false
-    return true
-  })
+  // Log notifications data for debugging
+  useEffect(() => {
+    console.log("🔔 [NOTIFICATION-CENTER] Notifications updated:", {
+      userId,
+      count: notifications.length,
+      unreadCount,
+      isLoading,
+      error: error?.message,
+      errorDetails: error,
+      hasError: !!error,
+      notifications: notifications.map(n => ({ id: n.id, title: n.title, read: n.read, target: n.target }))
+    })
+    
+    // Log error details if present
+    if (error) {
+      console.error("🔔 [NOTIFICATION-CENTER] Error fetching notifications:", {
+        message: error.message,
+        stack: error.stack,
+        userId
+      })
+    }
+  }, [userId, notifications, unreadCount, isLoading, error])
+
+  // Show all notifications - no filtering
+  const displayNotifications = notifications
 
   const handleMarkAsRead = useCallback(async (notificationId: string) => {
     await markAsRead([notificationId])
@@ -87,14 +108,15 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
   }, [markAsUnread])
 
   const handleMarkAllAsRead = useCallback(async () => {
-    const unreadIds = filteredNotifications
+    const unreadIds = displayNotifications
       .filter(n => !n.read)
       .map(n => n.id)
     
     if (unreadIds.length > 0) {
+      console.log("🔔 [NOTIFICATION-CENTER] Marking all as read:", unreadIds)
       await markAsRead(unreadIds)
     }
-  }, [filteredNotifications, markAsRead])
+  }, [displayNotifications, markAsRead])
 
   const getTypeIcon = (type: NotificationType) => {
     switch (type) {
@@ -182,35 +204,6 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-2 mt-3">
-            <div className="flex items-center gap-1 flex-1 overflow-x-auto scrollbar-hide">
-              {(['ALL', 'INFO', 'SUCCESS', 'WARNING', 'ERROR'] as FilterType[]).map((type) => (
-                <Button
-                  key={type}
-                  variant={filter === type ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "h-7 text-xs px-2 whitespace-nowrap",
-                    filter === type && "bg-primary text-primary-foreground"
-                  )}
-                  onClick={() => setFilter(type)}
-                >
-                  {type}
-                </Button>
-              ))}
-            </div>
-            <Button
-              variant={showRead ? "default" : "outline"}
-              size="sm"
-              className="h-7 text-xs px-2"
-              onClick={() => setShowRead(!showRead)}
-            >
-              <Filter className="h-3 w-3 mr-1" />
-              {showRead ? 'All' : 'Unread'}
-            </Button>
-          </div>
-
           {/* Mark all as read */}
           {unreadCount > 0 && (
             <Button
@@ -228,24 +221,68 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
         {/* Notifications List */}
         <CardContent className="p-0">
           <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-            {isLoading && notifications.length === 0 ? (
+            {error && !isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4">
+                <AlertCircle className="h-12 w-12 text-destructive/50 mb-2" />
+                <p className="text-sm font-medium text-destructive mb-1">Failed to load notifications</p>
+                <p className="text-xs text-muted-foreground text-center mb-3 max-w-xs">
+                  {error.message || "An error occurred while fetching notifications"}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      console.log("🔔 [NOTIFICATION-CENTER] Manual retry triggered")
+                      refresh()
+                    }}
+                    className="mt-2"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Retry
+                  </Button>
+                  {notifications.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        console.log("🔔 [NOTIFICATION-CENTER] Showing cached notifications")
+                      }}
+                      className="mt-2"
+                    >
+                      Show Cached ({notifications.length})
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : isLoading && notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">Loading notifications...</p>
               </div>
-            ) : filteredNotifications.length === 0 ? (
+            ) : displayNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Bell className="h-12 w-12 text-muted-foreground/30 mb-2" />
                 <p className="text-sm text-muted-foreground font-medium">No notifications</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">
-                  {filter !== 'ALL' || !showRead 
-                    ? 'Try adjusting your filters' 
-                    : 'You\'re all caught up!'}
+                <p className="text-xs text-muted-foreground/70 mt-1 text-center px-4">
+                  {error ? (
+                    <>
+                      Could not load notifications. 
+                      <button 
+                        onClick={() => refresh()} 
+                        className="underline ml-1 hover:text-primary"
+                      >
+                        Try again
+                      </button>
+                    </>
+                  ) : (
+                    "You're all caught up!"
+                  )}
                 </p>
               </div>
             ) : (
               <AnimatePresence>
-                {filteredNotifications.map((notification, index) => (
+                {displayNotifications.map((notification, index) => (
                   <motion.div
                     key={notification.id}
                     initial={{ opacity: 0, x: -20 }}
@@ -287,13 +324,6 @@ export function NotificationCenter({ userId, onClose }: NotificationCenterProps)
                           </p>
 
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Badge 
-                              variant="outline" 
-                              className={cn("text-xs h-5", getTypeBadgeColor(notification.type))}
-                            >
-                              {notification.type}
-                            </Badge>
-                            
                             {notification.priority !== 'MEDIUM' && (
                               <Badge 
                                 className={cn("text-xs h-5", getPriorityBadgeColor(notification.priority))}

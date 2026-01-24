@@ -7,18 +7,15 @@
  */
 
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { RiskMonitoringService, RiskThresholds } from "@/lib/services/risk/RiskMonitoringService"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function POST(req: Request) {
   console.log("🛡️ [API-ADMIN-RISK-MONITOR] POST request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.risk.manage")
+    if (!authResult.ok) return authResult.response
 
     // Parse request body for custom thresholds (optional)
     let thresholds: RiskThresholds | undefined
@@ -63,11 +60,8 @@ export async function GET(req: Request) {
   console.log("🛡️ [API-ADMIN-RISK-MONITOR] GET request received")
 
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.risk.read")
+    if (!authResult.ok) return authResult.response
 
     // Return current risk monitoring status/config
     return NextResponse.json({

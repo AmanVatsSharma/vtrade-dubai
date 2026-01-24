@@ -5,7 +5,7 @@
 
 "use client"
 
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useMemo } from "react"
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ import { toast } from "@/hooks/use-toast"
 import type { WatchlistItemData } from "@/lib/hooks/use-enhanced-watchlist"
 import { MiniChart } from "@/components/charts/MiniChart"
 import { AdvancedChart } from "@/components/charts/AdvancedChart"
+import { buildMockCandles, candlesToLineSeries } from "@/lib/charts/mock-candles"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
 import { formatExpiryDateIST, getCurrentISTDate } from "@/lib/date-utils"
 
@@ -170,6 +171,16 @@ export function WatchlistItemCard({
   const [showActions, setShowActions] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const [showChartDrawer, setShowChartDrawer] = useState(false)
+
+  const handleChartDrawerChange = (openState: boolean) => {
+    if (!openState) {
+      console.info("📊 [WATCHLIST-CHART] Drawer dismissed", {
+        symbol: item.symbol,
+        watchlistItemId: item.watchlistItemId
+      })
+    }
+    setShowChartDrawer(openState)
+  }
   
   const x = useMotionValue(0)
   const opacity = useTransform(x, [-200, -SWIPE_THRESHOLD, 0], [0.8, 1, 1])
@@ -198,6 +209,19 @@ export function WatchlistItemCard({
   
   // Get strike price formatted
   const strikePriceFormatted = formatStrikePrice(item.strikePrice)
+
+  // Pre-compute deterministic mock chart data so the mini and advanced charts stay in sync
+  const chartSeedPrice = Math.max(Number.isFinite(ltp) ? Number(ltp) : Number(item.close || 1), 1)
+  const chartSeedKey = item.symbol || item.instrumentId || "WATCHLIST"
+  const mockCandles = useMemo(() => buildMockCandles(chartSeedPrice, 180, chartSeedKey), [chartSeedPrice, chartSeedKey])
+  const miniChartSeries = useMemo(() => candlesToLineSeries(mockCandles), [mockCandles])
+
+  const formattedVolume = quote?.ohlc?.volume
+    ? `${(quote.ohlc.volume / 1_000_000).toFixed(2)}M`
+    : "N/A"
+  const formattedTurnover = quote?.ohlc?.turnover
+    ? `${(quote.ohlc.turnover / 10_000_000).toFixed(2)}Cr`
+    : "N/A"
 
   const handleDragStart = () => {
     setIsDragging(true)
@@ -263,9 +287,20 @@ export function WatchlistItemCard({
 
   const openAdvancedChart = (e: React.MouseEvent) => {
     e.stopPropagation()
+    console.info("📊 [WATCHLIST-CHART] Opening advanced drawer", {
+      symbol: item.symbol,
+      watchlistItemId: item.watchlistItemId,
+      ltp
+    })
     setShowChartDrawer(true)
   }
-  const closeAdvancedChart = () => setShowChartDrawer(false)
+  const closeAdvancedChart = () => {
+    console.info("📊 [WATCHLIST-CHART] Closing advanced drawer", {
+      symbol: item.symbol,
+      watchlistItemId: item.watchlistItemId
+    })
+    setShowChartDrawer(false)
+  }
 
   return (
     <div className={cn("relative overflow-hidden", className)}>
@@ -500,18 +535,26 @@ export function WatchlistItemCard({
                   </div>
 
                   {/* Volume & Turnover */}
+                  {/* Volume & turnover summary with chart shortcut */}
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Volume</div>
-                      <div className="font-semibold text-sm">
-                        {quote?.ohlc?.volume ? (quote.ohlc.volume / 1000000).toFixed(2) + 'M' : 'N/A'}
-                      </div>
+                      <div className="font-semibold text-sm">{formattedVolume}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Turnover</div>
-                      <div className="font-semibold text-sm">
-                        {quote?.ohlc?.turnover ? (quote.ohlc.turnover / 10000000).toFixed(2) + 'Cr' : 'N/A'}
+                      <div className="mb-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>Turnover</span>
+                        <button
+                          type="button"
+                          onClick={openAdvancedChart}
+                          className="inline-flex items-center justify-center rounded-md border border-dashed border-gray-300 bg-white/70 p-1.5 text-gray-500 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 dark:bg-gray-900/60 dark:hover:bg-gray-800/80"
+                          title="Open full-screen chart"
+                          aria-label="Open full-screen chart"
+                        >
+                          <LineChart className="h-3.5 w-3.5" />
+                        </button>
                       </div>
+                      <div className="font-semibold text-sm">{formattedTurnover}</div>
                     </div>
                   </div>
 
@@ -557,6 +600,7 @@ export function WatchlistItemCard({
                       symbol={item.symbol}
                       currentPrice={ltp}
                       previousClose={quote?.prev_close_price || item.close}
+                      data={miniChartSeries}
                       height={100}
                       className="w-full"
                     />
@@ -584,21 +628,44 @@ export function WatchlistItemCard({
           </AnimatePresence>
         </Card>
         {/* Left-side Drawer for Full Chart */}
-        <Drawer open={showChartDrawer} onOpenChange={setShowChartDrawer} direction="left">
-          <DrawerContent className="data-[vaul-drawer-direction=left]:w-full">
-            <DrawerHeader className="flex items-center justify-between">
-              <DrawerTitle className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Advanced Chart — {item.symbol}
-              </DrawerTitle>
-              <DrawerClose asChild>
-                <button className="rounded-md p-2 hover:bg-muted" aria-label="Close chart">
-                  <X className="h-4 w-4" />
-                </button>
-              </DrawerClose>
-            </DrawerHeader>
-            <div className="p-2">
-              <AdvancedChart symbol={item.symbol} onClose={closeAdvancedChart} />
+        <Drawer open={showChartDrawer} onOpenChange={handleChartDrawerChange} direction="left">
+          <DrawerContent className="data-[vaul-drawer-direction=left]:h-screen data-[vaul-drawer-direction=left]:w-screen data-[vaul-drawer-direction=left]:max-w-none data-[vaul-drawer-direction=left]:rounded-none data-[vaul-drawer-direction=left]:border-0 px-0 pb-0">
+            <div className="flex h-full flex-col bg-gradient-to-br from-slate-900 via-slate-950 to-black text-white">
+              <DrawerHeader className="flex flex-col gap-3 border-b border-white/10 bg-white/5 px-6 py-4 text-white backdrop-blur">
+                <div className="flex items-center justify-between gap-4">
+                  <DrawerTitle className="flex items-center gap-2 text-base font-semibold">
+                    <BarChart3 className="h-4 w-4" />
+                    Advanced Chart — {item.symbol}
+                  </DrawerTitle>
+                  <DrawerClose asChild>
+                    <button
+                      className="rounded-full border border-white/10 p-2 text-white/70 transition hover:border-red-200/60 hover:bg-red-500/20 hover:text-white"
+                      aria-label="Close chart"
+                      title="Close chart drawer"
+                      onClick={closeAdvancedChart}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </DrawerClose>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  <span className="font-semibold text-white">₹{ltp.toFixed(2)}</span>
+                  <span className={cn("font-medium", isPositive ? "text-emerald-300" : "text-rose-300")}>
+                    {isPositive ? "+" : ""}
+                    {change.toFixed(2)} ({changePercent.toFixed(2)}%)
+                  </span>
+                  <span className="text-xs uppercase tracking-wide text-white/60">Mock data — enterprise view</span>
+                </div>
+              </DrawerHeader>
+              <div className="flex-1 overflow-hidden p-4">
+                <AdvancedChart
+                  symbol={item.symbol}
+                  onClose={closeAdvancedChart}
+                  mockSeedPrice={chartSeedPrice}
+                  mockSeries={mockCandles}
+                  className="h-full rounded-2xl border border-white/10 bg-white/5"
+                />
+              </div>
             </div>
           </DrawerContent>
         </Drawer>

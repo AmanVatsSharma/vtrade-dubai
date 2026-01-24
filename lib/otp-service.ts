@@ -72,17 +72,44 @@ export class OtpService {
       try {
         const u = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
         userEmail = u?.email || undefined;
-      } catch {}
+      } catch (emailLookupError) {
+        console.error("[OTP-SERVICE] Failed to lookup user email:", emailLookupError);
+      }
 
       let emailEnqueued = false;
+      let emailSendPromise: Promise<{ success: boolean; error?: string }> | null = null;
+      
       if (userEmail) {
-        emailEnqueued = true;
-        // Do not await to avoid delaying response; log outcome
-        sendOtpEmail(userEmail, otp, this.getPurposeDisplayName(purpose), expiresAt, this.maskPhoneNumber(phone))
+        console.log(`[OTP-SERVICE] 📧 Attempting to send OTP email to ${userEmail} for purpose: ${purpose}`);
+        // Send email asynchronously but track the promise to check result
+        emailSendPromise = sendOtpEmail(userEmail, otp, this.getPurposeDisplayName(purpose), expiresAt, this.maskPhoneNumber(phone))
           .then((r) => {
-            if (!r.success) console.error("Failed to send OTP email:", r.error);
+            if (r.success) {
+              console.log(`[OTP-SERVICE] ✅ OTP email sent successfully to ${userEmail}`);
+              emailEnqueued = true;
+              return r;
+            } else {
+              console.error(`[OTP-SERVICE] ❌ Failed to send OTP email to ${userEmail}:`, r.error);
+              emailEnqueued = false;
+              return r;
+            }
           })
-          .catch((e) => console.error("OTP email send error:", e));
+          .catch((e) => {
+            console.error(`[OTP-SERVICE] ❌ OTP email send error for ${userEmail}:`, e);
+            emailEnqueued = false;
+            return { success: false, error: e instanceof Error ? e.message : "Unknown error" };
+          });
+        
+        // Set emailEnqueued optimistically, but it will be updated by the promise
+        // This allows UI to show "check email" message immediately
+        emailEnqueued = true;
+        
+        // Don't await to avoid blocking SMS response, but track for logging
+        emailSendPromise.catch(() => {
+          // Error already logged above
+        });
+      } else {
+        console.log(`[OTP-SERVICE] ⚠️ No email found for user ${userId}, skipping email OTP`);
       }
 
       if (!smsResult.success) {

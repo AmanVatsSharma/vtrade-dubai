@@ -2,11 +2,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { vortexAPI } from "@/lib/vortex/vortex-enhanced";
 import { logger, LogCategory } from "@/lib/vortex/vortexLogger";
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard";
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
   try {
+    const authResult = await requireAdminPermissions(request, "admin.vortex.read");
+    if (!authResult.ok) return authResult.response;
     logger.info(LogCategory.VORTEX_API, 'Vortex test endpoint called');
 
     // Test 1: Check configuration

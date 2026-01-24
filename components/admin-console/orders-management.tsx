@@ -57,8 +57,8 @@ export function OrdersManagement() {
   }, [page, userFilter, q, symbol, status, type, side])
 
   useEffect(() => {
-    const base = "/admin-console?tab=orders"
-    router.replace(`${base}&${params.toString()}`)
+    const base = "/admin-console/orders"
+    router.replace(`${base}?${params.toString()}`)
   }, [params, router])
 
   const fetchData = useCallback(async () => {

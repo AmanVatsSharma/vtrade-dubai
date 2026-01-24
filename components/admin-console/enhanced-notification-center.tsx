@@ -48,7 +48,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { useAdminNotifications } from "@/lib/hooks/use-admin-notifications"
 import { cn } from "@/lib/utils"
-import { PageHeader, RefreshButton, StatusBadge } from "./shared"
+import { PageHeader, RefreshButton, StatusBadge } from "@/components/admin-console/shared"
 
 interface User {
   id: string
@@ -171,6 +171,12 @@ export function EnhancedNotificationCenter() {
     }
 
     try {
+      console.log("📤 [NOTIFICATION-CENTER] Creating notification:", {
+        ...newNotification,
+        targetUserIds: newNotification.target === 'SPECIFIC' ? selectedUsers : [],
+        expiresAt: newNotification.expiresAt ? new Date(newNotification.expiresAt).toISOString() : null
+      })
+
       const response = await fetch('/api/admin/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,7 +187,10 @@ export function EnhancedNotificationCenter() {
         })
       })
 
-      if (response.ok) {
+      const data = await response.json()
+      console.log("📥 [NOTIFICATION-CENTER] Response:", data)
+
+      if (response.ok && data.success) {
         toast({
           title: "Success",
           description: "Notification created successfully"
@@ -200,12 +209,19 @@ export function EnhancedNotificationCenter() {
         setSelectedUsers([])
         refresh()
       } else {
-        throw new Error('Failed to create notification')
+        const errorMessage = data.error || 'Failed to create notification'
+        console.error("❌ [NOTIFICATION-CENTER] Error:", errorMessage)
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive"
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("❌ [NOTIFICATION-CENTER] Exception:", error)
       toast({
         title: "Error",
-        description: "Failed to create notification",
+        description: error.message || "Failed to create notification",
         variant: "destructive"
       })
     }

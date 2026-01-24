@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ADMIN-CLEANUP] EXECUTE request received")
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'SUPER_ADMIN')) {
-      console.error('❌ [API-ADMIN-CLEANUP] Unauthorized role attempting EXECUTE:', role)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.cleanup.execute")
+    if (!authResult.ok) return authResult.response
 
     const body = (await req.json().catch(() => ({}))) as any
     const beforeParam = body.before as string | undefined

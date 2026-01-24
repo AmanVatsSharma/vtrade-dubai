@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { auth } from "@/auth"
+import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
 
 export async function GET(
   req: Request,
@@ -17,11 +17,8 @@ export async function GET(
   console.log("🌐 [API-ADMIN-USER-DETAILS] GET request received")
   
   try {
-    const session = await auth()
-    const role = (session?.user as any)?.role
-    if (!session?.user || (role !== 'ADMIN' && role !== 'MODERATOR' && role !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.read")
+    if (!authResult.ok) return authResult.response
 
     const userId = params.userId
     console.log("📝 [API-ADMIN-USER-DETAILS] Fetching details for:", userId)
@@ -49,11 +46,10 @@ export async function PUT(
   console.log("🌐 [API-ADMIN-USER-UPDATE] PUT request received")
   
   try {
-    const session = await auth()
-    const currentUserRole = (session?.user as any)?.role
-    if (!session?.user || (currentUserRole !== 'ADMIN' && currentUserRole !== 'SUPER_ADMIN')) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const authResult = await requireAdminPermissions(req, "admin.users.manage")
+    if (!authResult.ok) return authResult.response
+    const session = authResult.session
+    const currentUserRole = authResult.role
 
     const userId = params.userId
     const body = await req.json()

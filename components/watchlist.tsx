@@ -4,7 +4,7 @@
  */
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -29,6 +29,7 @@ interface WatchlistItemData {
   optionType?: string
   expiry?: string
   lotSize?: number
+  optimistic?: boolean
 }
 
 interface Quote {
@@ -46,25 +47,98 @@ export function Watchlist({ watchlist, quotes, onSelectStock, onUpdate }: Watchl
   const { data: session } = useSession()
   const [searchOpen, setSearchOpen] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [optimisticItems, setOptimisticItems] = useState<WatchlistItemData[]>([])
+
+  const combinedItems = useMemo(() => {
+    return [...optimisticItems, ...(watchlist?.items || [])]
+  }, [optimisticItems, watchlist])
 
   // --- Correct Logic (from 2nd file) ---
-  const handleAddStock = async (stockId: string) => {
-    if (!session?.user?.id) return Promise.reject();
-    try {
-      await addStockToWatchlist(session.user.id, stockId, watchlist.id);
-      toast({ title: "Stock Added", description: "Successfully added to your watchlist." });
-      await onUpdate();
-      setSearchOpen(false);
-      return Promise.resolve();
-    } catch (error) {
+  const buildPlaceholderItem = (input: string | Record<string, any>, tempId: string): WatchlistItemData => {
+    if (typeof input === "string") {
+      return {
+        id: tempId,
+        instrumentId: tempId,
+        symbol: "Syncing…",
+        name: "Adding instrument",
+        ltp: 0,
+        close: 0,
+        watchlistItemId: tempId,
+        optimistic: true
+      }
+    }
+
+    const symbol = input.symbol || input.ticker || input.name || "Pending"
+    const name = input.name || input.description || symbol
+    const ltp = Number(input.ltp ?? input.last_price ?? 0) || 0
+    const close = Number(input.close ?? input.previousClose ?? ltp) || ltp
+
+    return {
+      id: tempId,
+      instrumentId: input.instrumentId || input.exchange || symbol,
+      symbol,
+      name,
+      ltp,
+      close,
+      watchlistItemId: tempId,
+      segment: input.segment,
+      strikePrice: input.strikePrice ?? input.strike_price,
+      optionType: input.optionType ?? input.option_type,
+      expiry: input.expiry ?? input.expiry_date,
+      lotSize: input.lotSize ?? input.lot_size,
+      optimistic: true
+    }
+  }
+
+  const handleAddStock = (stockInput: string | Record<string, any>) => {
+    if (!session?.user?.id) {
+      toast({
+        title: "Not Signed In",
+        description: "Please sign in to manage your watchlist.",
+        variant: "destructive",
+      })
+      return Promise.reject(new Error("Not signed in"))
+    }
+
+    const tempId = `watchlist-temp-${Date.now()}`
+    const placeholder = buildPlaceholderItem(stockInput, tempId)
+    setOptimisticItems((prev) => [placeholder, ...prev])
+    setSearchOpen(false)
+
+    const stockId = typeof stockInput === "string"
+      ? stockInput
+      : stockInput.stockId || stockInput.id
+
+    if (!stockId) {
+      const error = new Error("Missing stock identifier")
       toast({
         title: "Failed to Add",
-        description: error instanceof Error ? error.message : "Could not add stock.",
+        description: "Instrument metadata is incomplete.",
         variant: "destructive",
-      });
-      return Promise.reject(error);
+      })
+      setOptimisticItems((prev) => prev.filter(item => item.watchlistItemId !== tempId))
+      return Promise.reject(error)
     }
-  };
+
+    const addPromise = (async () => {
+      try {
+        await addStockToWatchlist(session.user!.id, stockId, watchlist.id)
+        toast({ title: "Stock Added", description: "Successfully added to your watchlist." })
+        await onUpdate()
+      } catch (error) {
+        toast({
+          title: "Failed to Add",
+          description: error instanceof Error ? error.message : "Could not add stock.",
+          variant: "destructive",
+        })
+        throw error
+      } finally {
+        setOptimisticItems((prev) => prev.filter(item => item.watchlistItemId !== tempId))
+      }
+    })()
+
+    return addPromise
+  }
 
   const handleRemoveStock = async (itemId: string) => {
     setRemovingId(itemId)
@@ -97,12 +171,12 @@ export function Watchlist({ watchlist, quotes, onSelectStock, onUpdate }: Watchl
       </div>
 
       <div className="grid gap-4">
-        {watchlist?.items.length === 0 ? (
+        {combinedItems.length === 0 ? (
           <Card className="rounded-xl shadow-md border-gray-100 p-6 text-center text-gray-500">
             <p>Your watchlist is empty. Add some stocks to get started!</p>
           </Card>
         ) : (
-          watchlist?.items.map((item) => {
+          combinedItems.map((item) => {
             const quote = quotes[item.instrumentId]
             const ltp = ((quote as any)?.display_price ?? quote?.last_trade_price) ?? item.ltp
             const change = ltp - item.close
@@ -119,6 +193,9 @@ export function Watchlist({ watchlist, quotes, onSelectStock, onUpdate }: Watchl
                   <div className="flex-1 overflow-hidden pr-10">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm text-gray-900">{item.symbol}</span>
+                      {item.optimistic && (
+                        <span className="text-[10px] text-amber-600">Syncing…</span>
+                      )}
                       {isFutures && <span className="bg-blue-100 text-blue-700 rounded px-2 py-0.5 text-xs">FUT</span>}
                       {isOption && <span className="bg-yellow-100 text-yellow-700 rounded px-2 py-0.5 text-xs">OPT</span>}
                     </div>
@@ -145,7 +222,7 @@ export function Watchlist({ watchlist, quotes, onSelectStock, onUpdate }: Watchl
                     e.stopPropagation()
                     handleRemoveStock(item.watchlistItemId)
                   }}
-                  disabled={removingId === item.watchlistItemId}
+                  disabled={removingId === item.watchlistItemId || item.optimistic}
                 >
                   {removingId === item.watchlistItemId ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
