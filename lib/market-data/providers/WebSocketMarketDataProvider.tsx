@@ -48,6 +48,7 @@ import { useTradingRealtime } from "@/components/trading/realtime/trading-realti
 import { useWebSocketMarketData } from "../hooks/useWebSocketMarketData";
 import { extractTokens, parseInstrumentId, INDEX_INSTRUMENTS } from "../utils/instrumentMapper";
 import type { MarketDataContextType, MarketDataConfig, EnhancedQuote, ConnectionState, WSMarketDataError, SubscriptionMode } from "./types";
+import { createClientLogger } from "@/lib/logging/client-logger";
 
 // Default configuration matching old provider
 const DEFAULT_CONFIG: MarketDataConfig = {
@@ -116,6 +117,7 @@ export function WebSocketMarketDataProvider({
   const previousTokensRef = useRef<Set<number>>(new Set());
 
   const DEBUG = process.env.NEXT_PUBLIC_DEBUG_MARKETDATA === "true" || process.env.NODE_ENV === "development"
+  const log = useMemo(() => createClientLogger("WS-PROVIDER"), [])
 
   // Optional integration with TradingRealtimeProvider (preferred on /dashboard).
   // This avoids duplicated positions fetching inside this provider.
@@ -127,7 +129,7 @@ export function WebSocketMarketDataProvider({
   }
 
   if (DEBUG) {
-    console.debug('[WS-PROVIDER] Initializing WebSocket Market Data Provider', {
+    log.debug('Initializing WebSocket Market Data Provider', {
       userId,
       enableWebSocket,
       hasTradingRealtime: !!tradingRealtime,
@@ -146,7 +148,7 @@ export function WebSocketMarketDataProvider({
   const isEnabled = process.env.NEXT_PUBLIC_ENABLE_WS_MARKET_DATA === 'true' || enableWebSocket;
 
   if (DEBUG) {
-    console.debug('🔧 [WS-PROVIDER] Configuration', {
+    log.debug('Configuration', {
       wsUrl,
       isEnabled,
       hasApiKey: !!apiKey,
@@ -203,7 +205,7 @@ export function WebSocketMarketDataProvider({
         if (item.token) {
           tokens.add(item.token);
           if (DEBUG) {
-            console.debug('🔑 [WS-PROVIDER] Using token from WatchlistItem.token field:', {
+            log.debug('Using token from WatchlistItem.token field:', {
               token: item.token,
               symbol: item.symbol,
               exchange: item.exchange,
@@ -226,11 +228,11 @@ export function WebSocketMarketDataProvider({
     if (effectivePositionTokens.length > 0) {
       effectivePositionTokens.forEach((t) => tokens.add(t))
     } else if (DEBUG) {
-      console.debug('[WS-PROVIDER] No position tokens available; subscribing to index + watchlist only')
+      log.debug('No position tokens available; subscribing to index + watchlist only')
     }
 
     if (DEBUG) {
-      console.debug('📋 [WS-PROVIDER] Collected instrument tokens', {
+      log.debug('Collected instrument tokens', {
         count: tokens.size,
         instruments: Array.from(tokens),
         sources: {
@@ -248,7 +250,7 @@ export function WebSocketMarketDataProvider({
   useEffect(() => {
     if (wsData.isConnected !== 'connected') {
       if (DEBUG) {
-        console.debug('⏳ [WS-PROVIDER] Waiting for connection before subscribing', {
+        log.debug('Waiting for connection before subscribing', {
           connectionState: wsData.isConnected,
         });
       }
@@ -270,7 +272,7 @@ export function WebSocketMarketDataProvider({
 
     // Log subscription changes
     if (DEBUG) {
-      console.debug('🔄 [WS-PROVIDER] Subscription update check', {
+      log.debug('Subscription update check', {
         previousCount: previousTokens.size,
         currentCount: currentTokens.size,
         added: addedTokens.length > 0 ? addedTokens : 'none',
@@ -282,7 +284,7 @@ export function WebSocketMarketDataProvider({
     // Unsubscribe from removed instruments
     if (removedTokens.length > 0) {
       if (DEBUG) {
-        console.debug('🚫 [WS-PROVIDER] Unsubscribing from removed instruments', {
+        log.debug('Unsubscribing from removed instruments', {
           tokens: removedTokens,
           count: removedTokens.length,
         });
@@ -297,7 +299,7 @@ export function WebSocketMarketDataProvider({
       const tokensToSubscribe = previousTokens.size === 0 ? instrumentTokens : addedTokens;
       
       if (DEBUG) {
-        console.debug('📡 [WS-PROVIDER] Subscribing to instruments', {
+        log.debug('Subscribing to instruments', {
           tokens: tokensToSubscribe,
           count: tokensToSubscribe.length,
           mode: 'ltp',
@@ -315,7 +317,7 @@ export function WebSocketMarketDataProvider({
   // Reset subscription tracking on disconnection
   useEffect(() => {
     if (wsData.isConnected === 'disconnected') {
-      if (DEBUG) console.debug('🔌 [WS-PROVIDER] Connection lost - resetting subscription tracking');
+      if (DEBUG) log.debug('Connection lost - resetting subscription tracking');
       previousTokensRef.current = new Set();
     }
   }, [wsData.isConnected, DEBUG]);
@@ -333,31 +335,31 @@ export function WebSocketMarketDataProvider({
 
   // Reconnect handler
   const reconnect = useCallback(() => {
-    console.info('🔄 [WS-PROVIDER] Reconnecting...');
+    log.info('Reconnecting...');
     // Reset subscription tracking on reconnect to allow resubscription
     previousTokensRef.current = new Set();
     wsData.reconnect();
-  }, [wsData]);
+  }, [wsData, log]);
 
   // Subscribe handler
   const subscribe = useCallback((instruments: number[], mode: SubscriptionMode) => {
-    console.info('📡 [WS-PROVIDER] Manual subscription', {
+    log.info('Manual subscription', {
       instruments,
       mode,
       count: instruments.length,
     });
     wsData.subscribe(instruments, mode);
-  }, [wsData]);
+  }, [wsData, log]);
 
   // Unsubscribe handler
   const unsubscribe = useCallback((instruments: number[], mode: SubscriptionMode) => {
-    console.info('🚫 [WS-PROVIDER] Manual unsubscription', {
+    log.info('Manual unsubscription', {
       instruments,
       mode,
       count: instruments.length,
     });
     wsData.unsubscribe(instruments, mode);
-  }, [wsData]);
+  }, [wsData, log]);
 
   // Convert WebSocket quotes to EnhancedQuote format
   const quotes = useMemo(() => {
@@ -386,25 +388,25 @@ export function WebSocketMarketDataProvider({
   // Log connection status and subscription updates
   useEffect(() => {
     if (!DEBUG) return
-    console.debug('📊 [WS-PROVIDER] Connection status update', {
+    log.debug('Connection status update', {
       isConnected: wsData.isConnected,
       isLoading: wsData.isLoading,
       activeSubscriptions: wsData.getSubscriptionCount(),
       quotesReceived: Object.keys(quotes).length,
       trackedTokens: previousTokensRef.current.size,
     });
-  }, [wsData.isConnected, wsData.isLoading, quotes, DEBUG]);
+  }, [wsData.isConnected, wsData.isLoading, quotes, DEBUG, log]);
 
   // Log watchlist/position changes that trigger subscription updates
   useEffect(() => {
     if (!DEBUG) return
-    console.debug('📋 [WS-PROVIDER] User data update', {
+    log.debug('User data update', {
       watchlistItems: watchlist?.items?.length || 0,
       positionTokens: effectivePositionTokens.length,
       totalInstruments: instrumentTokens.length,
       instruments: instrumentTokens,
     });
-  }, [watchlist, effectivePositionTokens, instrumentTokens, DEBUG]);
+  }, [watchlist, effectivePositionTokens, instrumentTokens, DEBUG, log]);
 
   return (
     <MarketDataContext.Provider value={contextValue}>
