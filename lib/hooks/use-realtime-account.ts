@@ -149,6 +149,8 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
   const retryCountRef = useRef(0)
   const maxRetries = 3
   const lastSyncRef = useRef<number>(Date.now())
+  const pollErrorStreakRef = useRef(0)
+  const DEBUG = process.env.NEXT_PUBLIC_DEBUG_REALTIME === 'true' || process.env.NODE_ENV === 'development'
   
   // Initial data fetch - polling handled by adaptive useEffect below
   const { data, error, isLoading, mutate } = useSWR<AccountResponse>(
@@ -168,7 +170,7 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
       },
       onSuccess: () => {
         if (retryCountRef.current > 0) {
-          console.log('✅ [REALTIME-ACCOUNT] Recovered from error')
+          console.info('✅ [REALTIME-ACCOUNT] Recovered from error')
           retryCountRef.current = 0
         }
         lastSyncRef.current = Date.now()
@@ -182,44 +184,95 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
     if (message.event === 'balance_updated' || 
         message.event === 'margin_blocked' || 
         message.event === 'margin_released') {
-      console.log(`📨 [REALTIME-ACCOUNT] Received ${message.event} event, refreshing account`)
+      if (DEBUG) console.debug(`📨 [REALTIME-ACCOUNT] SSE ${message.event} → refresh`)
       mutate().catch(err => {
         console.error('❌ [REALTIME-ACCOUNT] Refresh after event failed:', err)
       })
       lastSyncRef.current = Date.now() // Update last sync time on event
     }
-  }, [mutate]))
+  }, [mutate, DEBUG]))
 
-  // Adaptive polling: adjust interval based on SSE connection state
-  // If SSE is connected: poll every 10 seconds (safety net)
-  // If SSE is disconnected: poll every 3 seconds (more aggressive)
+  // Adaptive polling with backoff + visibility-awareness
   useEffect(() => {
     if (!userId) return
-    
-    const adaptiveInterval = isConnected ? 10000 : 3000
-    const syncInterval = setInterval(() => {
-      mutate().catch(err => {
-        console.error('❌ [REALTIME-ACCOUNT] Periodic sync failed:', err)
-      })
-    }, adaptiveInterval)
 
-    return () => clearInterval(syncInterval)
-  }, [userId, isConnected, mutate])
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const computeDelayMs = () => {
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      if (hidden) return 60000
+
+      const base = isConnected ? 15000 : 3000
+      const max = isConnected ? 60000 : 20000
+      const streak = pollErrorStreakRef.current
+      const exp = Math.min(6, streak)
+      const raw = Math.min(max, base * Math.pow(2, exp))
+      const jitter = raw * 0.2 * (Math.random() - 0.5)
+      return Math.max(1000, Math.round(raw + jitter))
+    }
+
+    const schedule = () => {
+      if (cancelled) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(tick, computeDelayMs())
+    }
+
+    const tick = async () => {
+      if (cancelled) return
+
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      if (hidden) {
+        schedule()
+        return
+      }
+
+      try {
+        await mutate()
+        pollErrorStreakRef.current = 0
+        lastSyncRef.current = Date.now()
+      } catch (err) {
+        pollErrorStreakRef.current += 1
+        console.error('❌ [REALTIME-ACCOUNT] Poll sync failed:', err)
+      } finally {
+        schedule()
+      }
+    }
+
+    const onVisible = () => {
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      if (!hidden) {
+        if (DEBUG) console.debug('[REALTIME-ACCOUNT] visibilitychange → refresh')
+        mutate().catch((err) => console.error('❌ [REALTIME-ACCOUNT] Refresh on visible failed:', err))
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisible)
+    schedule()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [userId, isConnected, mutate, DEBUG])
 
   // Log sync status periodically
   useEffect(() => {
+    if (!DEBUG) return
+
     const syncCheckInterval = setInterval(() => {
       const timeSinceLastSync = Date.now() - lastSyncRef.current
       const syncStatus = isConnected ? 'SSE+Poll' : 'Poll-only'
-      console.log(`🔄 [REALTIME-ACCOUNT] Sync check - ${syncStatus}, last sync: ${Math.round(timeSinceLastSync / 1000)}s ago`)
-    }, 30000) // Log every 30 seconds
+      console.debug(`🔄 [REALTIME-ACCOUNT] Sync check - ${syncStatus}, last sync: ${Math.round(timeSinceLastSync / 1000)}s ago`)
+    }, 60000)
 
     return () => clearInterval(syncCheckInterval)
-  }, [isConnected])
+  }, [isConnected, DEBUG])
 
   // Refresh function
   const refresh = useCallback(async () => {
-    console.log("🔄 [REALTIME-ACCOUNT] Manual refresh triggered")
+    console.info("🔄 [REALTIME-ACCOUNT] Manual refresh triggered")
     try {
       return await mutate()
     } catch (error) {
