@@ -1,3 +1,11 @@
+/**
+ * @file TradingDashboard.tsx
+ * @module components/trading
+ * @description Main trading dashboard page UI (tabs, header, dialogs) backed by realtime providers.
+ * @author BharatERP
+ * @created 2026-01-24
+ */
+
 "use client"
 
 import React, { useState, useMemo, useCallback, useEffect } from "react"
@@ -8,9 +16,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
 import { useMarketData } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
 import { WebSocketMarketDataProvider } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
-import { useRealtimeOrders } from "@/lib/hooks/use-realtime-orders"
-import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
-import { useRealtimeAccount } from "@/lib/hooks/use-realtime-account"
 import { OrderManagement } from "@/components/order-management"
 import { PositionTracking } from "@/components/position-tracking"
 import { Account } from "@/components/Account"
@@ -19,6 +24,8 @@ import { OrderDialog } from "@/components/OrderDialog"
 import { TradingHome } from "@/components/trading/TradingHome"
 import { RiskMonitor } from "@/components/risk/RiskMonitor"
 import { NotificationBell } from "@/components/notifications/NotificationBell"
+import { TradingRealtimeProvider, useTradingRealtime } from "@/components/trading/realtime/trading-realtime-provider"
+import { parseInstrumentId } from "@/lib/market-data/utils/instrumentMapper"
 import type {
   TradingDashboardProps,
   TabConfig,
@@ -125,7 +132,9 @@ const IndexDisplay: React.FC<IndexDisplayProps> = React.memo(({ name, instrument
 IndexDisplay.displayName = "IndexDisplay"
 
 // Main Trading Dashboard Component
-const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) => {
+const TradingDashboard: React.FC = () => {
+  const { userId, session, orders, positions, account: realtimeAccountData, tradingAccountId, refreshAll, error: realtimeError, pnl: apiPnL } =
+    useTradingRealtime()
   // State
   const [currentTab, setCurrentTab] = useState<"home" | "watchlist" | "orders" | "positions" | "account">("home")
   const [orderDialogOpen, setOrderDialogOpen] = useState(false)
@@ -138,36 +147,6 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Check if WebSocket is connected (for market data)
   const isWebSocketConnected = wsConnectionState === 'connected'
-
-  // Realtime hooks - Single source of truth for all trading data
-  const { 
-    orders, 
-    isLoading: isRealtimeOrdersLoading,
-    error: realtimeOrdersError,
-    mutate: mutateOrders,
-    refresh: refreshOrders
-  } = useRealtimeOrders(userId)
-  
-  const { 
-    positions, 
-    isLoading: isRealtimePositionsLoading,
-    error: realtimePositionsError,
-    mutate: mutatePositions,
-    refresh: refreshPositions
-  } = useRealtimePositions(userId)
-  
-  const { 
-    account: realtimeAccountData, 
-    isLoading: isRealtimeAccountLoading,
-    error: realtimeAccountError,
-    mutate: mutateAccount,
-    refresh: refreshAccount
-  } = useRealtimeAccount(userId)
-
-  // Get trading account ID from realtime account data
-  const tradingAccountId = useMemo(() => {
-    return (session?.user as any)?.tradingAccountId || realtimeAccountData?.id || null
-  }, [session, realtimeAccountData])
 
   // Portfolio data structure for compatibility
   const portfolio = useMemo(() => {
@@ -188,13 +167,12 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   // Error handling
   useEffect(() => {
-    const errors = [realtimeOrdersError, realtimePositionsError, realtimeAccountError].filter(Boolean)
-    if (errors.length > 0) {
-      setError(errors[0]?.message || "An error occurred while loading trading data")
+    if (realtimeError) {
+      setError(realtimeError.message || "An error occurred while loading trading data")
     } else {
       setError(null)
     }
-  }, [realtimeOrdersError, realtimePositionsError, realtimeAccountError])
+  }, [realtimeError])
 
   // Event handlers
   const handleSelectStock: StockSelectHandler = useCallback((stock: Stock) => {
@@ -204,12 +182,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
 
   const handleRefreshAllData: RefreshHandler = useCallback(async () => {
     try {
-      // Refresh all data in parallel
-      await Promise.all([
-        refreshOrders(),
-        refreshPositions(),
-        refreshAccount()
-      ])
+      await refreshAll()
       toast({ title: "Refreshed", description: "Trading data updated." })
     } catch (err) {
       toast({ 
@@ -231,34 +204,39 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   }, [])
 
   const handleOrderPlaced: OrderPlacedHandler = useCallback(async () => {
-    // Refresh orders, positions, and account after order placement
-    await Promise.all([
-      refreshOrders(),
-      refreshPositions(),
-      refreshAccount()
-    ])
-  }, [refreshOrders, refreshPositions, refreshAccount])
+    await refreshAll()
+  }, [refreshAll])
 
   // P&L calculations
   const { totalPnL, dayPnL }: PnLData = useMemo(() => {
-    if (!positions?.length) return { totalPnL: 0, dayPnL: 0 }
-    
+    if (!positions?.length) return apiPnL
+
+    // Quotes are keyed by token (string). Prefer live quotes; fall back to API-provided PnL.
     let total = 0
     let day = 0
-    
+    let usedLive = false
+
     positions.forEach((pos: any) => {
-      const quote = quotes?.[pos.stock?.instrumentId]
-      const ltp = quote?.last_trade_price ?? pos.averagePrice
-      const diff = (ltp - pos.averagePrice) * pos.quantity
-      total += diff
-      day += (ltp - (pos.prevClosePrice ?? pos.averagePrice)) * pos.quantity
+      const instrumentId = pos?.stock?.instrumentId || pos?.instrumentId
+      const token = typeof instrumentId === "string" ? parseInstrumentId(instrumentId) : null
+      const quote = token != null ? (quotes as any)?.[token.toString()] : null
+      const ltp = quote?.last_trade_price
+
+      if (typeof ltp === "number" && Number.isFinite(ltp)) {
+        usedLive = true
+        const avg = Number(pos.averagePrice ?? 0)
+        const qty = Number(pos.quantity ?? 0)
+        total += (ltp - avg) * qty
+        const prevClose = Number(pos.prevClosePrice ?? avg)
+        day += (ltp - prevClose) * qty
+      }
     })
-    
-    return { totalPnL: total, dayPnL: day }
-  }, [positions, quotes])
+
+    return usedLive ? { totalPnL: total, dayPnL: day } : apiPnL
+  }, [positions, quotes, apiPnL])
 
   // Loading state (do not block UI render; use only for subtle indicators)
-  const anyLoading = isRealtimeOrdersLoading || isRealtimePositionsLoading || isRealtimeAccountLoading || isQuotesLoading
+  const anyLoading = isQuotesLoading
   const anyRefreshing = false // SWR handles refreshing internally
 
   useEffect(() => {
@@ -270,7 +248,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
   // Debug logging (only in development)
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('TradingDashboard Debug:', {
+      console.debug('TradingDashboard Debug:', {
         tradingAccountId,
         realtimeOrders: orders?.length || 0,
         realtimePositions: positions?.length || 0,
@@ -315,7 +293,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
         return (
           <OrderManagement 
             orders={orders} 
-            onOrderUpdate={refreshOrders} 
+            onOrderUpdate={handleRefreshAllData} 
           />
         )
       case "positions":
@@ -325,7 +303,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({ userId, session }) 
             <PositionTracking 
               positions={positions} 
               quotes={quotes} 
-              onPositionUpdate={refreshPositions} 
+              onPositionUpdate={handleRefreshAllData} 
               tradingAccountId={tradingAccountId} 
             />
           </div>
@@ -466,33 +444,35 @@ const TradingDashboardWrapper: React.FC = () => {
     return <LoadingScreen />
   }
 
-  console.log('🚀 [TRADING-DASHBOARD] Using WebSocket Market Data Provider')
+  console.info('[TRADING-DASHBOARD] Using WebSocket Market Data Provider')
 
   return (
-    <WebSocketMarketDataProvider
-      userId={userId}
-      enableWebSocket={true}
-      config={{
-        jitter: { 
-          enabled: true, 
-          interval: 450, 
-          intensity: 0.2, 
-          convergence: 0.2 
-        }, 
-        interpolation: { 
-          enabled: true, 
-          steps: 50, 
-          duration: 4500 
-        },
-        deviation: {
-          enabled: false, 
-          percentage: 0, 
-          absolute: 0
-        }
-      }}
-    >
-      <TradingDashboard userId={userId} session={session} />
-    </WebSocketMarketDataProvider>
+    <TradingRealtimeProvider userId={userId} session={session as any}>
+      <WebSocketMarketDataProvider
+        userId={userId}
+        enableWebSocket={true}
+        config={{
+          jitter: { 
+            enabled: true, 
+            interval: 450, 
+            intensity: 0.2, 
+            convergence: 0.2 
+          }, 
+          interpolation: { 
+            enabled: true, 
+            steps: 50, 
+            duration: 4500 
+          },
+          deviation: {
+            enabled: false, 
+            percentage: 0, 
+            absolute: 0
+          }
+        }}
+      >
+        <TradingDashboard />
+      </WebSocketMarketDataProvider>
+    </TradingRealtimeProvider>
   )
 }
 
