@@ -1,30 +1,42 @@
 /**
- * API Route: Current Admin User
- * 
- * Gets current authenticated admin user information
- * 
- * @route GET /api/admin/me - Get current admin user
- * @route PATCH /api/admin/me - Update current admin user
+ * @file route.ts
+ * @module admin-console
+ * @description Admin profile endpoint for the current authenticated admin (user + permissions)
+ * @author BharatERP
+ * @created 2026-01-25
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { withRequest } from "@/lib/observability/logger"
+import { AppError, mapErrorToHttp } from "@/src/common/errors"
 
-console.log("👤 [API-ADMIN-ME] Route loaded")
+const getIstTimestamp = () =>
+  new Date().toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+  })
 
 /**
  * GET - Get current admin user
  */
 export async function GET(req: NextRequest) {
-  console.log("🌐 [API-ADMIN-ME] GET request received")
-  
+  const logger = withRequest({
+    requestId: req.headers.get("x-request-id") || undefined,
+    route: "/api/admin/me",
+  })
+
+  logger.debug({ timeIst: getIstTimestamp() }, "GET admin me - start")
+
   try {
     const authResult = await requireAdminPermissions(req, "admin.profile.read")
     if (!authResult.ok) return authResult.response
     const session = authResult.session
 
-    console.log("✅ [API-ADMIN-ME] Admin authenticated:", session.user.email)
+    logger.debug(
+      { timeIst: getIstTimestamp(), actorId: session?.user?.id },
+      "GET admin me - authenticated"
+    )
 
     // Get full user details from database
     const user = await prisma.user.findUnique({
@@ -44,14 +56,15 @@ export async function GET(req: NextRequest) {
     })
 
     if (!user) {
-      console.error("❌ [API-ADMIN-ME] User not found")
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      )
+      throw new AppError({
+        code: "ADMIN_USER_NOT_FOUND",
+        message: "User not found",
+        statusCode: 404,
+        details: { userId: session.user.id },
+      })
     }
 
-    console.log("✅ [API-ADMIN-ME] User details retrieved")
+    logger.debug({ timeIst: getIstTimestamp() }, "GET admin me - success")
 
     return NextResponse.json(
       {
@@ -63,11 +76,9 @@ export async function GET(req: NextRequest) {
     )
 
   } catch (error: any) {
-    console.error("❌ [API-ADMIN-ME] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch user" },
-      { status: 500 }
-    )
+    logger.error({ timeIst: getIstTimestamp(), err: error }, "GET admin me - error")
+    const mapped = mapErrorToHttp(error, "Failed to fetch user")
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 
@@ -75,25 +86,44 @@ export async function GET(req: NextRequest) {
  * PATCH - Update current admin user
  */
 export async function PATCH(req: NextRequest) {
-  console.log("🌐 [API-ADMIN-ME] PATCH request received")
-  
+  const logger = withRequest({
+    requestId: req.headers.get("x-request-id") || undefined,
+    route: "/api/admin/me",
+  })
+
+  logger.debug({ timeIst: getIstTimestamp() }, "PATCH admin me - start")
+
   try {
     const authResult = await requireAdminPermissions(req, "admin.profile.manage")
     if (!authResult.ok) return authResult.response
     const session = authResult.session
 
-    console.log("✅ [API-ADMIN-ME] Admin authenticated:", session.user.email)
+    logger.debug(
+      { timeIst: getIstTimestamp(), actorId: session?.user?.id },
+      "PATCH admin me - authenticated"
+    )
 
     const body = await req.json()
     const { name, phone, image } = body
 
-    console.log("📝 [API-ADMIN-ME] Update data:", { name, phone, hasImage: !!image })
+    logger.debug(
+      { timeIst: getIstTimestamp(), hasName: name !== undefined, hasPhone: phone !== undefined, hasImage: image !== undefined },
+      "PATCH admin me - payload"
+    )
 
     // Build update data
     const updateData: any = {}
     if (name !== undefined) updateData.name = name
     if (phone !== undefined) updateData.phone = phone
     if (image !== undefined) updateData.image = image
+
+    if (Object.keys(updateData).length === 0) {
+      throw new AppError({
+        code: "ADMIN_PROFILE_NO_FIELDS",
+        message: "No fields provided to update",
+        statusCode: 400,
+      })
+    }
 
     // Update user
     const user = await prisma.user.update({
@@ -113,7 +143,7 @@ export async function PATCH(req: NextRequest) {
       }
     })
 
-    console.log("✅ [API-ADMIN-ME] User updated successfully")
+    logger.debug({ timeIst: getIstTimestamp() }, "PATCH admin me - success")
 
     return NextResponse.json({
       success: true,
@@ -122,10 +152,8 @@ export async function PATCH(req: NextRequest) {
     }, { status: 200 })
 
   } catch (error: any) {
-    console.error("❌ [API-ADMIN-ME] PATCH error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to update profile" },
-      { status: 500 }
-    )
+    logger.error({ timeIst: getIstTimestamp(), err: error }, "PATCH admin me - error")
+    const mapped = mapErrorToHttp(error, "Failed to update profile")
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }

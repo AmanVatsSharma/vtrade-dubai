@@ -24,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PageHeader, RefreshButton } from "./shared"
 import { toast } from "@/hooks/use-toast"
+import { useAdminSession } from "@/components/admin-console/admin-session-provider"
 
 type RoleKey = "USER" | "MODERATOR" | "ADMIN" | "SUPER_ADMIN"
 
@@ -60,8 +61,10 @@ const riskBadgeStyles: Record<PermissionDefinition["risk"], string> = {
 }
 
 export function AccessControl() {
+  const { refresh: refreshSession } = useAdminSession()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [accessDenied, setAccessDenied] = useState<{ status: number; message: string } | null>(null)
   const [permissions, setPermissions] = useState<PermissionDefinition[]>([])
   const [restrictedPermissions, setRestrictedPermissions] = useState<
     Record<string, RoleKey[]>
@@ -118,11 +121,21 @@ export function AccessControl() {
   // Load access control catalog and role-permission mapping.
   const loadAccessControl = async () => {
     setLoading(true)
+    setAccessDenied(null)
     try {
       const response = await fetch("/api/admin/access-control")
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
 
       if (!response.ok || !data.success) {
+        if (response.status === 401 || response.status === 403) {
+          setAccessDenied({
+            status: response.status,
+            message: data?.error || "You are not authorized to view access control.",
+          })
+          // Clear view state to avoid showing stale data.
+          setPermissions([])
+          return
+        }
         throw new Error(data.error || "Failed to load access control")
       }
 
@@ -187,8 +200,15 @@ export function AccessControl() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roles: rolePermissions }),
       })
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
       if (!response.ok || !data.success) {
+        if (response.status === 401 || response.status === 403) {
+          setAccessDenied({
+            status: response.status,
+            message: data?.error || "You are not authorized to update access control.",
+          })
+          return
+        }
         throw new Error(data.error || "Failed to update access control")
       }
       const normalizedConfig = normalizeRoles(data.config.roles || {})
@@ -249,6 +269,36 @@ export function AccessControl() {
           </div>
         }
       />
+
+      {accessDenied && (
+        <Alert className="bg-red-500/10 border-red-500/40">
+          <ShieldCheck className="h-4 w-4 text-red-400" />
+          <AlertTitle className="text-red-400">
+            {accessDenied.status === 401 ? "Unauthorized" : "Forbidden"}
+          </AlertTitle>
+          <AlertDescription className="text-red-400/80">
+            {accessDenied.message} If your permissions were just updated, refresh your session.
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-500/40 text-red-300 hover:bg-red-500/10 bg-transparent"
+                onClick={() => refreshSession()}
+              >
+                Refresh Session
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-border text-foreground hover:bg-muted bg-transparent"
+                onClick={() => loadAccessControl()}
+              >
+                Retry
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {source === "default" && (
         <Alert className="bg-yellow-500/10 border-yellow-500/50">

@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast"
 import { Sidebar } from "@/components/admin-console/sidebar"
 import { Header } from "@/components/admin-console/header"
 import { QRScanner } from "@/components/admin-console/qr-scanner"
+import { AdminSessionProvider } from "@/components/admin-console/admin-session-provider"
 import { usePathname } from "next/navigation"
 
 function AdminConsoleLayoutInner({ children }: { children: React.ReactNode }) {
@@ -85,7 +86,9 @@ function AdminConsoleLayoutInner({ children }: { children: React.ReactNode }) {
 export default function AdminConsoleLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={null}>
-      <AdminConsoleLayoutInner>{children}</AdminConsoleLayoutInner>
+      <AdminSessionProvider>
+        <AdminConsoleLayoutInner>{children}</AdminConsoleLayoutInner>
+      </AdminSessionProvider>
     </Suspense>
   )
 }
