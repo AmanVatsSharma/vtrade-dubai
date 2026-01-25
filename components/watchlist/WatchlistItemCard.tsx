@@ -216,8 +216,13 @@ export function WatchlistItemCard({
   // Get strike price formatted
   const strikePriceFormatted = formatStrikePrice(item.strikePrice)
 
-  // Pre-compute deterministic mock chart data so the mini and advanced charts stay in sync
-  const chartSeedPrice = Math.max(Number.isFinite(ltp) ? Number(ltp) : Number(item.close || 1), 1)
+  // Pre-compute deterministic mock chart data so the mini and advanced charts stay in sync.
+  // IMPORTANT: this seed must stay stable across live LTP ticks; otherwise the chart will rebuild every tick.
+  // Use previous close / stored close as the stable baseline, while live LTP is passed separately to AdvancedChart.
+  const chartSeedPrice = Math.max(
+    Number.isFinite(prevClose) ? Number(prevClose) : Number(item.close ?? item.ltp ?? 1),
+    1,
+  )
   const chartSeedKey = item.symbol || item.instrumentId || "WATCHLIST"
   const mockCandles = useMemo(() => buildMockCandles(chartSeedPrice, 180, chartSeedKey), [chartSeedPrice, chartSeedKey])
   const miniChartSeries = useMemo(() => candlesToLineSeries(mockCandles), [mockCandles])

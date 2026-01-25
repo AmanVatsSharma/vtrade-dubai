@@ -60,6 +60,40 @@ const createDefaultConfig = (): RbacConfig => ({
   updatedBy: { name: "System" },
 })
 
+type RolePermissionDiff = Record<
+  RoleKey,
+  {
+    added: PermissionKey[]
+    removed: PermissionKey[]
+  }
+>
+
+const diffRoles = (
+  previous: Record<RoleKey, PermissionKey[]>,
+  next: Record<RoleKey, PermissionKey[]>
+): RolePermissionDiff => {
+  return ROLE_KEYS.reduce((acc, role) => {
+    const prevSet = new Set(previous[role] || [])
+    const nextSet = new Set(next[role] || [])
+
+    const added: PermissionKey[] = []
+    const removed: PermissionKey[] = []
+
+    for (const p of nextSet) {
+      if (!prevSet.has(p)) added.push(p)
+    }
+    for (const p of prevSet) {
+      if (!nextSet.has(p)) removed.push(p)
+    }
+
+    acc[role] = {
+      added: added.sort(),
+      removed: removed.sort(),
+    }
+    return acc
+  }, {} as RolePermissionDiff)
+}
+
 const filterRolePermissions = (role: RoleKey, rawPermissions: unknown[]): PermissionKey[] => {
   const unique = new Set<string>()
 
@@ -117,7 +151,7 @@ const buildCacheState = (config: RbacConfig, source: "db" | "default"): CacheSta
   expiresAt: Date.now() + CACHE_TTL_MS,
 })
 
-const logAccessControlChange = async (config: RbacConfig) => {
+const logAccessControlChange = async (config: RbacConfig, diff?: RolePermissionDiff) => {
   await prisma.tradingLog.create({
     data: {
       clientId: config.updatedBy?.id || "SYSTEM",
@@ -129,6 +163,7 @@ const logAccessControlChange = async (config: RbacConfig) => {
       details: {
         updatedBy: config.updatedBy,
         roles: Object.keys(config.roles),
+        diff,
       },
     },
   })
@@ -204,6 +239,8 @@ export class AccessControlService {
       updatedBy: actor,
     }
 
+    let previousRoles: Record<RoleKey, PermissionKey[]> = DEFAULT_ROLE_PERMISSIONS
+
     // Persist in SystemSettings for runtime configuration.
     // NOTE: We intentionally avoid Prisma `upsert` here because `SystemSettings` does not have a
     // globally-unique `key`, and `ownerId` is nullable (meaning `(ownerId,key)` is not unique for nulls
@@ -215,6 +252,9 @@ export class AccessControlService {
       })
 
       if (existing) {
+        const previousConfig = parseConfig(existing.value)
+        if (previousConfig) previousRoles = previousConfig.roles
+
         await tx.systemSettings.update({
           where: { id: existing.id },
           data: {
@@ -247,7 +287,8 @@ export class AccessControlService {
     })
 
     cacheState = buildCacheState(config, "db")
-    await logAccessControlChange(config)
+    const diff = diffRoles(previousRoles, config.roles)
+    await logAccessControlChange(config, diff)
     logger.debug(
       { timeIst: getIstTimestamp(), roles: Object.keys(config.roles) },
       "AccessControlService.updateConfig - end"

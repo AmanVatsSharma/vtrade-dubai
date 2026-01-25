@@ -1,5 +1,3 @@
-"use client"
-
 /**
  * @file sidebar.tsx
  * @module admin-console
@@ -8,11 +6,14 @@
  * @created 2025-01-27
  */
 
+"use client"
+
 import { motion } from "framer-motion"
 import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck, KeyRound, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useAdminSession } from "@/components/admin-console/admin-session-provider"
 
 interface SidebarProps {
   activeTab: string
@@ -53,20 +54,8 @@ export function Sidebar({
   setMobileMenuOpen,
 }: SidebarProps) {
   const pathname = usePathname()
-  
-  // Read role and permissions from localStorage/session via window (client-only sidebar)
-  let role: string | null = null
-  let permissions: string[] = []
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = window.localStorage.getItem('session_user_role')
-      role = raw || null
-    } catch {}
-    try {
-      const rawPermissions = window.localStorage.getItem('session_user_permissions')
-      permissions = rawPermissions ? JSON.parse(rawPermissions) : []
-    } catch {}
-  }
+  const { user, permissions } = useAdminSession()
+  const role = user?.role ?? null
 
   // Map menu item IDs to routes
   const getRoute = (id: string) => {
