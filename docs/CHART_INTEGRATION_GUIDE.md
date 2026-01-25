@@ -66,7 +66,7 @@ npm install apexcharts react-apexcharts
 
 ## ♾ Watchlist Full-Screen Flow (2025-12-06)
 - ✅ Watchlist dropdown now exposes a chart icon beside the turnover stat to launch the enterprise drawer.
-- ✅ The left drawer stretches to full screen and reuses the Lightweight `AdvancedChart` with deterministic mock data.
+- ✅ The left drawer stretches to full screen and reuses the Lightweight `AdvancedChart`.\n+  - Default view: **Line chart (LTP)**\n+  - Live updates: **streams LTP into the chart while the drawer is open**\n+  - Future-ready: **Candles UI is visible but disabled (“Coming soon”)** until OHLC feed integration\n - ✅ `buildMockCandles` keeps mini and advanced charts in sync and is now covered by unit tests.
 - ✅ `buildMockCandles` keeps mini and advanced charts in sync and is now covered by unit tests.
 
 ```mermaid
@@ -76,9 +76,11 @@ flowchart LR
     drawer[Left sheet drawer (full screen)]
     advanced[AdvancedChart (Lightweight Charts)]
     mock[buildMockCandles helper]
+    ltp[WebSocket LTP stream]
 
     expanded --> icon --> drawer --> advanced
     mock --> advanced
+    ltp --> advanced
 ```
 
 ### Phase 1: Mini Charts in Watchlist (Current)

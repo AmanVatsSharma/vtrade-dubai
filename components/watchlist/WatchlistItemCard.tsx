@@ -1,6 +1,12 @@
 /**
- * @file WatchlistItemCard.tsx
- * @description Enterprise-grade compact watchlist item with left swipe to delete
+ * File: components/watchlist/WatchlistItemCard.tsx
+ * Module: components/watchlist
+ * Purpose: Watchlist ticker card with expandable details + chart drawer launcher.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-01-25
+ * Notes:
+ * - The chart drawer uses a TradingView-like Line chart driven by live LTP (candles disabled until OHLC feed arrives).
+ * - Mock history is seeded deterministically so the chart isn’t empty on open.
  */
 
 "use client"
@@ -663,6 +669,8 @@ export function WatchlistItemCard({
                   onClose={closeAdvancedChart}
                   mockSeedPrice={chartSeedPrice}
                   mockSeries={mockCandles}
+                  currentPrice={ltp}
+                  initialChartType="line"
                   className="h-full rounded-2xl border border-white/10 bg-white/5"
                 />
               </div>
