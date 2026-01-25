@@ -1,5 +1,3 @@
-"use client"
-
 /**
  * @file header.tsx
  * @module admin-console
@@ -8,82 +6,36 @@
  * @created 2025-01-27
  */
 
+"use client"
+
 import { motion } from "framer-motion"
 import { Bell, Search, Settings, User, Moon, Sun, Menu, QrCode } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { AdminNotificationBell } from "./admin-notification-bell"
+import { useAdminSession } from "@/components/admin-console/admin-session-provider"
 
 interface HeaderProps {
   onQRScannerOpen: () => void
   onMobileMenuToggle: () => void
 }
 
-interface AdminUser {
-  id: string
-  name: string | null
-  email: string | null
-  image: string | null
-  role: string
-}
-
 export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
   const [darkMode, setDarkMode] = useState(true)
-  const [adminUser, setAdminUser] = useState<AdminUser | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { user: adminUser, loading, error } = useAdminSession()
 
-  console.log("🎯 [HEADER] Component rendered")
-
-  /**
-   * Fetch current admin user
-   */
-  const fetchAdminUser = async () => {
-    console.log("📥 [HEADER] Fetching admin user data...")
-    
-    try {
-      const response = await fetch('/api/admin/me')
-      const data = await response.json()
-
-      if (data.success && data.user) {
-        console.log("✅ [HEADER] Admin user loaded:", data.user.email)
-        setAdminUser(data.user)
-        try {
-          window.localStorage.setItem('session_user_role', data.user.role)
-        } catch {}
-        try {
-          const permissions = Array.isArray(data.permissions) ? data.permissions : []
-          window.localStorage.setItem('session_user_permissions', JSON.stringify(permissions))
-        } catch {}
-      } else {
-        console.error("❌ [HEADER] Failed to load admin user")
-      }
-    } catch (error: any) {
-      console.error("❌ [HEADER] Error fetching admin user:", error)
-      toast({
-        title: "⚠️ Warning",
-        description: "Failed to load user information",
-        variant: "destructive"
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // Surface session load errors in a user-friendly way.
   useEffect(() => {
-    fetchAdminUser()
-  }, [])
-
-  // Persist role in localStorage for client components like Sidebar
-  useEffect(() => {
-    if (adminUser?.role) {
-      try {
-        window.localStorage.setItem('session_user_role', adminUser.role)
-      } catch {}
-    }
-  }, [adminUser])
+    if (!error) return
+    toast({
+      title: "⚠️ Warning",
+      description: error,
+      variant: "destructive",
+    })
+  }, [error])
 
   return (
     <motion.header

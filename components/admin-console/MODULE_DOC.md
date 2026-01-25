@@ -62,6 +62,7 @@ flowchart TD
 - 2026-01-15 (IST): Added user quick actions for admin APIs and data source status messaging on core admin pages.
 - 2026-01-15 (IST): Added KYC queue with assignment, SLA tracking, AML flags, and review logs.
 - 2026-01-15 (IST): Added AML flag filter and extended SLA buckets in KYC queue.
+- 2026-01-25 (IST): Hardened Access Control reliability via `AdminSessionProvider` (reactive permissions), improved `/api/admin/me` error handling/logging, and added RBAC audit diffs.
 # Module: admin-console
 
 **Short:** Admin console UI with access control management.
@@ -103,6 +104,7 @@ flowchart TD
 - `lib/rbac` for permission catalog and guard
 - `lib/services/admin/AccessControlService`
 - `@/auth` for session resolution
+- `AdminSessionProvider` for reactive role/permission state across admin console UI
 
 **APIs:**
 - `GET /api/admin/access-control` — fetch role permissions and catalog
