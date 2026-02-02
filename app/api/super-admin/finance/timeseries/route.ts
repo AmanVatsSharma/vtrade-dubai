@@ -1,25 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { SuperAdminFinanceService } from '@/lib/services/admin/SuperAdminFinanceService'
-import { requireAdminPermissions } from '@/lib/rbac/admin-guard'
+/**
+ * @file route.ts
+ * @module admin-console
+ * @description API route for super-admin finance timeseries
+ * @author BharatERP
+ * @created 2026-02-02
+ */
 
-export async function GET(req: NextRequest) {
-  try {
-    const authResult = await requireAdminPermissions(req, 'admin.super.financial.read')
-    if (!authResult.ok) return authResult.response
+import { NextResponse } from "next/server"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { SuperAdminFinanceService } from "@/lib/services/admin/SuperAdminFinanceService"
+import { AppError } from "@/src/common/errors"
 
-    const { searchParams } = new URL(req.url)
-    const granularity = (searchParams.get('granularity') || 'day') as any
-    const from = new Date(searchParams.get('from') || '')
-    const to = new Date(searchParams.get('to') || '')
+export async function GET(req: Request) {
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/super-admin/finance/timeseries",
+      required: "admin.super.financial.read",
+      fallbackMessage: "Failed to fetch timeseries data",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(ctx.req.url)
+      const granularity = (searchParams.get("granularity") || "day") as any
+      const from = new Date(searchParams.get("from") || "")
+      const to = new Date(searchParams.get("to") || "")
 
-    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
-      return NextResponse.json({ error: 'Invalid from/to' }, { status: 400 })
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Invalid from/to dates",
+          statusCode: 400,
+        })
+      }
+
+      const data = await SuperAdminFinanceService.getTimeSeries(granularity, from, to)
+      return NextResponse.json({ success: true, data })
     }
-
-    const data = await SuperAdminFinanceService.getTimeSeries(granularity, from, to)
-    return NextResponse.json({ success: true, data })
-  } catch (e: any) {
-    console.error('[/api/super-admin/finance/timeseries] error', e)
-    return NextResponse.json({ error: e?.message || 'Internal Server Error' }, { status: 500 })
-  }
+  )
 }
