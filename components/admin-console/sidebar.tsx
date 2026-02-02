@@ -125,7 +125,7 @@ export function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="p-1 sm:p-2 space-y-1 overflow-y-auto flex-1">
+        <nav className="p-1 sm:p-2 space-y-1 overflow-y-auto flex-1 scrollbar-mini">
           {computedMenu.map((item) => {
             const Icon = item.icon
             const route = getRoute(item.id)

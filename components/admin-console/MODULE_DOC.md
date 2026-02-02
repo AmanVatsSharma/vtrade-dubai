@@ -1,14 +1,17 @@
-# Admin Console Module Doc
+# Module: admin-console
 
-## Purpose
-Provide administrative control surfaces for users, funds, risk, and system operations in the TradePro platform. This module focuses on fast operator workflows with robust error visibility and explicit data source status.
+**Short:** Admin console UI with access control management and operational workflows.
+
+**Purpose:** Provide administrators a secure dashboard for operations, including RBAC management, user management, fund approvals, and risk monitoring. Focuses on fast operator workflows with robust error visibility.
 
 ## Key Screens
-- Dashboard: platform KPIs, alerts, and top traders.
-- User Management: search, filters, bulk actions, and per-user dialogs.
-- Fund Management: deposits and withdrawals review with approvals.
-- Risk Management: platform risk config, user limits, and monitoring.
-- System Health, Logs, Settings, Notifications, Financial Reports.
+- **Dashboard:** Platform KPIs, alerts, and top traders.
+- **User Management:** Search, filters, bulk actions, and per-user dialogs.
+- **Fund Management:** Deposits and withdrawals review with approvals.
+- **Risk Management:** Platform risk config, user limits, and monitoring.
+- **Access Control:** RBAC management UI.
+- **KYC Queue:** Dedicated queue for KYC verification with SLA tracking.
+- **System Health, Logs, Settings, Notifications, Financial Reports.**
 
 ## User Quick Actions
 Exposes existing admin APIs in the User Management table:
@@ -32,44 +35,7 @@ Exposes existing admin APIs in the User Management table:
 - Document viewer for bank proof URL
 - Filters include AML flag match and SLA buckets (24h/48h/72h)
 
-## KYC Review Flow (Mermaid)
-```mermaid
-flowchart TD
-  A[KYC Queue] --> B[Open Review Dialog]
-  B --> C[Assign reviewer + SLA due]
-  C --> D[AML flag update]
-  D --> E[Mark suspicious status]
-  E --> F{Approve / Reject}
-  F -->|Approve| G[Status Approved + Log entry]
-  F -->|Reject| H[Status Rejected + Log entry]
-  G --> I[Toast + Refresh Queue]
-  H --> I
-```
-
-## Quick Action Flow (Mermaid)
-```mermaid
-flowchart TD
-  A[Admin clicks Quick Actions] --> B{Select Action}
-  B --> C[Dialog Form]
-  C --> D[Validate Input]
-  D --> E[Call Admin API]
-  E --> F{Success?}
-  F -->|Yes| G[Toast + Refresh Table]
-  F -->|No| H[Error Alert + Retry]
-```
-
-## Changelog
-- 2026-01-15 (IST): Added user quick actions for admin APIs and data source status messaging on core admin pages.
-- 2026-01-15 (IST): Added KYC queue with assignment, SLA tracking, AML flags, and review logs.
-- 2026-01-15 (IST): Added AML flag filter and extended SLA buckets in KYC queue.
-- 2026-01-25 (IST): Hardened Access Control reliability via `AdminSessionProvider` (reactive permissions), improved `/api/admin/me` error handling/logging, and added RBAC audit diffs.
-# Module: admin-console
-
-**Short:** Admin console UI with access control management.
-
-**Purpose:** Provide administrators a secure dashboard for operations, including RBAC management.
-
-**Files:**
+## Files
 - `header.tsx` — loads admin session, role, and permissions
 - `sidebar.tsx` — navigation gated by permissions
 - `access-control.tsx` — RBAC management UI
@@ -83,7 +49,9 @@ flowchart TD
 - `lib/services/admin/AccessControlService.ts` — RBAC config persistence
 - `MODULE_DOC.md` — this file
 
-**Flow diagram (RBAC management):**
+## Flow Diagrams
+
+### RBAC Management
 ```mermaid
 flowchart TD
   A[Admin opens Access Control page] --> B[GET /api/admin/access-control]
@@ -100,13 +68,39 @@ flowchart TD
   L --> M[Audit log entry]
 ```
 
-**Dependencies:**
+### KYC Review Flow
+```mermaid
+flowchart TD
+  A[KYC Queue] --> B[Open Review Dialog]
+  B --> C[Assign reviewer + SLA due]
+  C --> D[AML flag update]
+  D --> E[Mark suspicious status]
+  E --> F{Approve / Reject}
+  F -->|Approve| G[Status Approved + Log entry]
+  F -->|Reject| H[Status Rejected + Log entry]
+  G --> I[Toast + Refresh Queue]
+  H --> I
+```
+
+### Quick Action Flow
+```mermaid
+flowchart TD
+  A[Admin clicks Quick Actions] --> B{Select Action}
+  B --> C[Dialog Form]
+  C --> D[Validate Input]
+  D --> E[Call Admin API]
+  E --> F{Success?}
+  F -->|Yes| G[Toast + Refresh Table]
+  F -->|No| H[Error Alert + Retry]
+```
+
+## Dependencies
 - `lib/rbac` for permission catalog and guard
 - `lib/services/admin/AccessControlService`
 - `@/auth` for session resolution
 - `AdminSessionProvider` for reactive role/permission state across admin console UI
 
-**APIs:**
+## APIs
 - `GET /api/admin/access-control` — fetch role permissions and catalog
 - `PUT /api/admin/access-control` — update role permissions
 - `GET /api/admin/kyc` — list KYC queue with filters
@@ -115,9 +109,16 @@ flowchart TD
 - `GET /api/admin/kyc/{kycId}` — fetch KYC detail + logs
 - `GET /api/admin/me` — session user + permissions for UI gating
 
-**Env vars:** none.
+## Env vars
+None.
 
-**Tests:** `tests/admin/access-control-guard.test.ts`
+## Tests
+`tests/admin/access-control-guard.test.ts`
 
-**Change-log:**
-- 2026-01-15: Added RBAC access-control UI, restricted permission gating, and audit logging.
+## Changelog
+- 2026-01-15 (IST): Added user quick actions for admin APIs and data source status messaging on core admin pages.
+- 2026-01-15 (IST): Added KYC queue with assignment, SLA tracking, AML flags, and review logs.
+- 2026-01-15 (IST): Added AML flag filter and extended SLA buckets in KYC queue.
+- 2026-01-15 (IST): Added RBAC access-control UI, restricted permission gating, and audit logging.
+- 2026-01-25 (IST): Hardened Access Control reliability via `AdminSessionProvider` (reactive permissions), improved `/api/admin/me` error handling/logging, and added RBAC audit diffs.
+- 2026-01-25 (IST): Added professional mini scrollbar to admin console sidebar.
