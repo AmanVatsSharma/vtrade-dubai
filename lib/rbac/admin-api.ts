@@ -67,7 +67,7 @@ export async function handleAdminApi(
   } catch (error: unknown) {
     logger.error({ timeIst: getIstTimestamp(), err: error }, "admin api - error")
     const mapped = mapErrorToHttp(error, options.fallbackMessage || "Internal Server Error")
-    return NextResponse.json(mapped.body, { status: mapped.status })
+    return NextResponse.json({ success: false, ...mapped.body }, { status: mapped.status })
   }
 }
 
