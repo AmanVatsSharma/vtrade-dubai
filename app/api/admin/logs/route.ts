@@ -1,32 +1,43 @@
 /**
- * Admin Logs API - Get trading logs for admin console
+ * @file route.ts
+ * @module admin-console
+ * @description Admin logs API - get trading logs for admin console
+ * @author BharatERP
+ * @created 2025-01-27
+ * @updated 2026-02-02
  */
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAdminPermissions } from '@/lib/rbac/admin-guard'
+import { handleAdminApi } from '@/lib/rbac/admin-api'
 
 export async function GET(req: Request) {
-  try {
-    const authResult = await requireAdminPermissions(req, 'admin.logs.read')
-    if (!authResult.ok) return authResult.response
+  return handleAdminApi(
+    req,
+    {
+      route: '/api/admin/logs',
+      required: 'admin.logs.read',
+      fallbackMessage: 'Failed to fetch logs',
+    },
+    async ({ logger }) => {
+      const { searchParams } = new URL(req.url)
+      const category = searchParams.get('category') as any
+      const level = searchParams.get('level') as any
+      const limit = parseInt(searchParams.get('limit') || '100')
 
-    const { searchParams } = new URL(req.url)
-    const category = searchParams.get('category') as any
-    const level = searchParams.get('level') as any
-    const limit = parseInt(searchParams.get('limit') || '100')
+      const where: any = {}
+      if (category) where.category = category
+      if (level) where.level = level
 
-    const where: any = {}
-    if (category) where.category = category
-    if (level) where.level = level
+      logger.debug({ category, level, limit }, 'GET /api/admin/logs - start')
 
-    const logs = await prisma.tradingLog.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit
-    })
+      const logs = await prisma.tradingLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      })
 
-    return NextResponse.json({ logs, total: logs.length }, { status: 200 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+      logger.info({ count: logs.length }, 'GET /api/admin/logs - success')
+      return NextResponse.json({ logs, total: logs.length }, { status: 200 })
+    }
+  )
 }
