@@ -18,7 +18,7 @@ todos:
       - api-admin-wrapper
   - id: api-refactor-super-admin-routes
     content: Refactor /api/super-admin/** routes to use the wrapper and remove console.*.
-    status: in_progress
+    status: completed
     dependencies:
       - api-admin-wrapper
   - id: docs-update-phase2
