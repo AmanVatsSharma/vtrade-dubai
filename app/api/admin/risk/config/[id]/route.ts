@@ -4,12 +4,14 @@
  * @description API route for updating individual platform-wide risk configurations
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 
 /**
  * PUT /api/admin/risk/config/[id]
@@ -19,111 +21,115 @@ export async function PUT(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  console.log("🌐 [API-ADMIN-RISK-CONFIG-UPDATE] PUT request received")
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/risk/config/[id]",
+      required: "admin.risk.manage",
+      fallbackMessage: "Failed to update risk config",
+    },
+    async (ctx) => {
+      const configId = params.id
+      const body = await req.json()
+      const {
+        segment,
+        productType,
+        leverage,
+        brokerageFlat,
+        brokerageRate,
+        brokerageCap,
+        marginRate,
+        maxOrderValue,
+        maxPositions,
+        active,
+      } = body
 
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.risk.manage")
-    if (!authResult.ok) return authResult.response
+      ctx.logger.debug({ configId, segment, productType }, "PUT /api/admin/risk/config/[id] - request")
 
-    const configId = params.id
-    const body = await req.json()
-    const {
-      segment,
-      productType,
-      leverage,
-      brokerageFlat,
-      brokerageRate,
-      brokerageCap,
-      marginRate,
-      maxOrderValue,
-      maxPositions,
-      active
-    } = body
-
-    console.log("📝 [API-ADMIN-RISK-CONFIG-UPDATE] Updating config:", { configId, data: body })
-
-    // Check if config exists
-    const existing = await prisma.riskConfig.findUnique({
-      where: { id: configId }
-    })
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: "Risk config not found" },
-        { status: 404 }
-      )
-    }
-
-    // If segment or productType is being changed, check for conflicts
-    if ((segment && segment.toUpperCase() !== existing.segment) ||
-        (productType && productType.toUpperCase() !== existing.productType)) {
-      const newSegment = segment ? segment.toUpperCase() : existing.segment
-      const newProductType = productType ? productType.toUpperCase() : existing.productType
-
-      const conflict = await prisma.riskConfig.findUnique({
-        where: {
-          segment_productType: {
-            segment: newSegment,
-            productType: newProductType
-          }
-        }
+      const existing = await prisma.riskConfig.findUnique({
+        where: { id: configId },
       })
 
-      if (conflict && conflict.id !== configId) {
-        return NextResponse.json(
-          { success: false, error: "Risk config already exists for this segment and product type" },
-          { status: 409 }
-        )
+      if (!existing) {
+        throw new AppError({
+          code: "NOT_FOUND",
+          message: "Risk config not found",
+          statusCode: 404,
+        })
       }
+
+      // If segment or productType is being changed, check for conflicts
+      if (
+        (segment && segment.toUpperCase() !== existing.segment) ||
+        (productType && productType.toUpperCase() !== existing.productType)
+      ) {
+        const newSegment = segment ? segment.toUpperCase() : existing.segment
+        const newProductType = productType ? productType.toUpperCase() : existing.productType
+
+        const conflict = await prisma.riskConfig.findUnique({
+          where: {
+            segment_productType: {
+              segment: newSegment,
+              productType: newProductType,
+            },
+          },
+        })
+
+        if (conflict && conflict.id !== configId) {
+          throw new AppError({
+            code: "CONFLICT_ERROR",
+            message: "Risk config already exists for this segment and product type",
+            statusCode: 409,
+          })
+        }
+      }
+
+      const updateData: any = {}
+      if (segment !== undefined) updateData.segment = segment.toUpperCase()
+      if (productType !== undefined) updateData.productType = productType.toUpperCase()
+      if (leverage !== undefined) updateData.leverage = new Prisma.Decimal(leverage)
+      if (brokerageFlat !== undefined)
+        updateData.brokerageFlat = brokerageFlat ? new Prisma.Decimal(brokerageFlat) : null
+      if (brokerageRate !== undefined)
+        updateData.brokerageRate = brokerageRate ? new Prisma.Decimal(brokerageRate) : null
+      if (brokerageCap !== undefined)
+        updateData.brokerageCap = brokerageCap ? new Prisma.Decimal(brokerageCap) : null
+      if (marginRate !== undefined) updateData.marginRate = marginRate ? new Prisma.Decimal(marginRate) : null
+      if (maxOrderValue !== undefined)
+        updateData.maxOrderValue = maxOrderValue ? new Prisma.Decimal(maxOrderValue) : null
+      if (maxPositions !== undefined) updateData.maxPositions = maxPositions || null
+      if (active !== undefined) updateData.active = active
+
+      const updated = await prisma.riskConfig.update({
+        where: { id: configId },
+        data: updateData,
+      })
+
+      ctx.logger.info({ configId: updated.id }, "PUT /api/admin/risk/config/[id] - success")
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Risk config updated successfully",
+          config: {
+            id: updated.id,
+            segment: updated.segment,
+            productType: updated.productType,
+            leverage: Number(updated.leverage),
+            brokerageFlat: updated.brokerageFlat ? Number(updated.brokerageFlat) : null,
+            brokerageRate: updated.brokerageRate ? Number(updated.brokerageRate) : null,
+            brokerageCap: updated.brokerageCap ? Number(updated.brokerageCap) : null,
+            marginRate: updated.marginRate ? Number(updated.marginRate) : null,
+            maxOrderValue: updated.maxOrderValue ? Number(updated.maxOrderValue) : null,
+            maxPositions: updated.maxPositions,
+            active: updated.active,
+            updatedAt: updated.updatedAt,
+          },
+        },
+        { status: 200 }
+      )
     }
-
-    // Build update data
-    const updateData: any = {}
-    if (segment !== undefined) updateData.segment = segment.toUpperCase()
-    if (productType !== undefined) updateData.productType = productType.toUpperCase()
-    if (leverage !== undefined) updateData.leverage = new Prisma.Decimal(leverage)
-    if (brokerageFlat !== undefined) updateData.brokerageFlat = brokerageFlat ? new Prisma.Decimal(brokerageFlat) : null
-    if (brokerageRate !== undefined) updateData.brokerageRate = brokerageRate ? new Prisma.Decimal(brokerageRate) : null
-    if (brokerageCap !== undefined) updateData.brokerageCap = brokerageCap ? new Prisma.Decimal(brokerageCap) : null
-    if (marginRate !== undefined) updateData.marginRate = marginRate ? new Prisma.Decimal(marginRate) : null
-    if (maxOrderValue !== undefined) updateData.maxOrderValue = maxOrderValue ? new Prisma.Decimal(maxOrderValue) : null
-    if (maxPositions !== undefined) updateData.maxPositions = maxPositions || null
-    if (active !== undefined) updateData.active = active
-
-    // Update risk config
-    const updated = await prisma.riskConfig.update({
-      where: { id: configId },
-      data: updateData
-    })
-
-    console.log("✅ [API-ADMIN-RISK-CONFIG-UPDATE] Risk config updated:", updated.id)
-
-    return NextResponse.json({
-      success: true,
-      message: "Risk config updated successfully",
-      config: {
-        id: updated.id,
-        segment: updated.segment,
-        productType: updated.productType,
-        leverage: Number(updated.leverage),
-        brokerageFlat: updated.brokerageFlat ? Number(updated.brokerageFlat) : null,
-        brokerageRate: updated.brokerageRate ? Number(updated.brokerageRate) : null,
-        brokerageCap: updated.brokerageCap ? Number(updated.brokerageCap) : null,
-        marginRate: updated.marginRate ? Number(updated.marginRate) : null,
-        maxOrderValue: updated.maxOrderValue ? Number(updated.maxOrderValue) : null,
-        maxPositions: updated.maxPositions,
-        active: updated.active,
-        updatedAt: updated.updatedAt
-      }
-    }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-RISK-CONFIG-UPDATE] PUT error:", error)
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to update risk config" },
-      { status: 500 }
-    )
-  }
+  )
 }
 
 /**
@@ -134,48 +140,50 @@ export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  console.log("🌐 [API-ADMIN-RISK-CONFIG-DETAIL] GET request received")
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/risk/config/[id]",
+      required: "admin.risk.read",
+      fallbackMessage: "Failed to fetch risk config",
+    },
+    async (ctx) => {
+      const configId = params.id
+      ctx.logger.debug({ configId }, "GET /api/admin/risk/config/[id] - request")
 
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.risk.read")
-    if (!authResult.ok) return authResult.response
+      const config = await prisma.riskConfig.findUnique({
+        where: { id: configId },
+      })
 
-    const configId = params.id
-    const config = await prisma.riskConfig.findUnique({
-      where: { id: configId }
-    })
+      if (!config) {
+        throw new AppError({
+          code: "NOT_FOUND",
+          message: "Risk config not found",
+          statusCode: 404,
+        })
+      }
 
-    if (!config) {
       return NextResponse.json(
-        { success: false, error: "Risk config not found" },
-        { status: 404 }
+        {
+          success: true,
+          config: {
+            id: config.id,
+            segment: config.segment,
+            productType: config.productType,
+            leverage: Number(config.leverage),
+            brokerageFlat: config.brokerageFlat ? Number(config.brokerageFlat) : null,
+            brokerageRate: config.brokerageRate ? Number(config.brokerageRate) : null,
+            brokerageCap: config.brokerageCap ? Number(config.brokerageCap) : null,
+            marginRate: config.marginRate ? Number(config.marginRate) : null,
+            maxOrderValue: config.maxOrderValue ? Number(config.maxOrderValue) : null,
+            maxPositions: config.maxPositions,
+            active: config.active,
+            createdAt: config.createdAt,
+            updatedAt: config.updatedAt,
+          },
+        },
+        { status: 200 }
       )
     }
-
-    return NextResponse.json({
-      success: true,
-      config: {
-        id: config.id,
-        segment: config.segment,
-        productType: config.productType,
-        leverage: Number(config.leverage),
-        brokerageFlat: config.brokerageFlat ? Number(config.brokerageFlat) : null,
-        brokerageRate: config.brokerageRate ? Number(config.brokerageRate) : null,
-        brokerageCap: config.brokerageCap ? Number(config.brokerageCap) : null,
-        marginRate: config.marginRate ? Number(config.marginRate) : null,
-        maxOrderValue: config.maxOrderValue ? Number(config.maxOrderValue) : null,
-        maxPositions: config.maxPositions,
-        active: config.active,
-        createdAt: config.createdAt,
-        updatedAt: config.updatedAt
-      }
-    }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-RISK-CONFIG-DETAIL] GET error:", error)
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch risk config" },
-      { status: 500 }
-    )
-  }
+  )
 }
