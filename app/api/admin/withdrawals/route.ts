@@ -1,147 +1,151 @@
+/**
+ * @file route.ts
+ * @module admin-console
+ * @description API route for withdrawal management (pending list + approve/reject)
+ * @author BharatERP
+ * @created 2025-01-27
+ * @updated 2026-02-02
+ */
+
 import { NextResponse } from "next/server"
 import { createAdminFundService } from "@/lib/services/admin/AdminFundService"
 import { NotificationService } from "@/lib/services/notifications/NotificationService"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-WITHDRAWALS] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.withdrawals.manage")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const role = authResult.role
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/withdrawals",
+      required: "admin.withdrawals.manage",
+      fallbackMessage: "Failed to fetch withdrawals",
+    },
+    async ({ session, role, logger }) => {
+      logger.debug({ role }, "GET /api/admin/withdrawals - start")
 
-    console.log("📋 [API-ADMIN-WITHDRAWALS] Fetching pending withdrawals")
+      const adminFundService = createAdminFundService()
+      // Scope by RM for admins and moderators; super admin sees all
+      const managedByIdFilter =
+        role === "SUPER_ADMIN"
+          ? undefined
+          : role === "ADMIN"
+            ? session.user.id!
+            : (session.user as any).managedById || undefined
+      const withdrawals = await adminFundService.getPendingWithdrawals(managedByIdFilter)
 
-    const adminFundService = createAdminFundService()
-    // Scope by RM for admins and moderators; super admin sees all
-    const managedByIdFilter = role === 'SUPER_ADMIN' ? undefined
-      : role === 'ADMIN' ? session.user.id!
-      : (session.user as any).managedById || undefined
-    const withdrawals = await adminFundService.getPendingWithdrawals(managedByIdFilter)
-
-    console.log(`✅ [API-ADMIN-WITHDRAWALS] Found ${withdrawals.length} pending withdrawals`)
-
-    return NextResponse.json({ success: true, withdrawals }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-WITHDRAWALS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch withdrawals" },
-      { status: 500 }
-    )
-  }
+      logger.info({ count: withdrawals.length }, "GET /api/admin/withdrawals - success")
+      return NextResponse.json({ success: true, withdrawals }, { status: 200 })
+    }
+  )
 }
 
 export async function POST(req: Request) {
-  console.log("🌐 [API-ADMIN-WITHDRAWALS] POST request received (approve/reject)")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.withdrawals.manage")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const role = authResult.role
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/withdrawals",
+      required: "admin.withdrawals.manage",
+      fallbackMessage: "Failed to process withdrawal",
+    },
+    async ({ session, role, logger }) => {
+      const body = await req.json()
+      const { withdrawalId, action, reason, transactionId } = body
 
-    const body = await req.json()
-    console.log("📝 [API-ADMIN-WITHDRAWALS] Request body:", body)
+      logger.debug({ withdrawalId, action }, "POST /api/admin/withdrawals - request")
 
-    const { withdrawalId, action, reason, transactionId } = body
-
-    if (!withdrawalId || !action) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
-    }
-
-    const adminFundService = createAdminFundService()
-
-    if (action === 'approve') {
-      if (!transactionId) {
-        return NextResponse.json(
-          { error: "Transaction ID required for approval" },
-          { status: 400 }
-        )
-      }
-
-      const result = await adminFundService.approveWithdrawal({
-        withdrawalId,
-        transactionId,
-        adminId: session.user.id!,
-        adminName: session.user.name || 'Admin',
-        actorRole: role as any,
-      })
-
-      // Create notification for user (non-blocking)
-      try {
-        const withdrawal = await prisma.withdrawal.findUnique({
-          where: { id: withdrawalId },
-          select: { userId: true, amount: true }
+      if (!withdrawalId || !action) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Missing required fields",
+          statusCode: 400,
         })
-        if (withdrawal) {
-          await NotificationService.notifyWithdrawal(
-            withdrawal.userId,
-            'APPROVED',
-            Number(withdrawal.amount)
-          )
+      }
+
+      const adminFundService = createAdminFundService()
+
+      if (action === "approve") {
+        if (!transactionId) {
+          throw new AppError({
+            code: "VALIDATION_ERROR",
+            message: "Transaction ID required for approval",
+            statusCode: 400,
+          })
         }
-      } catch (notifError) {
-        console.warn("⚠️ [API-ADMIN-WITHDRAWALS] Failed to create notification:", notifError)
-      }
 
-      console.log("✅ [API-ADMIN-WITHDRAWALS] Withdrawal approved:", withdrawalId)
-      return NextResponse.json(result, { status: 200 })
-    }
-
-    if (action === 'reject') {
-      if (!reason) {
-        return NextResponse.json(
-          { error: "Rejection reason required" },
-          { status: 400 }
-        )
-      }
-
-      const result = await adminFundService.rejectWithdrawal({
-        withdrawalId,
-        reason,
-        adminId: session.user.id!,
-        adminName: session.user.name || 'Admin'
-      })
-
-      // Create notification for user (non-blocking)
-      try {
-        const withdrawal = await prisma.withdrawal.findUnique({
-          where: { id: withdrawalId },
-          select: { userId: true, amount: true }
+        const result = await adminFundService.approveWithdrawal({
+          withdrawalId,
+          transactionId,
+          adminId: session.user.id!,
+          adminName: session.user.name || "Admin",
+          actorRole: role as any,
         })
-        if (withdrawal) {
-          await NotificationService.notifyWithdrawal(
-            withdrawal.userId,
-            'REJECTED',
-            Number(withdrawal.amount),
-            reason
-          )
+
+        // Create notification for user (non-blocking)
+        try {
+          const withdrawal = await prisma.withdrawal.findUnique({
+            where: { id: withdrawalId },
+            select: { userId: true, amount: true },
+          })
+          if (withdrawal) {
+            await NotificationService.notifyWithdrawal(
+              withdrawal.userId,
+              "APPROVED",
+              Number(withdrawal.amount)
+            )
+          }
+        } catch (notifError) {
+          logger.warn({ err: notifError }, "POST /api/admin/withdrawals - notification failed")
         }
-      } catch (notifError) {
-        console.warn("⚠️ [API-ADMIN-WITHDRAWALS] Failed to create notification:", notifError)
+
+        logger.info({ withdrawalId }, "POST /api/admin/withdrawals - approved")
+        return NextResponse.json(result, { status: 200 })
       }
 
-      console.log("✅ [API-ADMIN-WITHDRAWALS] Withdrawal rejected:", withdrawalId)
-      return NextResponse.json(result, { status: 200 })
+      if (action === "reject") {
+        if (!reason) {
+          throw new AppError({
+            code: "VALIDATION_ERROR",
+            message: "Rejection reason required",
+            statusCode: 400,
+          })
+        }
+
+        const result = await adminFundService.rejectWithdrawal({
+          withdrawalId,
+          reason,
+          adminId: session.user.id!,
+          adminName: session.user.name || "Admin",
+        })
+
+        // Create notification for user (non-blocking)
+        try {
+          const withdrawal = await prisma.withdrawal.findUnique({
+            where: { id: withdrawalId },
+            select: { userId: true, amount: true },
+          })
+          if (withdrawal) {
+            await NotificationService.notifyWithdrawal(
+              withdrawal.userId,
+              "REJECTED",
+              Number(withdrawal.amount),
+              reason
+            )
+          }
+        } catch (notifError) {
+          logger.warn({ err: notifError }, "POST /api/admin/withdrawals - notification failed")
+        }
+
+        logger.info({ withdrawalId }, "POST /api/admin/withdrawals - rejected")
+        return NextResponse.json(result, { status: 200 })
+      }
+
+      throw new AppError({
+        code: "VALIDATION_ERROR",
+        message: "Invalid action. Use 'approve' or 'reject'",
+        statusCode: 400,
+      })
     }
-
-    return NextResponse.json(
-      { error: "Invalid action. Use 'approve' or 'reject'" },
-      { status: 400 }
-    )
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-WITHDRAWALS] POST error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to process withdrawal" },
-      { status: 500 }
-    )
-  }
+  )
 }
