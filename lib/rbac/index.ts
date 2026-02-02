@@ -10,6 +10,7 @@
  */
 
 export { requireAdminPermissions, hasPermission } from "@/lib/rbac/admin-guard"
+export { handleAdminApi } from "@/lib/rbac/admin-api"
 export {
   DEFAULT_ROLE_PERMISSIONS,
   PERMISSIONS,

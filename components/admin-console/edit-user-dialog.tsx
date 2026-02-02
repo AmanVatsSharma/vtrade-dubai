@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp, UserCheck, DollarSign, Wallet, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useAdminSession } from "@/components/admin-console/admin-session-provider"
 
 interface EditUserDialogProps {
   open: boolean
@@ -29,6 +30,7 @@ interface EditUserDialogProps {
 }
 
 export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: EditUserDialogProps) {
+  const { user: adminUser, permissions } = useAdminSession()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
@@ -44,7 +46,6 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
   const [baseConfigs, setBaseConfigs] = useState<any[]>([])
   const [leverageMultiplier, setLeverageMultiplier] = useState<number | null>(null)
   const [loadingRiskLimit, setLoadingRiskLimit] = useState(false)
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
   const [rms, setRms] = useState<any[]>([])
   const [selectedRMId, setSelectedRMId] = useState<string | null>(null)
   const [loadingRMs, setLoadingRMs] = useState(false)
@@ -59,13 +60,14 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
   const [originalTradingAccountData, setOriginalTradingAccountData] = useState<any>(null)
   const [fundReason, setFundReason] = useState("")
 
+  const currentUserRole = adminUser?.role ?? null
+  const canAssignRms = permissions.includes("admin.users.rm") || permissions.includes("admin.all")
+  const canAssignHighRoles = permissions.includes("admin.all")
+  const canOverrideFunds =
+    permissions.includes("admin.funds.override") || permissions.includes("admin.all")
+
   // Load current user role and user data when dialog opens
   useEffect(() => {
-    // Get current user role from localStorage
-    const storedRole = window.localStorage.getItem('session_user_role')
-    setCurrentUserRole(storedRole)
-    console.log("🔐 [EDIT-USER-DIALOG] Current user role:", storedRole)
-
     if (open && user) {
       console.log("📝 [EDIT-USER-DIALOG] Loading user data:", user)
       const data = {
@@ -84,52 +86,62 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
       loadRiskLimit()
       
       // Load RM assignment data
-      loadRMData()
+      if (canAssignRms) {
+        loadRMData()
+      }
       
-      // Load trading account data (for Super Admin)
+      // Load trading account data (permission-gated: admin.funds.override)
       // Fetch full user details if tradingAccount is not available
-      if (currentUserRole === 'SUPER_ADMIN') {
-        if (user?.tradingAccount) {
+      if (!canOverrideFunds) {
+        setTradingAccountData(null)
+        setOriginalTradingAccountData(null)
+        return
+      }
+
+      const loadTradingAccount = async () => {
+        try {
+          if (user?.tradingAccount) {
+            const taData = {
+              balance: String(user.tradingAccount.balance || 0),
+              availableMargin: String(user.tradingAccount.availableMargin || 0),
+              usedMargin: String(user.tradingAccount.usedMargin || 0),
+            }
+            setTradingAccountData(taData)
+            setOriginalTradingAccountData(taData)
+            return
+          }
+
+          if (!user?.id) {
+            setTradingAccountData(null)
+            setOriginalTradingAccountData(null)
+            return
+          }
+
+          const response = await fetch(`/api/admin/users/${user.id}`)
+          const payload = await response.json().catch(() => ({}))
+          const ta = payload?.user?.tradingAccount
+          if (!ta) {
+            setTradingAccountData(null)
+            setOriginalTradingAccountData(null)
+            return
+          }
+
           const taData = {
-            balance: String(user.tradingAccount.balance || 0),
-            availableMargin: String(user.tradingAccount.availableMargin || 0),
-            usedMargin: String(user.tradingAccount.usedMargin || 0)
+            balance: String(ta.balance || 0),
+            availableMargin: String(ta.availableMargin || 0),
+            usedMargin: String(ta.usedMargin || 0),
           }
           setTradingAccountData(taData)
           setOriginalTradingAccountData(taData)
-        } else if (user?.id) {
-          // Fetch full user details to get trading account
-          fetch(`/api/admin/users/${user.id}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.user?.tradingAccount) {
-                const taData = {
-                  balance: String(data.user.tradingAccount.balance || 0),
-                  availableMargin: String(data.user.tradingAccount.availableMargin || 0),
-                  usedMargin: String(data.user.tradingAccount.usedMargin || 0)
-                }
-                setTradingAccountData(taData)
-                setOriginalTradingAccountData(taData)
-              } else {
-                setTradingAccountData(null)
-                setOriginalTradingAccountData(null)
-              }
-            })
-            .catch(err => {
-              console.error("❌ [EDIT-USER-DIALOG] Failed to fetch trading account:", err)
-              setTradingAccountData(null)
-              setOriginalTradingAccountData(null)
-            })
-        } else {
+        } catch {
           setTradingAccountData(null)
           setOriginalTradingAccountData(null)
         }
-      } else {
-        setTradingAccountData(null)
-        setOriginalTradingAccountData(null)
       }
+
+      void loadTradingAccount()
     }
-  }, [open, user, currentUserRole])
+  }, [open, user, canAssignRms, canOverrideFunds])
 
   const loadRMData = async () => {
     if (!user?.id) return
@@ -605,8 +617,8 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
                   <Select 
                     value={formData.role} 
                     onValueChange={(value) => {
-                      // Security check: Only SUPER_ADMIN can assign ADMIN/SUPER_ADMIN roles
-                      if ((value === 'ADMIN' || value === 'SUPER_ADMIN') && currentUserRole !== 'SUPER_ADMIN') {
+                      // Security check: Only holders of admin.all (Super Admin) can assign ADMIN/SUPER_ADMIN roles
+                      if ((value === 'ADMIN' || value === 'SUPER_ADMIN') && !canAssignHighRoles) {
                         toast({
                           title: "⚠️ Security Restriction",
                           description: "Only Super Admins can assign Admin or Super Admin roles",
@@ -616,7 +628,7 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
                       }
                       setFormData({ ...formData, role: value })
                     }}
-                    disabled={currentUserRole !== 'SUPER_ADMIN' && (formData.role === 'ADMIN' || formData.role === 'SUPER_ADMIN')}
+                    disabled={!canAssignHighRoles && (formData.role === 'ADMIN' || formData.role === 'SUPER_ADMIN')}
                   >
                     <SelectTrigger className="bg-background border-border">
                       <SelectValue />
@@ -624,8 +636,8 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
                     <SelectContent>
                       <SelectItem value="USER">User</SelectItem>
                       <SelectItem value="MODERATOR">Moderator</SelectItem>
-                      {/* Only SUPER_ADMIN can see/assign ADMIN and SUPER_ADMIN roles */}
-                      {currentUserRole === 'SUPER_ADMIN' ? (
+                      {/* Only Super Admins (admin.all) can see/assign ADMIN and SUPER_ADMIN roles */}
+                      {canAssignHighRoles ? (
                         <>
                           <SelectItem value="ADMIN">Admin</SelectItem>
                           <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
@@ -643,7 +655,7 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
                       )}
                     </SelectContent>
                   </Select>
-                  {currentUserRole !== 'SUPER_ADMIN' && (formData.role === 'ADMIN' || formData.role === 'SUPER_ADMIN') && (
+                  {!canAssignHighRoles && (formData.role === 'ADMIN' || formData.role === 'SUPER_ADMIN') && (
                     <p className="text-xs text-yellow-500/80 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" />
                       Only Super Admins can modify admin roles
@@ -682,7 +694,7 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
           </Card>
 
           {/* RM Assignment Section */}
-          {currentUserRole !== 'MODERATOR' && (
+          {canAssignRms && (
             <Card className="bg-muted/30 border-border">
               <CardContent className="p-4 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -847,14 +859,14 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
             </CardContent>
           </Card>
 
-          {/* Trading Account Funds Management (Super Admin Only) */}
-          {currentUserRole === 'SUPER_ADMIN' && tradingAccountData && (
+          {/* Trading Account Funds Management (Permission-gated) */}
+          {canOverrideFunds && tradingAccountData && (
             <Card className="bg-yellow-500/10 border-yellow-500/50">
               <CardContent className="p-4 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                   <DollarSign className="w-5 h-5 text-yellow-400" />
                   <h3 className="font-semibold text-foreground">Trading Account Funds</h3>
-                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Super Admin Only</Badge>
+                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Restricted</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mb-4">
                   ⚠️ <strong>Warning:</strong> Direct fund manipulation. Changes will create transaction records and affect user's trading capabilities.

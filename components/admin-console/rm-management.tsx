@@ -45,6 +45,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { PageHeader, RefreshButton } from "./shared"
+import { useAdminSession } from "@/components/admin-console/admin-session-provider"
 
 interface RM {
   id: string
@@ -76,6 +77,7 @@ interface TeamMember {
 }
 
 export function RMManagement() {
+  const { user: adminUser, permissions } = useAdminSession()
   const [rms, setRms] = useState<RM[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -83,7 +85,6 @@ export function RMManagement() {
   const [expandedRMs, setExpandedRMs] = useState<Set<string>>(new Set())
   const [teamMembers, setTeamMembers] = useState<Record<string, TeamMember[]>>({})
   const [loadingTeams, setLoadingTeams] = useState<Set<string>>(new Set())
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({
     name: "",
     email: "",
@@ -92,15 +93,8 @@ export function RMManagement() {
     role: "MODERATOR" as string, // Default role
   })
 
-  // Get current user role
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const role = window.localStorage.getItem('session_user_role')
-        setCurrentUserRole(role)
-      } catch {}
-    }
-  }, [])
+  const currentUserRole = adminUser?.role ?? null
+  const canManageRms = permissions.includes("admin.users.rm") || permissions.includes("admin.all")
 
   const fetchRMs = async () => {
     console.log("🔄 [RM-TEAM] Fetching RMs...")
@@ -178,6 +172,14 @@ export function RMManagement() {
   }, [])
 
   const handleCreateRM = async () => {
+    if (!canManageRms) {
+      toast({
+        title: "Forbidden",
+        description: "You do not have permission to create team members.",
+        variant: "destructive",
+      })
+      return
+    }
     if (!createForm.name || !createForm.email || !createForm.phone || !createForm.password) {
       toast({
         title: "Validation Error",
@@ -242,6 +244,7 @@ export function RMManagement() {
             <RefreshButton onClick={fetchRMs} loading={loading} />
             <Button
               onClick={() => setShowCreateDialog(true)}
+              disabled={!canManageRms}
               className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm flex-shrink-0"
               size="sm"
             >
