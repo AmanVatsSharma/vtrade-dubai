@@ -4,218 +4,219 @@
  * @description API route for user list with advanced filtering
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
 import { createTradingLogger } from "@/lib/services/logging/TradingLogger"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 import { Role, KycStatus } from "@prisma/client"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-USERS] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.read")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const role = authResult.role
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/users",
+      required: "admin.users.read",
+      fallbackMessage: "Failed to fetch users",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(req.url)
+      const page = parseInt(searchParams.get("page") || "1")
+      const limit = parseInt(searchParams.get("limit") || "50")
+      const search = searchParams.get("search") || undefined
+      const status = searchParams.get("status") as "active" | "inactive" | "all" | null
+      const kycStatus = searchParams.get("kycStatus") as KycStatus | "all" | null
+      const userRole = searchParams.get("role") as Role | "all" | null
+      const dateFrom = searchParams.get("dateFrom") ? new Date(searchParams.get("dateFrom")!) : undefined
+      const dateTo = searchParams.get("dateTo") ? new Date(searchParams.get("dateTo")!) : undefined
+      const rmId = searchParams.get("rmId") || undefined // Filter by Relationship Manager
 
-    const { searchParams } = new URL(req.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const search = searchParams.get('search') || undefined
-    const status = searchParams.get('status') as 'active' | 'inactive' | 'all' | null
-    const kycStatus = searchParams.get('kycStatus') as KycStatus | 'all' | null
-    const userRole = searchParams.get('role') as Role | 'all' | null
-    const dateFrom = searchParams.get('dateFrom') ? new Date(searchParams.get('dateFrom')!) : undefined
-    const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined
-    const rmId = searchParams.get('rmId') || undefined // Filter by Relationship Manager
+      ctx.logger.debug(
+        { page, limit, search, status, kycStatus, userRole, dateFrom, dateTo, rmId },
+        "GET /api/admin/users - params"
+      )
 
-    console.log("📝 [API-ADMIN-USERS] Request params:", { page, limit, search, status, kycStatus, userRole, dateFrom, dateTo, rmId })
+      // If MODERATOR role, only show their assigned users
+      if (ctx.role === "MODERATOR") {
+        const rmIdForFilter = ctx.session.user.id
+        ctx.logger.debug({ rmId: rmIdForFilter }, "GET /api/admin/users - MODERATOR scope")
 
-    // If MODERATOR role, only show their assigned users
-    if (role === 'MODERATOR') {
-      const rmIdForFilter = session.user.id
-      console.log("🔒 [API-ADMIN-USERS] MODERATOR access - filtering by RM:", rmIdForFilter)
-      
-      const logger = createTradingLogger({
-        clientId: 'ADMIN',
-        userId: session.user.id
+        const tradingLogger = createTradingLogger({
+          clientId: "ADMIN",
+          userId: ctx.session.user.id,
+        })
+
+        const adminService = createAdminUserService(tradingLogger)
+        const result = await adminService.getUsersByRM(rmIdForFilter, page, limit, search)
+        return NextResponse.json(result, { status: 200 })
+      }
+
+      const tradingLogger = createTradingLogger({
+        clientId: "ADMIN",
+        userId: ctx.session.user.id,
       })
 
-      const adminService = createAdminUserService(logger)
-      
-      // Get users managed by this RM
-      const result = await adminService.getUsersByRM(rmIdForFilter, page, limit, search)
-      
+      const adminService = createAdminUserService(tradingLogger)
+
+      // Use advanced filters if any filter is provided, otherwise use simple getAllUsers
+      let result
+      if (rmId) {
+        // Filter by RM
+        result = await adminService.getUsersByRM(rmId, page, limit, search)
+      } else if (status || kycStatus || userRole || dateFrom || dateTo) {
+        result = await adminService.getUsersWithFilters({
+          page,
+          limit,
+          search,
+          status: status || "all",
+          kycStatus: kycStatus || "all",
+          role: userRole || "all",
+          dateFrom,
+          dateTo,
+        })
+      } else {
+        result = await adminService.getAllUsers(page, limit, search)
+      }
+
+      ctx.logger.info(
+        { count: result.users?.length, total: result.total, pages: result.pages },
+        "GET /api/admin/users - success"
+      )
       return NextResponse.json(result, { status: 200 })
     }
-
-    const logger = createTradingLogger({
-      clientId: 'ADMIN',
-      userId: session.user.id
-    })
-
-    const adminService = createAdminUserService(logger)
-    
-    // Use advanced filters if any filter is provided, otherwise use simple getAllUsers
-    let result
-    if (rmId) {
-      // Filter by RM
-      result = await adminService.getUsersByRM(rmId, page, limit, search)
-    } else if (status || kycStatus || userRole || dateFrom || dateTo) {
-      result = await adminService.getUsersWithFilters({
-        page,
-        limit,
-        search,
-        status: status || 'all',
-        kycStatus: kycStatus || 'all',
-        role: userRole || 'all',
-        dateFrom,
-        dateTo
-      })
-    } else {
-      result = await adminService.getAllUsers(page, limit, search)
-    }
-
-    console.log("🎉 [API-ADMIN-USERS] Users retrieved:", {
-      count: result.users.length,
-      total: result.total,
-      pages: result.pages
-    })
-
-    return NextResponse.json(result, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-USERS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch users" },
-      { status: 500 }
-    )
-  }
+  )
 }
 
 export async function POST(req: Request) {
-  console.log("🌐 [API-ADMIN-USERS] POST request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.manage")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/users",
+      required: "admin.users.manage",
+      fallbackMessage: "Failed to create user",
+    },
+    async (ctx) => {
+      const body = await req.json()
 
-    const body = await req.json()
-    console.log("📝 [API-ADMIN-USERS] Create user request:", { 
-      name: body.name, 
-      email: body.email,
-      phone: body.phone ? "***" : undefined,
-      hasInitialBalance: !!body.initialBalance
-    })
-
-    const { name, email, phone, password, initialBalance } = body
-
-    // Validate required fields
-    if (!name || !email || !phone || !password) {
-      return NextResponse.json(
-        { error: "Missing required fields: name, email, phone, and password are required" },
-        { status: 400 }
+      ctx.logger.debug(
+        {
+          name: body.name,
+          email: body.email,
+          phone: body.phone ? "***" : undefined,
+          hasInitialBalance: !!body.initialBalance,
+        },
+        "POST /api/admin/users - create request"
       )
-    }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      )
-    }
+      const { name, email, phone, password, initialBalance } = body
 
-    // Validate phone format (basic check)
-    if (phone.length < 10) {
-      return NextResponse.json(
-        { error: "Invalid phone number" },
-        { status: 400 }
-      )
-    }
-
-    // Validate password strength
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters long" },
-        { status: 400 }
-      )
-    }
-
-    const logger = createTradingLogger({
-      clientId: 'ADMIN',
-      userId: session.user.id
-    })
-
-    const adminService = createAdminUserService(logger)
-    const result = await adminService.createUser({
-      name,
-      email,
-      phone,
-      password,
-      initialBalance: initialBalance ? parseFloat(initialBalance) : undefined
-    })
-
-    console.log("✅ [API-ADMIN-USERS] User created successfully:", result.clientId)
-
-    return NextResponse.json({ 
-      success: true, 
-      user: {
-        id: result.id,
-        name: result.name,
-        email: result.email,
-        phone: result.phone,
-        clientId: result.clientId,
-        password: result.password, // Return password for display
-        initialBalance: result.tradingAccount.balance
+      // Validate required fields
+      if (!name || !email || !phone || !password) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Missing required fields: name, email, phone, and password are required",
+          statusCode: 400,
+        })
       }
-    }, { status: 201 })
 
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-USERS] POST error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to create user" },
-      { status: 500 }
-    )
-  }
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Invalid email format",
+          statusCode: 400,
+        })
+      }
+
+      // Validate phone format (basic check)
+      if (phone.length < 10) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Invalid phone number",
+          statusCode: 400,
+        })
+      }
+
+      // Validate password strength
+      if (password.length < 8) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Password must be at least 8 characters long",
+          statusCode: 400,
+        })
+      }
+
+      const tradingLogger = createTradingLogger({
+        clientId: "ADMIN",
+        userId: ctx.session.user.id,
+      })
+
+      const adminService = createAdminUserService(tradingLogger)
+      const result = await adminService.createUser({
+        name,
+        email,
+        phone,
+        password,
+        initialBalance: initialBalance ? parseFloat(initialBalance) : undefined,
+      })
+
+      ctx.logger.info({ userId: result.id, clientId: result.clientId }, "POST /api/admin/users - success")
+
+      return NextResponse.json(
+        {
+          success: true,
+          user: {
+            id: result.id,
+            name: result.name,
+            email: result.email,
+            phone: result.phone,
+            clientId: result.clientId,
+            password: result.password, // Return password for display
+            initialBalance: result.tradingAccount.balance,
+          },
+        },
+        { status: 201 }
+      )
+    }
+  )
 }
 
 export async function PATCH(req: Request) {
-  console.log("🌐 [API-ADMIN-USERS] PATCH request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.manage")
-    if (!authResult.ok) return authResult.response
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/users",
+      required: "admin.users.manage",
+      fallbackMessage: "Failed to update user",
+    },
+    async (ctx) => {
+      const body = await req.json()
+      ctx.logger.debug(body, "PATCH /api/admin/users - request")
 
-    const body = await req.json()
-    console.log("📝 [API-ADMIN-USERS] Update request:", body)
+      const { userId, isActive } = body
 
-    const { userId, isActive } = body
+      if (!userId || isActive === undefined) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Missing required fields",
+          statusCode: 400,
+        })
+      }
 
-    if (!userId || isActive === undefined) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
+      const tradingLogger = createTradingLogger({
+        clientId: "ADMIN",
+        userId: ctx.session.user.id,
+      })
+
+      const adminService = createAdminUserService(tradingLogger)
+      const user = await adminService.updateUserStatus(userId, isActive)
+
+      ctx.logger.info({ userId: user.id, isActive: user.isActive }, "PATCH /api/admin/users - success")
+      return NextResponse.json({ success: true, user }, { status: 200 })
     }
-
-    const adminService = createAdminUserService()
-    const user = await adminService.updateUserStatus(userId, isActive)
-
-    console.log("✅ [API-ADMIN-USERS] User status updated:", user.id)
-
-    return NextResponse.json({ success: true, user }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-USERS] PATCH error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to update user" },
-      { status: 500 }
-    )
-  }
+  )
 }
