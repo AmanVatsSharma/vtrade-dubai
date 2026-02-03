@@ -17,10 +17,10 @@
     "clean:generated": "rm -rf generated prisma/generated",
     "type-check": "tsc --noEmit",
     "postinstall": "prisma generate",
-    "test": "jest",
+    "test": "jest --config jest.config.cjs --forceExit",
     "test:auth": "node scripts/run-auth-tests.js",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:watch": "jest --config jest.config.cjs --watch",
+    "test:coverage": "jest --config jest.config.cjs --coverage --forceExit"
   },
   "dependencies": {
     "@apollo/client": "^4.0.2",
@@ -134,7 +134,7 @@
       "lcov",
       "html"
     ],
-    "moduleNameMapping": {
+    "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"
     }
   }

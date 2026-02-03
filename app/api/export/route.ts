@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server'
 import { DataExportService } from '@/lib/services/export/DataExportService'
 import { auth } from '@/auth'
+import { getEffectiveStatementsEnabledForUser } from '@/lib/server/console-statements'
 
 export async function GET(req: Request) {
   console.log("📤 [API-EXPORT] GET request received")
@@ -26,6 +27,21 @@ export async function GET(req: Request) {
       ? new Date(searchParams.get('endDate')!) 
       : undefined
     const format = searchParams.get('format') || 'csv'
+
+    // Enforce statements feature flag (only for statement export)
+    if (type === 'statement') {
+      const resolution = await getEffectiveStatementsEnabledForUser(session.user.id!)
+      if (!resolution.enabled) {
+        console.warn("🚫 [API-EXPORT] Statement export blocked by settings", {
+          userId: session.user.id,
+          source: resolution.source,
+        })
+        return NextResponse.json(
+          { success: false, error: 'Statements are disabled for this account' },
+          { status: 403 }
+        )
+      }
+    }
 
     let data: string | any
     let filename: string
