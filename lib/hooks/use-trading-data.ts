@@ -1016,7 +1016,11 @@ export async function placeOrder(orderData: {
         
         await logger?.logSystemEvent("ORDER_PLACED", `Order ${result.orderId} placed successfully for ${orderData.symbol}`)
 
-        return { success: true, orderId: result.orderId }
+        // Return full backend payload so UI can respect async execution (executionScheduled)
+        return {
+          success: true,
+          ...result
+        }
     } catch (error: any) {
         await logger?.logError(error, "Order placement", orderData)
         console.error("Error placing order:", JSON.stringify(error, null, 2))

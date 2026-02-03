@@ -376,9 +376,10 @@ export function useOrderForm({ stock, portfolio, onOrderPlaced, onClose, session
         if (backendOrderId) {
           resolveOptimisticOrder(tempOrderId, {
             id: backendOrderId,
-            status: result.executionScheduled ? "PENDING" : "EXECUTED",
-            executedAt: result.executionScheduled ? null : new Date().toISOString(),
-            filledQuantity: result.executionScheduled ? 0 : units
+            // Backend now returns quickly with async execution; keep UI pending until realtime updates arrive.
+            status: "PENDING",
+            executedAt: null,
+            filledQuantity: 0
           })
         } else {
           resolveOptimisticOrder(tempOrderId)
