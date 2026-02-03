@@ -4,70 +4,68 @@
  * @description API endpoint for super admins to update trading account funds
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { AppError } from "@/src/common/errors"
 
 export async function PUT(
   req: Request,
   { params }: { params: { userId: string } }
 ) {
-  console.log("🌐 [API-ADMIN-USER-TRADING-ACCOUNT] PUT request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.funds.override")
-    if (!authResult.ok) return authResult.response
+  return handleAdminApi(
+    req,
+    {
+      route: `/api/admin/users/${params.userId}/trading-account`,
+      required: "admin.funds.override",
+      fallbackMessage: "Failed to update trading account funds",
+    },
+    async (ctx) => {
+      const userId = params.userId
+      const body = await req.json()
+      const { balance, availableMargin, usedMargin, reason } = body
 
-    const userId = params.userId
-    const body = await req.json()
-    const { balance, availableMargin, usedMargin, reason } = body
+      ctx.logger.debug(
+        { userId, balance, availableMargin, usedMargin, hasReason: !!reason },
+        "PUT /api/admin/users/[userId]/trading-account - request"
+      )
 
-    console.log("📝 [API-ADMIN-USER-TRADING-ACCOUNT] Updating trading account funds:", {
-      userId,
-      balance,
-      availableMargin,
-      usedMargin,
-      hasReason: !!reason
-    })
+      if (balance === undefined && availableMargin === undefined && usedMargin === undefined) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "At least one field (balance, availableMargin, or usedMargin) must be provided",
+          statusCode: 400,
+        })
+      }
 
-    // Validate that at least one field is provided
-    if (balance === undefined && availableMargin === undefined && usedMargin === undefined) {
+      const adminService = createAdminUserService()
+      const updatedAccount = await adminService.updateTradingAccountFunds(
+        userId,
+        {
+          ...(balance !== undefined && { balance: Number(balance) }),
+          ...(availableMargin !== undefined && { availableMargin: Number(availableMargin) }),
+          ...(usedMargin !== undefined && { usedMargin: Number(usedMargin) }),
+        },
+        reason
+      )
+
+      ctx.logger.info({ userId }, "PUT /api/admin/users/[userId]/trading-account - success")
+
       return NextResponse.json(
-        { error: "At least one field (balance, availableMargin, or usedMargin) must be provided" },
-        { status: 400 }
+        {
+          success: true,
+          tradingAccount: {
+            id: updatedAccount.id,
+            balance: Number(updatedAccount.balance),
+            availableMargin: Number(updatedAccount.availableMargin),
+            usedMargin: Number(updatedAccount.usedMargin),
+          },
+        },
+        { status: 200 }
       )
     }
-
-    const adminService = createAdminUserService()
-    const updatedAccount = await adminService.updateTradingAccountFunds(
-      userId,
-      {
-        ...(balance !== undefined && { balance: Number(balance) }),
-        ...(availableMargin !== undefined && { availableMargin: Number(availableMargin) }),
-        ...(usedMargin !== undefined && { usedMargin: Number(usedMargin) })
-      },
-      reason
-    )
-
-    console.log("✅ [API-ADMIN-USER-TRADING-ACCOUNT] Trading account funds updated successfully")
-
-    return NextResponse.json({
-      success: true,
-      tradingAccount: {
-        id: updatedAccount.id,
-        balance: Number(updatedAccount.balance),
-        availableMargin: Number(updatedAccount.availableMargin),
-        usedMargin: Number(updatedAccount.usedMargin)
-      }
-    }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-USER-TRADING-ACCOUNT] PUT error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to update trading account funds" },
-      { status: 500 }
-    )
-  }
+  )
 }

@@ -4,47 +4,45 @@
  * @description API route for manually verifying user email or phone
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { AppError } from "@/src/common/errors"
 
 export async function POST(
   req: Request,
   { params }: { params: { userId: string } }
 ) {
-  console.log("🌐 [API-ADMIN-VERIFY-CONTACT] POST request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.manage")
-    if (!authResult.ok) return authResult.response
+  return handleAdminApi(
+    req,
+    {
+      route: `/api/admin/users/${params.userId}/verify-contact`,
+      required: "admin.users.manage",
+      fallbackMessage: "Failed to verify contact",
+    },
+    async (ctx) => {
+      const userId = params.userId
+      const body = await req.json()
+      const { type } = body
 
-    const userId = params.userId
-    const body = await req.json()
-    const { type } = body
+      if (!type || !["email", "phone"].includes(type)) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Type must be 'email' or 'phone'",
+          statusCode: 400,
+        })
+      }
 
-    if (!type || !['email', 'phone'].includes(type)) {
-      return NextResponse.json(
-        { error: "Type must be 'email' or 'phone'" },
-        { status: 400 }
-      )
+      ctx.logger.debug({ userId, type }, "POST /api/admin/users/[userId]/verify-contact - request")
+
+      const adminService = createAdminUserService()
+      const user = await adminService.verifyContact(userId, type as "email" | "phone")
+
+      ctx.logger.info({ userId, type }, "POST /api/admin/users/[userId]/verify-contact - success")
+      return NextResponse.json({ success: true, user }, { status: 200 })
     }
-
-    console.log("📝 [API-ADMIN-VERIFY-CONTACT] Verifying contact:", { userId, type })
-
-    const adminService = createAdminUserService()
-    const user = await adminService.verifyContact(userId, type as 'email' | 'phone')
-
-    console.log(`✅ [API-ADMIN-VERIFY-CONTACT] ${type} verified successfully`)
-
-    return NextResponse.json({ success: true, user }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-VERIFY-CONTACT] POST error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to verify contact" },
-      { status: 500 }
-    )
-  }
+  )
 }
