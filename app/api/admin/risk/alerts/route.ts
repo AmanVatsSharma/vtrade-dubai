@@ -4,57 +4,55 @@
  * @description API route for risk alerts
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-RISK-ALERTS] GET request received")
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/risk/alerts",
+      required: "admin.risk.read",
+      fallbackMessage: "Failed to fetch risk alerts",
+    },
+    async (ctx) => {
+      ctx.logger.debug({}, "GET /api/admin/risk/alerts - start")
 
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.risk.read")
-    if (!authResult.ok) return authResult.response
+      const alerts = await prisma.riskAlert.findMany({
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              clientId: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100,
+      })
 
-    // Fetch risk alerts from database
-    const alerts = await prisma.riskAlert.findMany({
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            clientId: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 100
-    })
+      const formattedAlerts = alerts.map((alert) => ({
+        id: alert.id,
+        userId: alert.userId,
+        userName: alert.user?.name || alert.user?.email || "Unknown",
+        type: alert.type,
+        severity: alert.severity,
+        message: alert.message,
+        timestamp: alert.createdAt,
+        resolved: alert.resolved,
+      }))
 
-    const formattedAlerts = alerts.map(alert => ({
-      id: alert.id,
-      userId: alert.userId,
-      userName: alert.user?.name || alert.user?.email || 'Unknown',
-      type: alert.type,
-      severity: alert.severity,
-      message: alert.message,
-      timestamp: alert.createdAt,
-      resolved: alert.resolved
-    }))
+      ctx.logger.info({ count: formattedAlerts.length }, "GET /api/admin/risk/alerts - success")
 
-    console.log("✅ [API-ADMIN-RISK-ALERTS] Risk alerts fetched:", formattedAlerts.length)
-
-    return NextResponse.json({ alerts: formattedAlerts }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-RISK-ALERTS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch risk alerts" },
-      { status: 500 }
-    )
-  }
+      return NextResponse.json({ alerts: formattedAlerts }, { status: 200 })
+    }
+  )
 }

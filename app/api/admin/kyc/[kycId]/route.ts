@@ -4,63 +4,78 @@
  * @description Admin KYC detail and review log API
  * @author BharatERP
  * @created 2026-01-15
+ * @updated 2026-02-02
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest, { params }: { params: { kycId: string } }) {
-  try {
-    const authResult = await requireAdminPermissions(request, "admin.users.kyc")
-    if (!authResult.ok) return authResult.response
+  return handleAdminApi(
+    request,
+    {
+      route: "/api/admin/kyc/[kycId]",
+      required: "admin.users.kyc",
+      fallbackMessage: "Failed to fetch KYC details",
+    },
+    async (ctx) => {
+      ctx.logger.debug({ kycId: params.kycId }, "GET /api/admin/kyc/[kycId] - request")
 
-    const kyc = await prisma.kYC.findUnique({
-      where: { id: params.kycId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            clientId: true,
-            role: true,
-          },
-        },
-        assignedTo: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-        reviewLogs: {
-          include: {
-            reviewer: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-              },
+      const kyc = await prisma.kYC.findUnique({
+        where: { id: params.kycId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              clientId: true,
+              role: true,
             },
           },
-          orderBy: { createdAt: "desc" },
+          assignedTo: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          reviewLogs: {
+            include: {
+              reviewer: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          },
         },
-      },
-    })
+      })
 
-    if (!kyc) {
-      return NextResponse.json({ error: "KYC record not found" }, { status: 404 })
+      if (!kyc) {
+        throw new AppError({
+          code: "NOT_FOUND",
+          message: "KYC record not found",
+          statusCode: 404,
+        })
+      }
+
+      ctx.logger.info(
+        { kycId: params.kycId, reviewLogsCount: kyc.reviewLogs.length },
+        "GET /api/admin/kyc/[kycId] - success"
+      )
+
+      return NextResponse.json({ kyc })
     }
-
-    return NextResponse.json({ kyc })
-  } catch (error) {
-    console.error("Admin KYC detail fetch error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
+  )
 }
