@@ -426,6 +426,8 @@ export class OrderExecutionService {
     if (!input.stockId) {
       throw new Error(`Stock reference missing while executing order ${orderId}`)
     }
+    // Capture for TS narrowing inside transaction callback
+    const stockId: string = input.stockId
 
     const runtimeSegment = (input.segment || input.exchange || 'NSE').toUpperCase()
     const runtimeProductType = (() => {
@@ -457,7 +459,7 @@ export class OrderExecutionService {
         console.log("📈 [ORDER-EXECUTION-SERVICE] Updating position")
         const position = await this.positionRepo.upsert(
           input.tradingAccountId,
-          input.stockId,
+          stockId,
           input.symbol,
           signedQuantity,
           executionPrice,
@@ -832,11 +834,18 @@ export class OrderExecutionService {
 
       // Create notification for order cancelled (non-blocking)
       try {
-        const userId = await this.getUserIdFromTradingAccount(order.tradingAccountId)
+        // Re-fetch minimal order info outside tx (TS-safe + best-effort)
+        const cancelled = await prisma.order.findUnique({
+          where: { id: orderId },
+          select: { tradingAccountId: true, symbol: true, quantity: true }
+        })
+        const userId = cancelled?.tradingAccountId
+          ? await this.getUserIdFromTradingAccount(cancelled.tradingAccountId)
+          : null
         if (userId) {
           await NotificationService.notifyOrderCancelled(userId, {
-            symbol: order.symbol,
-            quantity: order.quantity
+            symbol: cancelled?.symbol || "UNKNOWN",
+            quantity: cancelled?.quantity || 0
           })
         }
       } catch (notifError) {
