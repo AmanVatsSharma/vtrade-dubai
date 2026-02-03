@@ -8,7 +8,8 @@
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 
 /**
  * PATCH /api/admin/users/[userId]/assign-rm
@@ -18,121 +19,85 @@ export async function PATCH(
   req: Request,
   { params }: { params: { userId: string } }
 ) {
-  console.log("🌐 [API-ADMIN-ASSIGN-RM] PATCH request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.rm")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const role = authResult.role
+  return handleAdminApi(
+    req,
+    {
+      route: `/api/admin/users/${params.userId}/assign-rm`,
+      required: "admin.users.rm",
+      fallbackMessage: "Failed to assign RM",
+    },
+    async (ctx) => {
+      const { userId } = params
+      const body = await req.json()
+      const { rmId } = body // null to unassign, or RM user ID to assign
 
-    const { userId } = params
-    const body = await req.json()
-    const { rmId } = body // null to unassign, or RM user ID to assign
+      ctx.logger.debug({ userId, rmId }, "PATCH /api/admin/users/[userId]/assign-rm - request")
 
-    // Validate user exists
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    })
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      )
-    }
-
-    // If MODERATOR, verify they can only assign themselves
-    if (role === 'MODERATOR') {
-      if (rmId && rmId !== session.user.id) {
-        return NextResponse.json(
-          { error: "You can only assign yourself as RM" },
-          { status: 403 }
-        )
-      }
-    }
-
-    // If rmId provided, validate RM exists and has appropriate role (ADMIN or MODERATOR can be RMs)
-    if (rmId) {
-      const rm = await prisma.user.findUnique({
-        where: { id: rmId }
-      })
-
-      if (!rm) {
-        return NextResponse.json(
-          { error: "Relationship Manager not found" },
-          { status: 404 }
-        )
+      const user = await prisma.user.findUnique({ where: { id: userId } })
+      if (!user) {
+        throw new AppError({ code: "NOT_FOUND", message: "User not found", statusCode: 404 })
       }
 
-      // ADMIN and MODERATOR can be RMs (can have users managed by them)
-      if (rm.role !== 'MODERATOR' && rm.role !== 'ADMIN') {
-        return NextResponse.json(
-          { error: "Only Admin or Moderator can be a Relationship Manager" },
-          { status: 400 }
-        )
-      }
-
-      // Authorization: Check if current user can assign this RM
-      // SUPER_ADMIN can assign any ADMIN/MODERATOR as RM
-      // ADMIN can assign MODERATORs they manage as RM
-      // MODERATOR can only assign themselves
-      if (role === 'ADMIN' && rm.role === 'ADMIN') {
-        // Admin cannot assign another Admin as RM (only SUPER_ADMIN can)
-        if (rmId !== session.user.id) {
-          return NextResponse.json(
-            { error: "You can only assign Moderators or yourself as RM" },
-            { status: 403 }
-          )
-        }
-      } else if (role === 'ADMIN' && rm.role === 'MODERATOR') {
-        // Admin can assign Moderators they manage
-        if (rm.managedById !== session.user.id) {
-          return NextResponse.json(
-            { error: "You can only assign Moderators you manage as RM" },
-            { status: 403 }
-          )
+      if (ctx.role === "MODERATOR") {
+        if (rmId && rmId !== ctx.session.user.id) {
+          throw new AppError({ code: "FORBIDDEN", message: "You can only assign yourself as RM", statusCode: 403 })
         }
       }
-    }
 
-    // Update user's managedById
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        managedById: rmId || null
-      },
-      include: {
-        managedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            clientId: true
+      if (rmId) {
+        const rm = await prisma.user.findUnique({ where: { id: rmId } })
+        if (!rm) {
+          throw new AppError({ code: "NOT_FOUND", message: "Relationship Manager not found", statusCode: 404 })
+        }
+        if (rm.role !== "MODERATOR" && rm.role !== "ADMIN") {
+          throw new AppError({
+            code: "VALIDATION_ERROR",
+            message: "Only Admin or Moderator can be a Relationship Manager",
+            statusCode: 400,
+          })
+        }
+
+        if (ctx.role === "ADMIN" && rm.role === "ADMIN") {
+          if (rmId !== ctx.session.user.id) {
+            throw new AppError({
+              code: "FORBIDDEN",
+              message: "You can only assign Moderators or yourself as RM",
+              statusCode: 403,
+            })
+          }
+        } else if (ctx.role === "ADMIN" && rm.role === "MODERATOR") {
+          if (rm.managedById !== ctx.session.user.id) {
+            throw new AppError({
+              code: "FORBIDDEN",
+              message: "You can only assign Moderators you manage as RM",
+              statusCode: 403,
+            })
           }
         }
       }
-    })
 
-    console.log(`✅ [API-ADMIN-ASSIGN-RM] Updated user ${userId} RM assignment`)
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { managedById: rmId || null },
+        include: {
+          managedBy: {
+            select: { id: true, name: true, email: true, phone: true, clientId: true },
+          },
+        },
+      })
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        managedById: updatedUser.managedById,
-        managedBy: updatedUser.managedBy
-      }
-    })
+      ctx.logger.info({ userId, rmId }, "PATCH /api/admin/users/[userId]/assign-rm - success")
 
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-ASSIGN-RM] PATCH error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to assign RM" },
-      { status: 500 }
-    )
-  }
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          managedById: updatedUser.managedById,
+          managedBy: updatedUser.managedBy,
+        },
+      })
+    }
+  )
 }

@@ -8,7 +8,8 @@
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 
 /**
  * Helper function to determine which roles a user can manage based on their role
@@ -39,105 +40,91 @@ export async function GET(
   req: Request,
   { params }: { params: { rmId: string } }
 ) {
-  console.log(`🌐 [API-ADMIN-RMS-TEAM] GET request for RM: ${params.rmId}`)
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.rm")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const role = authResult.role
+  return handleAdminApi(
+    req,
+    {
+      route: `/api/admin/rms/${params.rmId}/team`,
+      required: "admin.users.rm",
+      fallbackMessage: "Failed to fetch team members",
+    },
+    async (ctx) => {
+      const rmId = params.rmId
 
-    const rmId = params.rmId
+      const rm = await prisma.user.findUnique({
+        where: { id: rmId },
+        select: { id: true, role: true, name: true, managedById: true },
+      })
 
-    // Verify the target user exists
-    const rm = await prisma.user.findUnique({
-      where: { id: rmId },
-      select: { id: true, role: true, name: true, managedById: true }
-    })
-
-    if (!rm) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    // Authorization checks based on role hierarchy
-    if (role === 'MODERATOR') {
-      // Moderators can only see their own team
-      if (session.user.id !== rmId) {
-        console.error("❌ [API-ADMIN-RMS-TEAM] Moderator trying to access another user's team")
-        return NextResponse.json({ error: "Unauthorized: You can only view your own team" }, { status: 403 })
+      if (!rm) {
+        throw new AppError({ code: "NOT_FOUND", message: "User not found", statusCode: 404 })
       }
-    } else if (role === 'ADMIN') {
-      // Admins can see teams of:
-      // 1. Themselves
-      // 2. MODERATORs they manage
-      // 3. Other ADMINs (if they manage them, but typically only SUPER_ADMIN manages ADMINs)
-      if (session.user.id !== rmId) {
-        // Check if this user is managed by the admin
-        if (rm.managedById !== session.user.id) {
-          // Check if managed by a moderator that this admin manages
-          if (rm.managedById) {
-            const managedByUser = await prisma.user.findUnique({
-              where: { id: rm.managedById },
-              select: { id: true, role: true, managedById: true }
-            })
-            
-            if (!managedByUser || managedByUser.managedById !== session.user.id) {
-              console.error("❌ [API-ADMIN-RMS-TEAM] Admin trying to access team they don't manage")
-              return NextResponse.json({ error: "Unauthorized: You can only view teams you manage" }, { status: 403 })
+
+      // Authorization checks based on role hierarchy
+      if (ctx.role === "MODERATOR") {
+        if (ctx.session.user.id !== rmId) {
+          throw new AppError({
+            code: "FORBIDDEN",
+            message: "Unauthorized: You can only view your own team",
+            statusCode: 403,
+          })
+        }
+      } else if (ctx.role === "ADMIN") {
+        if (ctx.session.user.id !== rmId) {
+          if (rm.managedById !== ctx.session.user.id) {
+            if (rm.managedById) {
+              const managedByUser = await prisma.user.findUnique({
+                where: { id: rm.managedById },
+                select: { id: true, role: true, managedById: true },
+              })
+
+              if (!managedByUser || managedByUser.managedById !== ctx.session.user.id) {
+                throw new AppError({
+                  code: "FORBIDDEN",
+                  message: "Unauthorized: You can only view teams you manage",
+                  statusCode: 403,
+                })
+              }
+            } else {
+              throw new AppError({
+                code: "FORBIDDEN",
+                message: "Unauthorized: You can only view teams you manage",
+                statusCode: 403,
+              })
             }
-          } else {
-            // User is not managed by anyone, admin cannot see their team
-            console.error("❌ [API-ADMIN-RMS-TEAM] Admin trying to access unmanaged user's team")
-            return NextResponse.json({ error: "Unauthorized: You can only view teams you manage" }, { status: 403 })
           }
         }
       }
+      // SUPER_ADMIN can see any team (no additional check needed)
+
+      const manageableRoles = getManageableRoles(rm.role)
+      ctx.logger.debug({ rmId, targetRole: rm.role, manageableRoles }, "GET /api/admin/rms/[rmId]/team - scope")
+
+      const members = await prisma.user.findMany({
+        where: {
+          managedById: rmId,
+          role: { in: manageableRoles },
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          clientId: true,
+          isActive: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: [{ role: "asc" }, { createdAt: "desc" }],
+      })
+
+      ctx.logger.info({ rmId, count: members.length }, "GET /api/admin/rms/[rmId]/team - success")
+      return NextResponse.json({
+        rmId,
+        rmName: rm.name,
+        rmRole: rm.role,
+        members,
+        count: members.length,
+      })
     }
-    // SUPER_ADMIN can see any team (no additional check needed)
-
-    // Get roles that the target user can manage
-    const manageableRoles = getManageableRoles(rm.role)
-    console.log(`📊 [API-ADMIN-RMS-TEAM] Target user role: ${rm.role}, Can manage roles:`, manageableRoles)
-
-    // Fetch all users managed by this user (based on their role hierarchy)
-    const members = await prisma.user.findMany({
-      where: {
-        managedById: rmId,
-        role: {
-          in: manageableRoles // Show users with roles the target user can manage
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        clientId: true,
-        isActive: true,
-        role: true,
-        createdAt: true
-      },
-      orderBy: [
-        { role: 'asc' }, // Order by role hierarchy
-        { createdAt: 'desc' }
-      ]
-    })
-
-    console.log(`✅ [API-ADMIN-RMS-TEAM] Found ${members.length} team members for ${rm.role} ${rmId}`)
-
-    return NextResponse.json({
-      rmId,
-      rmName: rm.name,
-      rmRole: rm.role,
-      members,
-      count: members.length
-    })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-RMS-TEAM] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch team members" },
-      { status: 500 }
-    )
-  }
+  )
 }
