@@ -4,16 +4,16 @@ overview: Reduce order placement latency from 10–15s to sub-second by removing
 todos:
   - id: profile-latency
     content: Add step-level timing around order placement path to confirm where 10–15s is spent.
-    status: completed
+    status: in_progress
   - id: remove-nested-tx
     content: Refactor `FundManagementService` and `OrderExecutionService` to use a single transaction (no `$transaction` inside `$transaction`).
-    status: completed
+    status: pending
   - id: fast-accepted-response
     content: Change order placement contract to return quickly with ACCEPTED/QUEUED status; stop awaiting full execution in request.
-    status: completed
+    status: pending
   - id: async-worker
     content: Implement portable async execution worker (EC2 process + Amplify-friendly Lambda/SQS option).
-    status: in_progress
+    status: pending
   - id: cache-market-timing
     content: Add TTL cache for NSE holiday/session lookups to reduce DB calls per order.
     status: pending
