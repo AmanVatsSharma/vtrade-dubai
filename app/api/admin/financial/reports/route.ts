@@ -4,25 +4,28 @@
  * @description API route for financial reports
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-FINANCIAL-REPORTS] GET request received")
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/financial/reports",
+      required: "admin.reports.read",
+      fallbackMessage: "Failed to fetch financial reports",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(req.url)
+      const period = searchParams.get("period") || "month"
+      const dateFrom = searchParams.get("dateFrom") ? new Date(searchParams.get("dateFrom")!) : undefined
+      const dateTo = searchParams.get("dateTo") ? new Date(searchParams.get("dateTo")!) : undefined
 
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.reports.read")
-    if (!authResult.ok) return authResult.response
-
-    const { searchParams } = new URL(req.url)
-    const period = searchParams.get('period') || 'month'
-    const dateFrom = searchParams.get('dateFrom') ? new Date(searchParams.get('dateFrom')!) : undefined
-    const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined
-
-    console.log("💰 [API-ADMIN-FINANCIAL-REPORTS] Fetching reports for period:", period)
+      ctx.logger.debug({ period, dateFrom, dateTo }, "GET /api/admin/financial/reports - request")
 
     // Calculate date range based on period
     const now = new Date()
@@ -115,15 +118,8 @@ export async function GET(req: Request) {
       users: activeUsers,
     }]
 
-    console.log("✅ [API-ADMIN-FINANCIAL-REPORTS] Reports generated")
-
-    return NextResponse.json({ reports }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-FINANCIAL-REPORTS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch financial reports" },
-      { status: 500 }
-    )
-  }
+      ctx.logger.info({ period, revenue, expenses, profit }, "GET /api/admin/financial/reports - success")
+      return NextResponse.json({ reports }, { status: 200 })
+    }
+  )
 }
