@@ -4,38 +4,32 @@
  * @description API route for top traders data
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-TOP-TRADERS] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.top-traders.read")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    console.log("✅ [API-ADMIN-TOP-TRADERS] Admin authenticated:", session.user.email)
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/top-traders",
+      required: "admin.top-traders.read",
+      fallbackMessage: "Failed to fetch top traders",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(req.url)
+      const limit = parseInt(searchParams.get("limit") || "10")
 
-    const { searchParams } = new URL(req.url)
-    const limit = parseInt(searchParams.get('limit') || '10')
+      ctx.logger.debug({ limit }, "GET /api/admin/top-traders - request")
 
-    console.log("🏆 [API-ADMIN-TOP-TRADERS] Fetching top traders:", { limit })
+      const adminService = createAdminUserService()
+      const traders = await adminService.getTopTraders(limit)
 
-    const adminService = createAdminUserService()
-    const traders = await adminService.getTopTraders(limit)
-
-    console.log(`✅ [API-ADMIN-TOP-TRADERS] Found ${traders.length} top traders`)
-
-    return NextResponse.json({ success: true, traders }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-TOP-TRADERS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch top traders" },
-      { status: 500 }
-    )
-  }
+      ctx.logger.info({ count: traders.length }, "GET /api/admin/top-traders - success")
+      return NextResponse.json({ success: true, traders }, { status: 200 })
+    }
+  )
 }

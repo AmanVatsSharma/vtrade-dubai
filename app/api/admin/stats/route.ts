@@ -1,30 +1,30 @@
+/**
+ * @file route.ts
+ * @module admin-console
+ * @description API route for platform statistics
+ * @author BharatERP
+ * @created 2025-01-27
+ * @updated 2026-02-02
+ */
+
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-STATS] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.stats.read")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    console.log("✅ [API-ADMIN-STATS] Admin authenticated:", session.user.email)
-
-    console.log("📊 [API-ADMIN-STATS] Fetching platform statistics")
-
-    const adminService = createAdminUserService()
-    const stats = await adminService.getPlatformStats()
-
-    console.log("✅ [API-ADMIN-STATS] Statistics retrieved")
-
-    return NextResponse.json({ success: true, stats }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-STATS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch statistics" },
-      { status: 500 }
-    )
-  }
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/stats",
+      required: "admin.stats.read",
+      fallbackMessage: "Failed to fetch statistics",
+    },
+    async (ctx) => {
+      ctx.logger.debug({}, "GET /api/admin/stats - start")
+      const adminService = createAdminUserService()
+      const stats = await adminService.getPlatformStats()
+      ctx.logger.info({}, "GET /api/admin/stats - success")
+      return NextResponse.json({ success: true, stats }, { status: 200 })
+    }
+  )
 }
