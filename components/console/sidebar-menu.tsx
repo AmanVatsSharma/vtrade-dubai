@@ -40,12 +40,15 @@ const menuItems = [
 interface SidebarMenuProps {
   activeSection?: string
   onSectionChange?: (section: string) => void
+  statementsEnabled?: boolean
 }
 
-export function SidebarMenu({ activeSection = "account", onSectionChange }: SidebarMenuProps) {
+export function SidebarMenu({ activeSection = "account", onSectionChange, statementsEnabled = true }: SidebarMenuProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
 
   console.log('📱 [SIDEBAR-MENU] Rendering with activeSection:', activeSection)
+
+  const visibleMenuItems = statementsEnabled ? menuItems : menuItems.filter((m) => m.id !== "statements")
 
   const handleLogout = async () => {
     try {
@@ -91,7 +94,7 @@ export function SidebarMenu({ activeSection = "account", onSectionChange }: Side
       {/* Navigation Menu */}
       <nav className="flex-1 p-3 sm:p-4 overflow-y-auto overscroll-contain">
         <div className="space-y-1">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon
             const isActive = activeSection === item.id
 
