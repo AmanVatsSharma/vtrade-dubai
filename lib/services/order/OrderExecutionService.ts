@@ -232,29 +232,8 @@ export class OrderExecutionService {
           }
         }
 
-        // Block margin
-        console.log("🔒 [ORDER-EXECUTION-SERVICE] Blocking margin:", marginCalc.requiredMargin)
-        const blockResult = await this.fundService.blockMarginTx(
-          tx,
-          input.tradingAccountId,
-          marginCalc.requiredMargin,
-          `Margin blocked for ${input.orderSide} ${input.symbol}`
-        )
-        console.log("⏱️ [ORDER-EXECUTION-SERVICE] blockMargin ms", Math.round(nowMs() - txStart))
-
-        // Deduct charges
-        console.log("💸 [ORDER-EXECUTION-SERVICE] Deducting charges:", marginCalc.totalCharges)
-        const chargesResult = await this.fundService.debitTx(
-          tx,
-          input.tradingAccountId,
-          marginCalc.totalCharges,
-          `Brokerage and charges for ${input.orderSide} ${input.symbol}`
-        )
-        console.log("⏱️ [ORDER-EXECUTION-SERVICE] debitCharges ms", Math.round(nowMs() - txStart))
-
-        // Create order
+        // Create order first, then attach all downstream transactions to it
         console.log("📝 [ORDER-EXECUTION-SERVICE] Creating order record")
-
         const order = await this.orderRepo.create(
           {
             tradingAccountId: input.tradingAccountId,
@@ -264,26 +243,35 @@ export class OrderExecutionService {
             price: executionPrice,
             orderType: input.orderType,
             orderSide: input.orderSide,
-            productType: input.productType,
+            productType: normalizedProductType,
             status: 'PENDING'
           },
           tx
         )
-
         console.log("✅ [ORDER-EXECUTION-SERVICE] Order created:", order.id)
-        console.log("⏱️ [ORDER-EXECUTION-SERVICE] tx_total_ms_so_far", Math.round(nowMs() - txStart))
 
-        // Attach orderId to related fund transactions for full traceability
-        try {
-          if (blockResult?.transactionId) {
-            await this.transactionRepo.update(blockResult.transactionId, { orderId: order.id }, tx)
-          }
-          if (chargesResult?.transactionId) {
-            await this.transactionRepo.update(chargesResult.transactionId, { orderId: order.id }, tx)
-          }
-        } catch (linkError) {
-          console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to link transactions to order:", linkError)
-        }
+        // Block margin
+        console.log("🔒 [ORDER-EXECUTION-SERVICE] Blocking margin:", marginCalc.requiredMargin)
+        const blockResult = await this.fundService.blockMarginTx(
+          tx,
+          input.tradingAccountId,
+          marginCalc.requiredMargin,
+          `Margin blocked for ${input.orderSide} ${input.symbol}`,
+          { orderId: order.id }
+        )
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] blockMargin ms", Math.round(nowMs() - txStart))
+
+        // Deduct charges
+        console.log("💸 [ORDER-EXECUTION-SERVICE] Deducting charges:", marginCalc.totalCharges)
+        const chargesResult = await this.fundService.debitTx(
+          tx,
+          input.tradingAccountId,
+          marginCalc.totalCharges,
+          `Brokerage and charges for ${input.orderSide} ${input.symbol}`,
+          { orderId: order.id }
+        )
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] debitCharges ms", Math.round(nowMs() - txStart))
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] tx_total_ms_so_far", Math.round(nowMs() - txStart))
 
         return {
           orderId: order.id,
@@ -302,21 +290,6 @@ export class OrderExecutionService {
         stockId: result.stockId
       })
       mark("logOrder_placed")
-
-      // Create notification for order placed (non-blocking)
-      try {
-        const userId = input.userId || await this.getUserIdFromTradingAccount(input.tradingAccountId)
-        if (userId) {
-          await NotificationService.notifyOrderPlaced(userId, {
-            symbol: input.symbol,
-            quantity: input.quantity,
-            orderSide: input.orderSide,
-            orderType: input.orderType
-          })
-        }
-      } catch (notifError) {
-        console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to create order placed notification:", notifError)
-      }
 
       const response: OrderExecutionResult = {
         success: true,
