@@ -10,8 +10,9 @@ import { WithdrawalsSection } from "@/components/console/sections/withdrawals-se
 import { SecuritySection } from "@/components/console/sections/security-section"
 import { ConsoleErrorBoundary } from "@/components/console/console-error-boundary"
 import { ConsoleLoadingState } from "@/components/console/console-loading-state"
-import { useState, Suspense } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
+import { useConsoleFeatures } from "@/lib/hooks/use-console-features"
 
 export default function ConsolePage() {
   const [activeSection, setActiveSection] = useState("account")
@@ -21,6 +22,15 @@ export default function ConsolePage() {
   const userId = (session?.user as any)?.id as string | undefined
   console.log("/console: session status", { status, userId, sessionUser: session?.user })
 
+  const { statementsEnabled, isLoading: isFeaturesLoading, source } = useConsoleFeatures()
+
+  useEffect(() => {
+    if (!statementsEnabled && activeSection === "statements") {
+      console.log("🚫 [/console] Statements disabled; redirecting to account", { source })
+      setActiveSection("account")
+    }
+  }, [statementsEnabled, activeSection, source])
+
   const renderSection = () => {
     switch (activeSection) {
       case "profile":
@@ -28,7 +38,7 @@ export default function ConsolePage() {
       case "account":
         return <AccountSection />
       case "statements":
-        return <StatementsSection />
+        return statementsEnabled ? <StatementsSection /> : <AccountSection />
       case "deposits":
         return <DepositsSection />
       case "withdrawals":
@@ -43,7 +53,7 @@ export default function ConsolePage() {
   }
 
   // Graceful handling for loading and unauthenticated states
-  if (status === "loading") {
+  if (status === "loading" || isFeaturesLoading) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
         Loading your console...
@@ -65,7 +75,11 @@ export default function ConsolePage() {
   return (
     <ConsoleErrorBoundary>
       <Suspense fallback={<ConsoleLoadingState />}>
-        <ConsoleLayout activeSection={activeSection} onNavigateSection={(section) => setActiveSection(section)}>
+        <ConsoleLayout
+          activeSection={activeSection}
+          statementsEnabled={statementsEnabled}
+          onNavigateSection={(section) => setActiveSection(section)}
+        >
           {/* Main Content - sidebar is handled by ConsoleLayout */}
           {renderSection()}
         </ConsoleLayout>
