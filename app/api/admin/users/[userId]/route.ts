@@ -4,95 +4,102 @@
  * @description API route for individual user management operations (GET, PUT)
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { AppError } from "@/src/common/errors"
 
 export async function GET(
   req: Request,
   { params }: { params: { userId: string } }
 ) {
-  console.log("🌐 [API-ADMIN-USER-DETAILS] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.read")
-    if (!authResult.ok) return authResult.response
+  return handleAdminApi(
+    req,
+    {
+      route: `/api/admin/users/${params.userId}`,
+      required: "admin.users.read",
+      fallbackMessage: "Failed to fetch user details",
+    },
+    async (ctx) => {
+      const userId = params.userId
+      ctx.logger.debug({ userId }, "GET /api/admin/users/[userId] - request")
 
-    const userId = params.userId
-    console.log("📝 [API-ADMIN-USER-DETAILS] Fetching details for:", userId)
+      const adminService = createAdminUserService()
+      const user = await adminService.getUserDetails(userId)
 
-    const adminService = createAdminUserService()
-    const user = await adminService.getUserDetails(userId)
+      if (!user) {
+        throw new AppError({
+          code: "USER_NOT_FOUND",
+          message: "User not found",
+          statusCode: 404,
+        })
+      }
 
-    console.log("✅ [API-ADMIN-USER-DETAILS] User details retrieved")
-
-    return NextResponse.json({ success: true, user }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-USER-DETAILS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch user details" },
-      { status: 500 }
-    )
-  }
+      ctx.logger.info({ userId }, "GET /api/admin/users/[userId] - success")
+      return NextResponse.json({ success: true, user }, { status: 200 })
+    }
+  )
 }
 
 export async function PUT(
   req: Request,
   { params }: { params: { userId: string } }
 ) {
-  console.log("🌐 [API-ADMIN-USER-UPDATE] PUT request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.manage")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const currentUserRole = authResult.role
+  return handleAdminApi(
+    req,
+    {
+      route: `/api/admin/users/${params.userId}`,
+      required: "admin.users.manage",
+      fallbackMessage: "Failed to update user",
+    },
+    async (ctx) => {
+      const userId = params.userId
+      const body = await req.json()
 
-    const userId = params.userId
-    const body = await req.json()
-    console.log("📝 [API-ADMIN-USER-UPDATE] Updating user:", { userId, data: body })
+      ctx.logger.debug({ userId }, "PUT /api/admin/users/[userId] - request")
 
-    // 🔐 SECURITY: Prevent privilege escalation
-    // Get the target user's current role first
-    const adminService = createAdminUserService()
-    const targetUser = await adminService.getUserDetails(userId)
-    
-    // Check 1: Regular admins cannot modify admin/super-admin users at all
-    if (targetUser && (targetUser.role === 'ADMIN' || targetUser.role === 'SUPER_ADMIN')) {
-      if (currentUserRole !== 'SUPER_ADMIN') {
-        console.error("🚨 [API-ADMIN-USER-UPDATE] Security violation: Non-super-admin attempting to modify admin user")
-        return NextResponse.json(
-          { error: "Security restriction: Only Super Admins can modify Admin or Super Admin users" },
-          { status: 403 }
-        )
+      const adminService = createAdminUserService()
+      const targetUser = await adminService.getUserDetails(userId)
+      if (!targetUser) {
+        throw new AppError({
+          code: "USER_NOT_FOUND",
+          message: "User not found",
+          statusCode: 404,
+        })
       }
-    }
 
-    // Check 2: Only SUPER_ADMIN can assign ADMIN or SUPER_ADMIN roles
-    if (body.role && (body.role === 'ADMIN' || body.role === 'SUPER_ADMIN')) {
-      if (currentUserRole !== 'SUPER_ADMIN') {
-        console.error("🚨 [API-ADMIN-USER-UPDATE] Security violation: Non-super-admin attempting to assign admin role")
-        return NextResponse.json(
-          { error: "Security restriction: Only Super Admins can assign Admin or Super Admin roles" },
-          { status: 403 }
-        )
+      // 🔐 SECURITY: Prevent privilege escalation
+      if (targetUser.role === "ADMIN" || targetUser.role === "SUPER_ADMIN") {
+        if (ctx.role !== "SUPER_ADMIN") {
+          ctx.logger.warn(
+            { userId, targetRole: targetUser.role, actorRole: ctx.role },
+            "Security restriction hit"
+          )
+          throw new AppError({
+            code: "SECURITY_RESTRICTION",
+            message: "Security restriction: Only Super Admins can modify Admin or Super Admin users",
+            statusCode: 403,
+          })
+        }
       }
+
+      if (body.role && (body.role === "ADMIN" || body.role === "SUPER_ADMIN")) {
+        if (ctx.role !== "SUPER_ADMIN") {
+          ctx.logger.warn({ userId, attemptedRole: body.role, actorRole: ctx.role }, "Security restriction hit")
+          throw new AppError({
+            code: "SECURITY_RESTRICTION",
+            message: "Security restriction: Only Super Admins can assign Admin or Super Admin roles",
+            statusCode: 403,
+          })
+        }
+      }
+
+      const user = await adminService.updateUser(userId, body)
+      ctx.logger.info({ userId }, "PUT /api/admin/users/[userId] - success")
+      return NextResponse.json({ success: true, user }, { status: 200 })
     }
-
-    const user = await adminService.updateUser(userId, body)
-
-    console.log("✅ [API-ADMIN-USER-UPDATE] User updated successfully")
-
-    return NextResponse.json({ success: true, user }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-USER-UPDATE] PUT error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to update user" },
-      { status: 500 }
-    )
-  }
+  )
 }
