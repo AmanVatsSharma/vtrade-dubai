@@ -94,6 +94,30 @@ export class OrderExecutionService {
    * - Executes immediately (no 3-second delay)
    */
   async placeOrder(input: PlaceOrderInput): Promise<OrderExecutionResult> {
+    const nowMs = () => (typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now())
+    const t0 = nowMs()
+    const marks: Array<{ label: string; at: number }> = []
+    const mark = (label: string) => {
+      const at = nowMs()
+      marks.push({ label, at })
+      return at
+    }
+    const logTimingSummary = (extra?: Record<string, unknown>) => {
+      try {
+        const steps = marks.map((m, i) => {
+          const prev = i === 0 ? t0 : marks[i - 1]!.at
+          return { step: m.label, ms: Math.round(m.at - prev) }
+        })
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] placeOrder timing", {
+          totalMs: Math.round(nowMs() - t0),
+          steps,
+          ...extra
+        })
+      } catch (e) {
+        console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to log timing summary", e)
+      }
+    }
+
     const normalizedSegment = (input.segment || input.exchange || 'NSE').toUpperCase()
     const normalizedProductType = (() => {
       const raw = (input.productType || 'MIS').toUpperCase()
@@ -114,6 +138,7 @@ export class OrderExecutionService {
       token: input.token,
       instrumentId: input.instrumentId
     })
+    mark("start")
 
     await this.logger.logOrder("ORDER_PLACEMENT_START", `Placing ${input.orderSide} order for ${input.symbol}`, {
       symbol: input.symbol,
@@ -125,11 +150,13 @@ export class OrderExecutionService {
       instrumentId: input.instrumentId,
       watchlistItemId: input.watchlistItemId
     })
+    mark("logOrder_start")
 
     try {
       // Step 1: Validate order
       await this.validateOrder(input)
       console.log("✅ [ORDER-EXECUTION-SERVICE] Order validation passed")
+      mark("validateOrder")
 
       // Step 2: Use dialog price directly (4th attempt - instant execution)
       // Skip all price resolution tiers to make order placement super instant
@@ -141,6 +168,7 @@ export class OrderExecutionService {
       }
 
       console.log("💰 [ORDER-EXECUTION-SERVICE] Using dialog price directly:", executionPrice)
+      mark("resolvePrice")
 
       // Step 3: Calculate margin and charges
       const marginCalc = await this.marginCalculator.calculateMargin(
@@ -150,6 +178,7 @@ export class OrderExecutionService {
         executionPrice,
         normalizedLotSize
       )
+      mark("calculateMargin")
 
       console.log("📊 [ORDER-EXECUTION-SERVICE] Margin calculation:", marginCalc)
 
@@ -168,6 +197,7 @@ export class OrderExecutionService {
         marginCalc.requiredMargin,
         marginCalc.totalCharges
       )
+      mark("validateMargin")
 
       if (!validation.isValid) {
         console.error("❌ [ORDER-EXECUTION-SERVICE] Insufficient funds:", validation)
@@ -177,9 +207,11 @@ export class OrderExecutionService {
       }
 
       console.log("✅ [ORDER-EXECUTION-SERVICE] Sufficient funds available")
+      mark("fundsOk")
 
       // Step 5: Execute in transaction (atomic operation)
       const result = await executeInTransaction(async (tx) => {
+        const txStart = nowMs()
         // Resolve stock first to validate lot multiples for derivatives
         const stockRecord = await this.ensureStockForOrder(tx, {
           ...input,
@@ -187,6 +219,7 @@ export class OrderExecutionService {
           productType: normalizedProductType,
           lotSize: normalizedLotSize
         })
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] ensureStockForOrder ms", Math.round(nowMs() - txStart))
 
         // Enforce lot multiple validation for derivatives (NFO/FNO/MCX)
         const segForValidation = (stockRecord.segment || normalizedSegment || '').toUpperCase()
@@ -201,19 +234,23 @@ export class OrderExecutionService {
 
         // Block margin
         console.log("🔒 [ORDER-EXECUTION-SERVICE] Blocking margin:", marginCalc.requiredMargin)
-        const blockResult = await this.fundService.blockMargin(
+        const blockResult = await this.fundService.blockMarginTx(
+          tx,
           input.tradingAccountId,
           marginCalc.requiredMargin,
           `Margin blocked for ${input.orderSide} ${input.symbol}`
         )
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] blockMargin ms", Math.round(nowMs() - txStart))
 
         // Deduct charges
         console.log("💸 [ORDER-EXECUTION-SERVICE] Deducting charges:", marginCalc.totalCharges)
-        const chargesResult = await this.fundService.debit(
+        const chargesResult = await this.fundService.debitTx(
+          tx,
           input.tradingAccountId,
           marginCalc.totalCharges,
           `Brokerage and charges for ${input.orderSide} ${input.symbol}`
         )
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] debitCharges ms", Math.round(nowMs() - txStart))
 
         // Create order
         console.log("📝 [ORDER-EXECUTION-SERVICE] Creating order record")
@@ -234,6 +271,7 @@ export class OrderExecutionService {
         )
 
         console.log("✅ [ORDER-EXECUTION-SERVICE] Order created:", order.id)
+        console.log("⏱️ [ORDER-EXECUTION-SERVICE] tx_total_ms_so_far", Math.round(nowMs() - txStart))
 
         // Attach orderId to related fund transactions for full traceability
         try {
@@ -255,6 +293,7 @@ export class OrderExecutionService {
           stockId: stockRecord.id
         }
       })
+      mark("dbTransaction")
 
       await this.logger.logOrder("ORDER_PLACED", `Order placed successfully: ${result.orderId}`, {
         orderId: result.orderId,
@@ -262,6 +301,7 @@ export class OrderExecutionService {
         chargesDeducted: result.chargesDeducted,
         stockId: result.stockId
       })
+      mark("logOrder_placed")
 
       // Create notification for order placed (non-blocking)
       try {
@@ -278,55 +318,17 @@ export class OrderExecutionService {
         console.warn("⚠️ [ORDER-EXECUTION-SERVICE] Failed to create order placed notification:", notifError)
       }
 
-      // Step 6: Execute synchronously and return executed status to client
-      console.log("⚡ [ORDER-EXECUTION-SERVICE] Executing order synchronously (no background)")
-      try {
-        const enrichedInput: PlaceOrderInput = {
-          ...input,
-          stockId: result.stockId,
-          segment: normalizedSegment,
-          productType: normalizedProductType,
-          lotSize: normalizedLotSize,
-          price: executionPrice,
-          instrumentId: input.instrumentId || `${input.exchange || normalizedSegment}-${input.token ?? input.symbol}`
-        }
-        await this.executeOrder(input.symbol, enrichedInput, result.executionPrice, result.orderId)
-      } catch (execError: any) {
-        console.error("❌ [ORDER-EXECUTION-SERVICE] Synchronous execution failed:", execError)
-        // Best-effort cleanup: mark rejected and release margin
-        try {
-          await executeInTransaction(async (tx) => {
-            await this.orderRepo.update(result.orderId, { status: OrderStatus.CANCELLED }, tx)
-            const marginCalc = await this.marginCalculator.calculateMargin(
-              normalizedSegment,
-              normalizedProductType,
-              input.quantity,
-              result.executionPrice,
-              normalizedLotSize
-            )
-            await this.fundService.releaseMargin(
-              input.tradingAccountId,
-              marginCalc.requiredMargin,
-              `Margin released for failed order ${result.orderId}`,
-              { orderId: result.orderId }
-            )
-          })
-        } catch (cleanupError) {
-          console.error("❌ [ORDER-EXECUTION-SERVICE] Cleanup after execution failure failed:", cleanupError)
-        }
-        throw execError
-      }
-
       const response: OrderExecutionResult = {
         success: true,
         orderId: result.orderId,
-        message: "Order placed and executed",
-        executionScheduled: false,
+        message: "Order accepted",
+        executionScheduled: true,
         marginBlocked: result.marginBlocked,
         chargesDeducted: result.chargesDeducted
       }
 
-      console.log("🎉 [ORDER-EXECUTION-SERVICE] Order placement completed (INSTANT):", response)
+      console.log("🎉 [ORDER-EXECUTION-SERVICE] Order placement completed (ACCEPTED):", response)
+      logTimingSummary({ orderId: result.orderId, symbol: input.symbol })
       return response
 
     } catch (error: any) {
@@ -335,6 +337,7 @@ export class OrderExecutionService {
         symbol: input.symbol,
         quantity: input.quantity
       })
+      logTimingSummary({ failed: true, symbol: input.symbol, message: error?.message })
       throw error
     }
   }
@@ -402,7 +405,8 @@ export class OrderExecutionService {
             normalizedLotSize
           )
           
-          await this.fundService.releaseMargin(
+          await this.fundService.releaseMarginTx(
+            tx,
             input.tradingAccountId,
             marginCalc.requiredMargin,
             `Margin released for failed order ${orderId}: ${error.message}`
@@ -839,7 +843,8 @@ export class OrderExecutionService {
           productType: order.productType
         })
 
-        await this.fundService.releaseMargin(
+        await this.fundService.releaseMarginTx(
+          tx,
           order.tradingAccountId,
           marginCalc.requiredMargin,
           `Margin released for cancelled order ${orderId}`

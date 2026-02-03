@@ -14,7 +14,7 @@ import { executeInTransaction } from "@/lib/services/utils/prisma-transaction"
 import { TradingAccountRepository } from "@/lib/repositories/TradingAccountRepository"
 import { TransactionRepository } from "@/lib/repositories/TransactionRepository"
 import { TradingLogger } from "@/lib/services/logging/TradingLogger"
-import { TransactionType } from "@prisma/client"
+import { Prisma, TransactionType } from "@prisma/client"
 
 console.log("💰 [FUND-MGMT-SERVICE] Module loaded")
 
@@ -43,6 +43,145 @@ export class FundManagementService {
    * Block margin for an order
    * Reduces available margin and increases used margin
    */
+  async blockMarginTx(
+    tx: Prisma.TransactionClient,
+    tradingAccountId: string,
+    amount: number,
+    description: string = "Margin blocked for order",
+    context?: { orderId?: string; positionId?: string }
+  ): Promise<FundOperationResult> {
+    console.log("🔒 [FUND-MGMT-SERVICE] Blocking margin (tx):", {
+      tradingAccountId,
+      amount,
+      description
+    })
+
+    // Check if account has sufficient margin
+    const account = await this.accountRepo.findById(tradingAccountId, tx)
+
+    if (!account) {
+      console.error("❌ [FUND-MGMT-SERVICE] Account not found:", tradingAccountId)
+      throw new Error("Trading account not found")
+    }
+
+    if (account.availableMargin < amount) {
+      console.error("❌ [FUND-MGMT-SERVICE] Insufficient margin:", {
+        required: amount,
+        available: account.availableMargin
+      })
+      throw new Error(`Insufficient margin. Required: ₹${amount}, Available: ₹${account.availableMargin}`)
+    }
+
+    // Block margin
+    const updatedAccount = await this.accountRepo.blockMargin(tradingAccountId, amount, tx)
+
+    // Create transaction record
+    const transaction = await this.transactionRepo.create(
+      {
+        tradingAccountId,
+        amount,
+        type: TransactionType.DEBIT,
+        description,
+        orderId: context?.orderId,
+        positionId: context?.positionId
+      },
+      tx
+    )
+
+    return {
+      success: true,
+      newBalance: updatedAccount.balance,
+      newAvailableMargin: updatedAccount.availableMargin,
+      newUsedMargin: updatedAccount.usedMargin,
+      transactionId: transaction.id
+    }
+  }
+
+  async releaseMarginTx(
+    tx: Prisma.TransactionClient,
+    tradingAccountId: string,
+    amount: number,
+    description: string = "Margin released",
+    context?: { orderId?: string; positionId?: string }
+  ): Promise<FundOperationResult> {
+    console.log("🔓 [FUND-MGMT-SERVICE] Releasing margin (tx):", {
+      tradingAccountId,
+      amount,
+      description
+    })
+
+    const updatedAccount = await this.accountRepo.releaseMargin(tradingAccountId, amount, tx)
+
+    const transaction = await this.transactionRepo.create(
+      {
+        tradingAccountId,
+        amount,
+        type: TransactionType.CREDIT,
+        description,
+        orderId: context?.orderId,
+        positionId: context?.positionId
+      },
+      tx
+    )
+
+    return {
+      success: true,
+      newBalance: updatedAccount.balance,
+      newAvailableMargin: updatedAccount.availableMargin,
+      newUsedMargin: updatedAccount.usedMargin,
+      transactionId: transaction.id
+    }
+  }
+
+  async debitTx(
+    tx: Prisma.TransactionClient,
+    tradingAccountId: string,
+    amount: number,
+    description: string = "Debit",
+    context?: { orderId?: string; positionId?: string }
+  ): Promise<FundOperationResult> {
+    console.log("💸 [FUND-MGMT-SERVICE] Debiting account (tx):", {
+      tradingAccountId,
+      amount,
+      description
+    })
+
+    // Safety check using availableMargin
+    const account = await this.accountRepo.findById(tradingAccountId, tx)
+    if (!account) {
+      console.error("❌ [FUND-MGMT-SERVICE] Account not found:", tradingAccountId)
+      throw new Error("Trading account not found")
+    }
+    if (account.availableMargin < amount) {
+      console.error("❌ [FUND-MGMT-SERVICE] Insufficient funds:", {
+        required: amount,
+        available: account.availableMargin
+      })
+      throw new Error(`Insufficient funds. Required: ₹${amount}, Available: ₹${account.availableMargin}`)
+    }
+
+    const updatedAccount = await this.accountRepo.debit(tradingAccountId, amount, tx)
+    const transaction = await this.transactionRepo.create(
+      {
+        tradingAccountId,
+        amount,
+        type: TransactionType.DEBIT,
+        description,
+        orderId: context?.orderId,
+        positionId: context?.positionId
+      },
+      tx
+    )
+
+    return {
+      success: true,
+      newBalance: updatedAccount.balance,
+      newAvailableMargin: updatedAccount.availableMargin,
+      newUsedMargin: updatedAccount.usedMargin,
+      transactionId: transaction.id
+    }
+  }
+
   async blockMargin(
     tradingAccountId: string,
     amount: number,
@@ -62,49 +201,9 @@ export class FundManagementService {
 
     try {
       const result = await executeInTransaction(async (tx) => {
-        // Check if account has sufficient margin
-        const account = await this.accountRepo.findById(tradingAccountId, tx)
-        
-        if (!account) {
-          console.error("❌ [FUND-MGMT-SERVICE] Account not found:", tradingAccountId)
-          throw new Error("Trading account not found")
-        }
-
-        if (account.availableMargin < amount) {
-          console.error("❌ [FUND-MGMT-SERVICE] Insufficient margin:", {
-            required: amount,
-            available: account.availableMargin
-          })
-          throw new Error(`Insufficient margin. Required: ₹${amount}, Available: ₹${account.availableMargin}`)
-        }
-
-        console.log("✅ [FUND-MGMT-SERVICE] Sufficient margin available")
-
-        // Block margin
-        const updatedAccount = await this.accountRepo.blockMargin(tradingAccountId, amount, tx)
-
-        // Create transaction record
-        const transaction = await this.transactionRepo.create(
-          {
-            tradingAccountId,
-            amount,
-            type: TransactionType.DEBIT,
-            description,
-            orderId: context?.orderId,
-            positionId: context?.positionId
-          },
-          tx
-        )
-
+        const result = await this.blockMarginTx(tx, tradingAccountId, amount, description, context)
         console.log("✅ [FUND-MGMT-SERVICE] Margin blocked successfully")
-
-        return {
-          success: true,
-          newBalance: updatedAccount.balance,
-          newAvailableMargin: updatedAccount.availableMargin,
-          newUsedMargin: updatedAccount.usedMargin,
-          transactionId: transaction.id
-        }
+        return result
       })
 
       await this.logger.logFunds("MARGIN_BLOCKED", `Blocked ${amount} margin successfully`, {
@@ -149,31 +248,9 @@ export class FundManagementService {
 
     try {
       const result = await executeInTransaction(async (tx) => {
-        // Release margin
-        const updatedAccount = await this.accountRepo.releaseMargin(tradingAccountId, amount, tx)
-
-        // Create transaction record
-        const transaction = await this.transactionRepo.create(
-          {
-            tradingAccountId,
-            amount,
-            type: TransactionType.CREDIT,
-            description,
-            orderId: context?.orderId,
-            positionId: context?.positionId
-          },
-          tx
-        )
-
+        const result = await this.releaseMarginTx(tx, tradingAccountId, amount, description, context)
         console.log("✅ [FUND-MGMT-SERVICE] Margin released successfully")
-
-        return {
-          success: true,
-          newBalance: updatedAccount.balance,
-          newAvailableMargin: updatedAccount.availableMargin,
-          newUsedMargin: updatedAccount.usedMargin,
-          transactionId: transaction.id
-        }
+        return result
       })
 
       await this.logger.logFunds("MARGIN_RELEASED", `Released ${amount} margin successfully`, {
@@ -218,49 +295,9 @@ export class FundManagementService {
 
     try {
       const result = await executeInTransaction(async (tx) => {
-        // Check if account has sufficient balance
-        const account = await this.accountRepo.findById(tradingAccountId, tx)
-        
-        if (!account) {
-          console.error("❌ [FUND-MGMT-SERVICE] Account not found:", tradingAccountId)
-          throw new Error("Trading account not found")
-        }
-
-        if (account.availableMargin < amount) {
-          console.error("❌ [FUND-MGMT-SERVICE] Insufficient funds:", {
-            required: amount,
-            available: account.availableMargin
-          })
-          throw new Error(`Insufficient funds. Required: ₹${amount}, Available: ₹${account.availableMargin}`)
-        }
-
-        console.log("✅ [FUND-MGMT-SERVICE] Sufficient funds available")
-
-        // Debit account
-        const updatedAccount = await this.accountRepo.debit(tradingAccountId, amount, tx)
-
-        // Create transaction record
-        const transaction = await this.transactionRepo.create(
-          {
-            tradingAccountId,
-            amount,
-            type: TransactionType.DEBIT,
-            description,
-            orderId: context?.orderId,
-            positionId: context?.positionId
-          },
-          tx
-        )
-
+        const result = await this.debitTx(tx, tradingAccountId, amount, description, context)
         console.log("✅ [FUND-MGMT-SERVICE] Debit completed successfully")
-
-        return {
-          success: true,
-          newBalance: updatedAccount.balance,
-          newAvailableMargin: updatedAccount.availableMargin,
-          newUsedMargin: updatedAccount.usedMargin,
-          transactionId: transaction.id
-        }
+        return result
       })
 
       await this.logger.logFunds("DEBIT_COMPLETED", `Debited ${amount} successfully`, {
