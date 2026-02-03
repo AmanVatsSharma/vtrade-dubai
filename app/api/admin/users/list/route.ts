@@ -8,47 +8,49 @@
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.read")
-    if (!authResult.ok) return authResult.response
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/users/list",
+      required: "admin.users.read",
+      fallbackMessage: "Failed to fetch users",
+    },
+    async ({ logger }) => {
+      const { searchParams } = new URL(req.url)
+      const search = searchParams.get("search") || ""
+      const limit = parseInt(searchParams.get("limit") || "50")
 
-    const { searchParams } = new URL(req.url)
-    const search = searchParams.get('search') || ''
-    const limit = parseInt(searchParams.get('limit') || '50')
+      logger.debug({ search, limit }, "GET /api/admin/users/list - request")
 
-    const users = await prisma.user.findMany({
-      where: {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-          { clientId: { contains: search, mode: 'insensitive' } },
-          { phone: { contains: search, mode: 'insensitive' } }
-        ],
-        role: 'USER' // Only regular users, not admins
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        clientId: true,
-        phone: true,
-        image: true
-      },
-      take: limit,
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
+      const users = await prisma.user.findMany({
+        where: {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { clientId: { contains: search, mode: "insensitive" } },
+            { phone: { contains: search, mode: "insensitive" } },
+          ],
+          role: "USER", // Only regular users, not admins
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          clientId: true,
+          phone: true,
+          image: true,
+        },
+        take: limit,
+        orderBy: {
+          createdAt: "desc",
+        },
+      })
 
-    return NextResponse.json({ users }, { status: 200 })
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-USERS-LIST] Error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch users" },
-      { status: 500 }
-    )
-  }
+      logger.info({ count: users.length }, "GET /api/admin/users/list - success")
+      return NextResponse.json({ users }, { status: 200 })
+    }
+  )
 }

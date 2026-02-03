@@ -9,10 +9,13 @@ import { getSegmentTradingSession } from '@/lib/server/market-timing'
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ORDERS] POST request received")
+  const nowMs = () => (typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now())
+  const t0 = nowMs()
   
   try {
     const body = await req.json()
     console.log("📝 [API-ORDERS] Request body:", body)
+    console.log("⏱️ [API-ORDERS] parseBody ms", Math.round(nowMs() - t0))
     
     const segmentHint = typeof body?.segment === 'string'
       ? body.segment
@@ -20,6 +23,7 @@ export async function POST(req: Request) {
 
     // Enforce market hours per segment (NSE vs MCX windows)
     const { session: tradingWindow, reason: windowReason } = await getSegmentTradingSession(segmentHint)
+    console.log("⏱️ [API-ORDERS] marketSessionCheck ms", Math.round(nowMs() - t0))
     if (tradingWindow !== 'open') {
       console.warn(`⛔ [API-ORDERS] Blocked order outside trading window`, {
         segment: segmentHint,
@@ -54,6 +58,7 @@ export async function POST(req: Request) {
     
     const input = placeOrderSchema.parse(body)
     console.log("✅ [API-ORDERS] Schema validation passed")
+    console.log("⏱️ [API-ORDERS] schemaParse ms", Math.round(nowMs() - t0))
     
     // Track performance
     const result = await trackOperation('order_placement', async () => {
@@ -69,11 +74,13 @@ export async function POST(req: Request) {
       const orderService = createOrderExecutionService(logger)
       return await orderService.placeOrder(input)
     }, { userId: input.userId, symbol: input.symbol })
+    console.log("⏱️ [API-ORDERS] placeOrder_total ms", Math.round(nowMs() - t0))
     
     console.log("🎉 [API-ORDERS] Order placement result:", result)
     
+    const httpStatus = result?.executionScheduled ? 202 : 200
     return NextResponse.json(result, { 
-      status: 200,
+      status: httpStatus,
       headers: {
         'X-RateLimit-Limit': String(RateLimitPresets.TRADING.maxRequests),
         'X-RateLimit-Remaining': String(rateLimit.remaining),
@@ -86,6 +93,7 @@ export async function POST(req: Request) {
       message: error?.message,
       issues: error?.issues
     })
+    console.log("⏱️ [API-ORDERS] total_failed ms", Math.round(nowMs() - t0))
     
     const message = error?.issues?.[0]?.message || error?.message || 'Invalid request'
     const status = error?.name === 'ZodError' ? 400 : 500
