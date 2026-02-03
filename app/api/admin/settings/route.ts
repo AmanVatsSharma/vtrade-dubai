@@ -12,26 +12,28 @@
  * @route DELETE /api/admin/settings - Delete setting
  */
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
-
-console.log("⚙️ [API-ADMIN-SETTINGS] Route loaded")
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 
 /**
  * GET - Fetch system settings
  */
-export async function GET(req: NextRequest) {
-  console.log("🌐 [API-ADMIN-SETTINGS] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.settings.manage")
-    if (!authResult.ok) return authResult.response
-    const { searchParams } = new URL(req.url)
-    const key = searchParams.get('key')
-    const category = searchParams.get('category')
+export async function GET(req: Request) {
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/settings",
+      required: "admin.settings.manage",
+      fallbackMessage: "Failed to fetch settings",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(req.url)
+      const key = searchParams.get("key")
+      const category = searchParams.get("category")
 
-    console.log("📋 [API-ADMIN-SETTINGS] Query params:", { key, category })
+      ctx.logger.debug({ key, category }, "GET /api/admin/settings - params")
 
     // Build query (global settings only for now; per-RM scoping will use ownerId in prod DB)
     // NOTE: `SystemSettings.key` is not globally unique. We treat "global" as ownerId = null.
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' }
     })
 
-    console.log(`✅ [API-ADMIN-SETTINGS] Found ${settings.length} settings`)
+      ctx.logger.info({ count: settings.length }, "GET /api/admin/settings - success")
 
     // If requesting a specific key, return single object
     if (key && settings.length === 1) {
@@ -60,42 +62,37 @@ export async function GET(req: NextRequest) {
       settings,
       count: settings.length
     }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-SETTINGS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch settings" },
-      { status: 500 }
-    )
-  }
+    }
+  )
 }
 
 /**
  * POST - Create or update setting
  */
-export async function POST(req: NextRequest) {
-  console.log("🌐 [API-ADMIN-SETTINGS] POST request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.settings.manage")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
+export async function POST(req: Request) {
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/settings",
+      required: "admin.settings.manage",
+      fallbackMessage: "Failed to save setting",
+    },
+    async (ctx) => {
+      const body = await req.json()
+      const { key, value, description, category, isActive } = body
 
-    console.log("✅ [API-ADMIN-SETTINGS] Admin authenticated:", session.user.email)
-
-    const body = await req.json()
-    const { key, value, description, category, isActive } = body
-
-    console.log("📝 [API-ADMIN-SETTINGS] Setting data:", { key, value: value?.substring(0, 50), category })
-
-    // Validate required fields
-    if (!key || !value) {
-      console.error("❌ [API-ADMIN-SETTINGS] Missing required fields")
-      return NextResponse.json(
-        { error: "Key and value are required" },
-        { status: 400 }
+      ctx.logger.debug(
+        { key, category, hasValue: typeof value === "string" ? value.length > 0 : Boolean(value) },
+        "POST /api/admin/settings - request"
       )
-    }
+
+      if (!key || !value) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Key and value are required",
+          statusCode: 400,
+        })
+      }
 
     // "Upsert" setting (global for now).
     // NOTE: `SystemSettings.key` is not globally unique and `ownerId` is nullable, so we avoid
@@ -138,62 +135,47 @@ export async function POST(req: NextRequest) {
       })
     })
 
-    console.log("✅ [API-ADMIN-SETTINGS] Setting saved:", setting.key)
+      ctx.logger.info({ key: setting.key }, "POST /api/admin/settings - success")
 
     return NextResponse.json({
       success: true,
       setting,
       message: "Setting saved successfully"
     }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-SETTINGS] POST error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to save setting" },
-      { status: 500 }
-    )
-  }
+    }
+  )
 }
 
 /**
  * DELETE - Delete setting
  */
-export async function DELETE(req: NextRequest) {
-  console.log("🌐 [API-ADMIN-SETTINGS] DELETE request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.settings.manage")
-    if (!authResult.ok) return authResult.response
+export async function DELETE(req: Request) {
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/settings",
+      required: "admin.settings.manage",
+      fallbackMessage: "Failed to delete setting",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(req.url)
+      const key = searchParams.get("key")
 
-    const { searchParams } = new URL(req.url)
-    const key = searchParams.get('key')
-
-    console.log("🗑️ [API-ADMIN-SETTINGS] Deleting setting:", key)
-
-    if (!key) {
-      return NextResponse.json(
-        { error: "Key is required" },
-        { status: 400 }
-      )
-    }
+      if (!key) {
+        throw new AppError({ code: "VALIDATION_ERROR", message: "Key is required", statusCode: 400 })
+      }
 
     // Delete setting (global only for now). `key` is not unique, so scope delete to ownerId = null.
     await prisma.systemSettings.deleteMany({
       where: { key, ownerId: null }
     })
 
-    console.log("✅ [API-ADMIN-SETTINGS] Setting deleted")
+      ctx.logger.info({ key }, "DELETE /api/admin/settings - success")
 
     return NextResponse.json({
       success: true,
       message: "Setting deleted successfully"
     }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-SETTINGS] DELETE error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to delete setting" },
-      { status: 500 }
-    )
-  }
+    }
+  )
 }
