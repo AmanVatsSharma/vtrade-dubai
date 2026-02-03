@@ -133,6 +133,7 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
   const maxRetries = 3
   const lastSyncRef = useRef<number>(Date.now())
   const pollErrorStreakRef = useRef(0)
+  const revalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const DEBUG = process.env.NEXT_PUBLIC_DEBUG_REALTIME === 'true' || process.env.NODE_ENV === 'development'
   
   // Initial data fetch - polling handled by adaptive useEffect below
@@ -161,19 +162,86 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
     }
   )
 
+  const scheduleRevalidate = useCallback(() => {
+    if (revalidateTimerRef.current) return
+    revalidateTimerRef.current = setTimeout(() => {
+      revalidateTimerRef.current = null
+      mutate().catch((err) => {
+        console.error('❌ [REALTIME-ORDERS] Debounced revalidation failed:', err)
+      })
+    }, 350)
+  }, [mutate])
+
   // Shared SSE connection for real-time updates
   const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
     // Handle order-related events
     if (message.event === 'order_placed' || 
         message.event === 'order_executed' || 
         message.event === 'order_cancelled') {
-      if (DEBUG) console.debug(`📨 [REALTIME-ORDERS] SSE ${message.event} → refresh`)
-      mutate().catch(err => {
-        console.error('❌ [REALTIME-ORDERS] Refresh after event failed:', err)
-      })
+      if (DEBUG) console.debug(`📨 [REALTIME-ORDERS] SSE ${message.event} → patch+revalidate`)
+
+      // Patch cache instantly for a flicker-free UX, then verify with one debounced revalidate.
+      try {
+        mutate((currentData: OrdersResponse | undefined) => {
+          if (!currentData || !Array.isArray(currentData.orders)) return currentData
+
+          const d: any = message.data || {}
+          const id = d.orderId as string | undefined
+          if (!id) return currentData
+
+          const ts = message.timestamp || new Date().toISOString()
+          const idx = currentData.orders.findIndex((o: any) => o?.id === id)
+
+          if (message.event === 'order_placed') {
+            if (idx >= 0) return currentData
+            const stub: Order = {
+              id,
+              symbol: String(d.symbol || 'UNKNOWN'),
+              quantity: Number(d.quantity || 0),
+              orderType: String(d.orderType || 'MARKET'),
+              orderSide: String(d.orderSide || 'BUY'),
+              price: d.price != null ? Number(d.price) : null,
+              averagePrice: d.price != null ? Number(d.price) : null,
+              filledQuantity: 0,
+              productType: undefined,
+              status: String(d.status || 'PENDING'),
+              createdAt: ts,
+              executedAt: null,
+              stock: undefined,
+            }
+            return { ...currentData, orders: [stub, ...currentData.orders] }
+          }
+
+          if (idx === -1) return currentData
+
+          const updated = [...currentData.orders]
+          const prev = updated[idx] as any
+
+          if (message.event === 'order_executed') {
+            updated[idx] = {
+              ...prev,
+              status: 'EXECUTED',
+              averagePrice: d.price != null ? Number(d.price) : prev.averagePrice,
+              filledQuantity: prev.filledQuantity ?? prev.quantity ?? 0,
+              executedAt: ts,
+            }
+          } else if (message.event === 'order_cancelled') {
+            updated[idx] = {
+              ...prev,
+              status: 'CANCELLED',
+            }
+          }
+
+          return { ...currentData, orders: updated }
+        }, false)
+      } catch (e) {
+        console.error('❌ [REALTIME-ORDERS] Cache patch failed:', e)
+      }
+
+      scheduleRevalidate()
       lastSyncRef.current = Date.now() // Update last sync time on event
     }
-  }, [mutate, DEBUG]))
+  }, [mutate, DEBUG, scheduleRevalidate]))
 
   // Adaptive polling with backoff + visibility-awareness
   // - When SSE is open: low-frequency safety net polling
@@ -256,6 +324,14 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
 
     return () => clearInterval(syncCheckInterval)
   }, [isConnected, DEBUG])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (revalidateTimerRef.current) clearTimeout(revalidateTimerRef.current)
+      revalidateTimerRef.current = null
+    }
+  }, [])
 
   // Refresh function to call after placing order
   const refresh = useCallback(async () => {
