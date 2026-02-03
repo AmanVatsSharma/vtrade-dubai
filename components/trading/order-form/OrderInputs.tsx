@@ -1,17 +1,19 @@
 /**
  * @file OrderInputs.tsx
  * @module components/trading/order-form
- * @description Input fields for quantity, price, and product type selection.
+ * @description Input fields for quantity, price, and product type selection using high-fi components.
  * @author BharatERP
  * @created 2026-02-02
  */
 
 import React from "react"
-import { Input } from "@/components/ui/input"
+import { motion, AnimatePresence } from "framer-motion"
+import { Package, Zap, Lock } from "lucide-react"
+import { NumberStepper } from "@/components/ui/number-stepper"
+import { TabSelector } from "@/components/ui/tab-selector"
+import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Package } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface OrderInputsProps {
   isDerivatives: boolean
@@ -29,6 +31,7 @@ interface OrderInputsProps {
   lotSize: number
   units: number
   segment: string
+  orderSide: "BUY" | "SELL"
 }
 
 export function OrderInputs({
@@ -46,86 +49,117 @@ export function OrderInputs({
   isMarketBlocked,
   lotSize,
   units,
-  segment
+  segment,
+  orderSide
 }: OrderInputsProps) {
   
   const isIntradayDisabled = segment === "NFO" || segment === "FNO" || segment === "NSE_FO"
+  const themeColor = orderSide === "BUY" ? "bg-emerald-500" : "bg-rose-500"
+  const themeText = orderSide === "BUY" ? "text-emerald-600" : "text-rose-600"
 
   return (
-    <div className="space-y-4">
-      {/* Order Type Selection */}
-      <Tabs value={currentOrderType} onValueChange={setCurrentOrderType} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-9">
-          <TabsTrigger value="MIS" disabled={isIntradayDisabled} className="text-xs">
-            Intraday (MIS)
-          </TabsTrigger>
-          <TabsTrigger value="CNC" className="text-xs">
-            Delivery (CNC)
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Derivatives Info Banner */}
-      {isDerivatives && (
-        <div className="flex items-center justify-between p-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
-          <div className="flex items-center">
-            <Package className="h-3.5 w-3.5 mr-1.5" />
-            <span>Lot Size: <span className="font-semibold">{lotSize}</span></span>
-          </div>
-          <span className="font-mono">1 Lot = {lotSize} Qty</span>
+    <div className="space-y-6">
+      {/* Product Type Selector */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-center px-1">
+          <Label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Product</Label>
         </div>
-      )}
+        <TabSelector
+          options={[
+            { id: "MIS", label: "Intraday (MIS)", disabled: isIntradayDisabled },
+            { id: "CNC", label: isDerivatives ? "Normal (NRML)" : "Delivery (CNC)" },
+          ]}
+          value={currentOrderType}
+          onChange={setCurrentOrderType}
+          themeColor={themeColor}
+        />
+      </div>
 
       {/* Inputs Grid */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* Quantity / Lots Input */}
-        <div className="space-y-1.5">
-          <Label className="text-xs text-gray-500">
-            {isDerivatives ? "Lots" : "Quantity"}
-          </Label>
-          <div className="relative">
-            <Input
-              type="number"
-              value={isDerivatives ? lots : quantity}
-              onChange={(e) => {
-                const val = Math.max(1, Number(e.target.value))
-                if (isDerivatives) setLots(val)
-                else setQuantity(val)
-              }}
-              min={1}
-              step={1}
-              disabled={isMarketBlocked}
-              className="h-9 font-mono text-sm"
-            />
+        <div className="space-y-2">
+          <div className="flex justify-between items-center px-1">
+            <Label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+              {isDerivatives ? "Lots" : "Quantity"}
+            </Label>
+            {isDerivatives && (
+              <span className="text-[10px] font-mono text-gray-400">
+                1 Lot = {lotSize} Qty
+              </span>
+            )}
           </div>
+          
+          <NumberStepper
+            value={isDerivatives ? lots : quantity}
+            onChange={(val) => isDerivatives ? setLots(val) : setQuantity(val)}
+            min={1}
+            max={100000}
+            step={1}
+            disabled={isMarketBlocked}
+          />
+          
           {isDerivatives && (
-            <div className="text-[10px] text-gray-500 text-right">
-              Total: <span className="font-semibold text-gray-700 dark:text-gray-300">{units}</span> Qty
+            <div className="flex justify-end">
+              <span className={cn("text-xs font-medium bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md", themeText)}>
+                Total: {units} Qty
+              </span>
             </div>
           )}
         </div>
 
         {/* Price Input */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between items-center">
-            <Label className="text-xs text-gray-500">Price</Label>
-            <button
-              onClick={() => setIsMarket(!isMarket)}
-              disabled={isMarketBlocked}
-              className="text-[10px] text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              {isMarket ? "Set Limit" : "Set Market"}
-            </button>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center px-1 h-[18px]">
+            <Label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Price</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="market-mode" className="text-[10px] cursor-pointer text-gray-500 hover:text-gray-700">Market</Label>
+              <Switch
+                id="market-mode"
+                checked={isMarket}
+                onCheckedChange={setIsMarket}
+                disabled={isMarketBlocked}
+                className={cn("scale-75", isMarket ? themeColor : "bg-gray-200")}
+              />
+            </div>
           </div>
-          <Input
-            type="number"
-            value={isMarket ? "" : price ?? ""}
-            onChange={(e) => setPrice(Number(e.target.value))}
-            placeholder="Market"
-            disabled={isMarket || isMarketBlocked}
-            step="0.05"
-            className={`h-9 font-mono text-sm ${isMarket ? "bg-gray-50 dark:bg-gray-800 text-gray-400 italic" : ""}`}
-          />
+
+          <div className="relative">
+            <AnimatePresence mode="wait">
+              {isMarket ? (
+                <motion.div
+                  key="market"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute inset-0 z-10"
+                >
+                  <div className="h-[50px] w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-center text-sm font-medium text-gray-400 italic">
+                    <Zap className="w-3.5 h-3.5 mr-1.5" />
+                    Market Order
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="limit"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <NumberStepper
+                    value={price || 0}
+                    onChange={setPrice}
+                    min={0.05}
+                    step={0.05}
+                    disabled={isMarketBlocked}
+                    formatValue={(v) => `₹${v.toFixed(2)}`}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {/* Placeholder to maintain height when absolute positioned element is active */}
+            <div className="h-[50px] w-full invisible pointer-events-none" />
+          </div>
         </div>
       </div>
     </div>
