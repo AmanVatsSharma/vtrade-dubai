@@ -9,17 +9,25 @@
 import { OrderExecutionWorker } from "@/lib/services/order/OrderExecutionWorker"
 import { OrderSide, OrderStatus, OrderType } from "@prisma/client"
 
-const prismaMock = {
+jest.mock("@/lib/prisma", () => {
+  return {
+    prisma: {
+      order: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        findMany: jest.fn(),
+      },
+    },
+  }
+})
+
+const prismaMock = jest.requireMock("@/lib/prisma").prisma as {
   order: {
-    findUnique: jest.fn(),
-    update: jest.fn(),
-    findMany: jest.fn()
+    findUnique: jest.Mock
+    update: jest.Mock
+    findMany: jest.Mock
   }
 }
-
-jest.mock("@/lib/prisma", () => ({
-  prisma: prismaMock
-}))
 
 describe("OrderExecutionWorker", () => {
   beforeEach(() => {

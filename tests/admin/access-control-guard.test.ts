@@ -9,8 +9,20 @@
  * - Uses PermissionKey literals for coverage.
  */
 
-import { hasPermission } from "@/lib/rbac"
-import type { PermissionKey } from "@/lib/rbac"
+jest.mock("@/auth", () => ({
+  auth: jest.fn(async () => null),
+}))
+
+jest.mock("@/lib/services/admin/AccessControlService", () => ({
+  AccessControlService: {
+    getConfig: jest.fn(async () => ({
+      config: { roles: { ADMIN: [], MODERATOR: [], SUPER_ADMIN: [] } },
+    })),
+  },
+}))
+
+import { hasPermission } from "@/lib/rbac/admin-guard"
+import type { PermissionKey } from "@/lib/rbac/permissions"
 
 describe("hasPermission", () => {
   it("grants access when admin.all is present", () => {
