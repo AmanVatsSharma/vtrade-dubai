@@ -150,6 +150,7 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
   const maxRetries = 3
   const lastSyncRef = useRef<number>(Date.now())
   const pollErrorStreakRef = useRef(0)
+  const revalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const DEBUG = process.env.NEXT_PUBLIC_DEBUG_REALTIME === 'true' || process.env.NODE_ENV === 'development'
   
   // Initial data fetch - polling handled by adaptive useEffect below
@@ -178,19 +179,44 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
     }
   )
 
+  const scheduleRevalidate = useCallback(() => {
+    if (revalidateTimerRef.current) return
+    revalidateTimerRef.current = setTimeout(() => {
+      revalidateTimerRef.current = null
+      mutate().catch((err) => {
+        console.error('❌ [REALTIME-ACCOUNT] Debounced revalidation failed:', err)
+      })
+    }, 450)
+  }, [mutate])
+
   // Shared SSE connection for real-time updates
   const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
     // Handle account-related events
     if (message.event === 'balance_updated' || 
         message.event === 'margin_blocked' || 
         message.event === 'margin_released') {
-      if (DEBUG) console.debug(`📨 [REALTIME-ACCOUNT] SSE ${message.event} → refresh`)
-      mutate().catch(err => {
-        console.error('❌ [REALTIME-ACCOUNT] Refresh after event failed:', err)
-      })
+      if (DEBUG) console.debug(`📨 [REALTIME-ACCOUNT] SSE ${message.event} → patch+revalidate`)
+
+      try {
+        mutate((currentData: AccountResponse | undefined) => {
+          if (!currentData || !currentData.account) return currentData
+          const d: any = message.data || {}
+          const next = {
+            ...currentData.account,
+            balance: d.balance != null ? Number(d.balance) : currentData.account.balance,
+            availableMargin: d.availableMargin != null ? Number(d.availableMargin) : currentData.account.availableMargin,
+            usedMargin: d.usedMargin != null ? Number(d.usedMargin) : currentData.account.usedMargin,
+          }
+          return { ...currentData, account: next }
+        }, false)
+      } catch (e) {
+        console.error('❌ [REALTIME-ACCOUNT] Cache patch failed:', e)
+      }
+
+      scheduleRevalidate()
       lastSyncRef.current = Date.now() // Update last sync time on event
     }
-  }, [mutate, DEBUG]))
+  }, [mutate, DEBUG, scheduleRevalidate]))
 
   // Adaptive polling with backoff + visibility-awareness
   useEffect(() => {
@@ -269,6 +295,14 @@ export function useRealtimeAccount(userId: string | undefined | null): UseRealti
 
     return () => clearInterval(syncCheckInterval)
   }, [isConnected, DEBUG])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (revalidateTimerRef.current) clearTimeout(revalidateTimerRef.current)
+      revalidateTimerRef.current = null
+    }
+  }, [])
 
   // Refresh function
   const refresh = useCallback(async () => {

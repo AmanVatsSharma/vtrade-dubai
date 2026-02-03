@@ -161,6 +161,7 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
   const maxRetries = 3
   const lastSyncRef = useRef<number>(Date.now())
   const pollErrorStreakRef = useRef(0)
+  const revalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const DEBUG = process.env.NEXT_PUBLIC_DEBUG_REALTIME === 'true' || process.env.NODE_ENV === 'development'
   
   // Initial data fetch - polling handled by adaptive useEffect below
@@ -189,19 +190,78 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
     }
   )
 
+  const scheduleRevalidate = useCallback(() => {
+    if (revalidateTimerRef.current) return
+    revalidateTimerRef.current = setTimeout(() => {
+      revalidateTimerRef.current = null
+      mutate().catch((err) => {
+        console.error('❌ [REALTIME-POSITIONS] Debounced revalidation failed:', err)
+      })
+    }, 450)
+  }, [mutate])
+
   // Shared SSE connection for real-time updates
   const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
     // Handle position-related events
     if (message.event === 'position_opened' || 
         message.event === 'position_closed' || 
         message.event === 'position_updated') {
-      if (DEBUG) console.debug(`📨 [REALTIME-POSITIONS] SSE ${message.event} → refresh`)
-      mutate().catch(err => {
-        console.error('❌ [REALTIME-POSITIONS] Refresh after event failed:', err)
-      })
+      if (DEBUG) console.debug(`📨 [REALTIME-POSITIONS] SSE ${message.event} → patch+revalidate`)
+
+      try {
+        mutate((currentData: PositionsResponse | undefined) => {
+          if (!currentData || !Array.isArray(currentData.positions)) return currentData
+
+          const d: any = message.data || {}
+          const id = d.positionId as string | undefined
+          if (!id) return currentData
+
+          const idx = currentData.positions.findIndex((p: any) => p?.id === id)
+          const isClosed = message.event === 'position_closed' || Number(d.quantity) === 0
+
+          if (idx === -1) {
+            // Add new position stub
+            const stub: Position = {
+              id,
+              symbol: String(d.symbol || 'UNKNOWN'),
+              quantity: Number(d.quantity || 0),
+              averagePrice: Number(d.averagePrice || 0),
+              unrealizedPnL: Number(d.realizedPnL || 0),
+              dayPnL: Number(d.realizedPnL || 0),
+              realizedPnL: isClosed ? Number(d.realizedPnL || 0) : undefined,
+              bookedPnL: isClosed ? Number(d.realizedPnL || 0) : undefined,
+              status: isClosed ? "CLOSED" : "OPEN",
+              isClosed,
+              stopLoss: null,
+              target: null,
+              createdAt: message.timestamp || new Date().toISOString(),
+              stock: undefined,
+            }
+            return { ...currentData, positions: [stub, ...currentData.positions] }
+          }
+
+          const updated = [...currentData.positions]
+          const prev = updated[idx] as any
+          updated[idx] = {
+            ...prev,
+            quantity: d.quantity != null ? Number(d.quantity) : prev.quantity,
+            averagePrice: d.averagePrice != null ? Number(d.averagePrice) : prev.averagePrice,
+            status: isClosed ? "CLOSED" : "OPEN",
+            isClosed,
+            realizedPnL: isClosed ? (d.realizedPnL != null ? Number(d.realizedPnL) : prev.realizedPnL) : prev.realizedPnL,
+            bookedPnL: isClosed ? (d.realizedPnL != null ? Number(d.realizedPnL) : prev.bookedPnL) : prev.bookedPnL,
+          }
+
+          return { ...currentData, positions: updated }
+        }, false)
+      } catch (e) {
+        console.error('❌ [REALTIME-POSITIONS] Cache patch failed:', e)
+      }
+
+      scheduleRevalidate()
       lastSyncRef.current = Date.now() // Update last sync time on event
     }
-  }, [mutate, DEBUG]))
+  }, [mutate, DEBUG, scheduleRevalidate]))
 
   // Adaptive polling with backoff + visibility-awareness
   useEffect(() => {
@@ -280,6 +340,14 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
 
     return () => clearInterval(syncCheckInterval)
   }, [isConnected, DEBUG])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (revalidateTimerRef.current) clearTimeout(revalidateTimerRef.current)
+      revalidateTimerRef.current = null
+    }
+  }, [])
 
   // Refresh function
   const refresh = useCallback(async () => {

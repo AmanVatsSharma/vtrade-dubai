@@ -9,7 +9,8 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { Role } from "@prisma/client"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
+import { AppError } from "@/src/common/errors"
 
 /**
  * Helper function to determine which roles a user can manage based on their role
@@ -36,17 +37,19 @@ function getManageableRoles(userRole: Role): Role[] {
  * - MODERATOR sees: USER (roles below)
  */
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-RMS] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.rm")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const role = authResult.role as Role
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/rms",
+      required: "admin.users.rm",
+      fallbackMessage: "Failed to fetch RMs",
+    },
+    async (ctx) => {
+      const session = ctx.session
+      const role = ctx.role as Role
 
-    // Get roles that the current user can manage
-    const manageableRoles = getManageableRoles(role)
-    console.log(`📊 [API-ADMIN-RMS] User role: ${role}, Can manage roles:`, manageableRoles)
+      const manageableRoles = getManageableRoles(role)
+      ctx.logger.debug({ role, manageableRoles }, "GET /api/admin/rms - scope")
 
     // If MODERATOR, only return their own data and their managed users
     if (role === 'MODERATOR') {
@@ -86,7 +89,7 @@ export async function GET(req: Request) {
       })
 
       if (!rm) {
-        return NextResponse.json({ error: "RM not found" }, { status: 404 })
+        throw new AppError({ code: "NOT_FOUND", message: "RM not found", statusCode: 404 })
       }
 
       return NextResponse.json({
@@ -175,7 +178,7 @@ export async function GET(req: Request) {
       ]
     })
 
-    console.log(`✅ [API-ADMIN-RMS] Found ${rms.length} users/teams for role ${role}`)
+      ctx.logger.info({ count: rms.length, role }, "GET /api/admin/rms - success")
 
     return NextResponse.json({
       rms: rms.map(rm => ({
@@ -197,14 +200,8 @@ export async function GET(req: Request) {
       })),
       total: rms.length
     })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-RMS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch RMs" },
-      { status: 500 }
-    )
-  }
+    }
+  )
 }
 
 /**
@@ -212,23 +209,27 @@ export async function GET(req: Request) {
  * Create a new Relationship Manager
  */
 export async function POST(req: Request) {
-  console.log("🌐 [API-ADMIN-RMS] POST request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.users.rm")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    const role = authResult.role
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/rms",
+      required: "admin.users.rm",
+      fallbackMessage: "Failed to create RM",
+    },
+    async (ctx) => {
+      const session = ctx.session
+      const role = ctx.role
 
-    const body = await req.json()
-    const { name, email, phone, password } = body
+      const body = await req.json()
+      const { name, email, phone, password } = body
 
-    if (!name || !email || !phone || !password) {
-      return NextResponse.json(
-        { error: "Missing required fields: name, email, phone, password" },
-        { status: 400 }
-      )
-    }
+      if (!name || !email || !phone || !password) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Missing required fields: name, email, phone, password",
+          statusCode: 400,
+        })
+      }
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -241,10 +242,11 @@ export async function POST(req: Request) {
     })
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: "User with this email or phone already exists" },
-        { status: 400 }
-      )
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "User with this email or phone already exists",
+          statusCode: 400,
+        })
     }
 
     // Determine which role to assign based on current user's role
@@ -258,10 +260,11 @@ export async function POST(req: Request) {
       if (manageableRoles.includes(bodyRole)) {
         targetRole = bodyRole
       } else {
-        return NextResponse.json(
-          { error: `You cannot create users with role ${bodyRole}. You can only create: ${manageableRoles.join(', ')}` },
-          { status: 403 }
-        )
+          throw new AppError({
+            code: "FORBIDDEN",
+            message: `You cannot create users with role ${bodyRole}. You can only create: ${manageableRoles.join(', ')}`,
+            statusCode: 403,
+          })
       }
     } else {
       // Default: ADMIN creates MODERATOR, SUPER_ADMIN creates MODERATOR
@@ -286,7 +289,7 @@ export async function POST(req: Request) {
       }
     })
 
-    console.log(`✅ [API-ADMIN-RMS] Created RM: ${rm.id}`)
+      ctx.logger.info({ rmId: rm.id, targetRole }, "POST /api/admin/rms - success")
 
     return NextResponse.json({
       success: true,
@@ -300,12 +303,6 @@ export async function POST(req: Request) {
         createdAt: rm.createdAt
       }
     }, { status: 201 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-RMS] POST error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to create RM" },
-      { status: 500 }
-    )
-  }
+    }
+  )
 }
