@@ -4,24 +4,26 @@
  * @description API route for advanced analytics and metrics
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
-import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-ANALYTICS] GET request received")
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/analytics",
+      required: "admin.analytics.read",
+      fallbackMessage: "Failed to fetch analytics",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(req.url)
+      const range = searchParams.get("range") || "7d"
 
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.analytics.read")
-    if (!authResult.ok) return authResult.response
-
-    const { searchParams } = new URL(req.url)
-    const range = searchParams.get('range') || '7d'
-
-    console.log("📊 [API-ADMIN-ANALYTICS] Fetching analytics for range:", range)
+      ctx.logger.debug({ range }, "GET /api/admin/analytics - request")
 
     // Calculate date range
     const now = new Date()
@@ -217,15 +219,12 @@ export async function GET(req: Request) {
       }))
     }
 
-    console.log("✅ [API-ADMIN-ANALYTICS] Analytics data prepared")
+      ctx.logger.info(
+        { range, totalTrades, activeUsers, totalRevenue: totalRevenueAmount },
+        "GET /api/admin/analytics - success"
+      )
 
-    return NextResponse.json(analytics, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-ANALYTICS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch analytics" },
-      { status: 500 }
-    )
-  }
+      return NextResponse.json(analytics, { status: 200 })
+    }
+  )
 }
