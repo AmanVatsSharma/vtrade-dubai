@@ -4,21 +4,23 @@
  * @description API route for notification management
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-NOTIFICATIONS] GET request received")
-
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.notifications.manage")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-
-    const userId = (session.user as any).id
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/notifications",
+      required: "admin.notifications.manage",
+      fallbackMessage: "Failed to fetch notifications",
+    },
+    async (ctx) => {
+      const userId = (ctx.session.user as any).id
 
     // Fetch notifications - filter by target audience
     const notifications = await prisma.notification.findMany({
@@ -71,30 +73,25 @@ export async function GET(req: Request) {
       read: Array.isArray(notif.readBy) ? notif.readBy.includes(userId) : false
     }))
 
-    console.log("✅ [API-ADMIN-NOTIFICATIONS] Notifications fetched:", formattedNotifications.length)
+      ctx.logger.info({ count: formattedNotifications.length }, "GET /api/admin/notifications - success")
 
     return NextResponse.json({ notifications: formattedNotifications }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-NOTIFICATIONS] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch notifications" },
-      { status: 500 }
-    )
-  }
+    }
+  )
 }
 
 export async function POST(req: Request) {
-  console.log("🌐 [API-ADMIN-NOTIFICATIONS] POST request received")
-
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.notifications.manage")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-
-    const body = await req.json()
-    const { title, message, type, priority, target, targetUserIds, expiresAt } = body
-    const userId = (session.user as any).id
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/notifications",
+      required: "admin.notifications.manage",
+      fallbackMessage: "Failed to create notification",
+    },
+    async (ctx) => {
+      const body = await req.json()
+      const { title, message, type, priority, target, targetUserIds, expiresAt } = body
+      const userId = (ctx.session.user as any).id
 
     // Create notification in database
     const notification = await prisma.notification.create({
@@ -110,7 +107,7 @@ export async function POST(req: Request) {
       }
     })
 
-    console.log("✅ [API-ADMIN-NOTIFICATIONS] Notification created:", notification.id)
+      ctx.logger.info({ notificationId: notification.id }, "POST /api/admin/notifications - success")
 
     return NextResponse.json({
       success: true,
@@ -124,12 +121,6 @@ export async function POST(req: Request) {
         target: notification.target
       }
     }, { status: 201 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-NOTIFICATIONS] POST error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to create notification" },
-      { status: 500 }
-    )
-  }
+    }
+  )
 }

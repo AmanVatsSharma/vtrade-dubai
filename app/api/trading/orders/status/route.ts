@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        TradingAccount: {
+        tradingAccount: {
           select: {
             userId: true
           }
@@ -41,14 +41,21 @@ export async function GET(req: Request) {
     }
     
     // Security check - ensure user owns this order
-    if (order.TradingAccount.userId !== session.user.id) {
+    if (order.tradingAccount.userId !== session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     
+    const status = order.status
+    const message =
+      status === 'PENDING' ? 'Order is pending execution' :
+      status === 'EXECUTED' ? 'Order executed successfully' :
+      status === 'CANCELLED' ? 'Order was cancelled' :
+      'Order status unknown'
+
     return NextResponse.json({
       success: true,
       orderId: order.id,
-      status: order.status,
+      status,
       symbol: order.symbol,
       quantity: order.quantity,
       price: order.price ? Number(order.price) : null,
@@ -56,10 +63,7 @@ export async function GET(req: Request) {
       filledQuantity: order.filledQuantity,
       createdAt: order.createdAt.toISOString(),
       executedAt: order.executedAt?.toISOString() || null,
-      message: order.status === 'REJECTED' ? 'Order was rejected' : 
-               order.status === 'PENDING' ? 'Order is pending execution' :
-               order.status === 'EXECUTED' ? 'Order executed successfully' : 
-               'Order status unknown'
+      message
     })
   } catch (error: any) {
     console.error('❌ [API-ORDER-STATUS] Error:', error)
