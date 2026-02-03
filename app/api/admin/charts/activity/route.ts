@@ -4,38 +4,32 @@
  * @description API route for user activity chart data
  * @author BharatERP
  * @created 2025-01-27
+ * @updated 2026-02-02
  */
 
 import { NextResponse } from "next/server"
 import { createAdminUserService } from "@/lib/services/admin/AdminUserService"
-import { requireAdminPermissions } from "@/lib/rbac/admin-guard"
+import { handleAdminApi } from "@/lib/rbac/admin-api"
 
 export async function GET(req: Request) {
-  console.log("🌐 [API-ADMIN-CHARTS-ACTIVITY] GET request received")
-  
-  try {
-    const authResult = await requireAdminPermissions(req, "admin.charts.read")
-    if (!authResult.ok) return authResult.response
-    const session = authResult.session
-    console.log("✅ [API-ADMIN-CHARTS-ACTIVITY] Admin authenticated:", session.user.email)
+  return handleAdminApi(
+    req,
+    {
+      route: "/api/admin/charts/activity",
+      required: "admin.charts.read",
+      fallbackMessage: "Failed to fetch activity chart data",
+    },
+    async (ctx) => {
+      const { searchParams } = new URL(req.url)
+      const days = parseInt(searchParams.get("days") || "7")
 
-    const { searchParams } = new URL(req.url)
-    const days = parseInt(searchParams.get('days') || '7')
+      ctx.logger.debug({ days }, "GET /api/admin/charts/activity - request")
 
-    console.log("👥 [API-ADMIN-CHARTS-ACTIVITY] Fetching user activity chart data:", { days })
+      const adminService = createAdminUserService()
+      const chartData = await adminService.getUserActivityChartData(days)
 
-    const adminService = createAdminUserService()
-    const chartData = await adminService.getUserActivityChartData(days)
-
-    console.log(`✅ [API-ADMIN-CHARTS-ACTIVITY] Generated ${chartData.length} data points`)
-
-    return NextResponse.json({ success: true, chartData }, { status: 200 })
-
-  } catch (error: any) {
-    console.error("❌ [API-ADMIN-CHARTS-ACTIVITY] GET error:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch activity chart data" },
-      { status: 500 }
-    )
-  }
+      ctx.logger.info({ points: chartData.length }, "GET /api/admin/charts/activity - success")
+      return NextResponse.json({ success: true, chartData }, { status: 200 })
+    }
+  )
 }
