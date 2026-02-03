@@ -18,6 +18,11 @@ let cachedForceClosed: boolean | null = null
 let cacheTimestamp: number = 0
 const CACHE_TTL_MS = 5000 // 5 seconds
 
+// Cache for NSE holiday list (configurable TTL)
+let cachedNseHolidays: Set<string> | null = null
+let holidaysCacheTimestamp: number = 0
+const HOLIDAYS_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
 /**
  * Check if market is force closed from database
  * Uses caching to avoid excessive DB queries
@@ -75,6 +80,16 @@ export function invalidateMarketForceClosedCache(): void {
 }
 
 /**
+ * Invalidate the NSE holidays cache.
+ * Call this after updating `market_holidays_csv` setting.
+ */
+export function invalidateNseHolidaysCache(): void {
+  console.log('[MarketTiming-DB] Invalidating NSE holidays cache')
+  cachedNseHolidays = null
+  holidaysCacheTimestamp = 0
+}
+
+/**
  * Format a Date (IST) to YYYY-MM-DD
  */
 const formatYyyyMmDd = (d: Date): string => {
@@ -100,6 +115,13 @@ const nowIST = (): Date => {
  * Get NSE holidays from database
  */
 async function getNSEHolidaysFromDB(): Promise<Set<string>> {
+  const now = Date.now()
+
+  // Return cached value if still valid
+  if (cachedNseHolidays && (now - holidaysCacheTimestamp) < HOLIDAYS_CACHE_TTL_MS) {
+    return cachedNseHolidays
+  }
+
   try {
     const setting = await prisma.systemSettings.findFirst({
       where: {
@@ -109,7 +131,9 @@ async function getNSEHolidaysFromDB(): Promise<Set<string>> {
     })
 
     if (!setting?.value) {
-      return new Set<string>()
+      cachedNseHolidays = new Set<string>()
+      holidaysCacheTimestamp = now
+      return cachedNseHolidays
     }
 
     const holidays = setting.value
@@ -118,10 +142,20 @@ async function getNSEHolidaysFromDB(): Promise<Set<string>> {
       .filter(Boolean)
       .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
 
-    return new Set(holidays)
+    cachedNseHolidays = new Set(holidays)
+    holidaysCacheTimestamp = now
+    return cachedNseHolidays
   } catch (error) {
     console.error('[MarketTiming-DB] Error fetching holidays:', error)
-    return new Set<string>()
+
+    // Return cached value if available, otherwise default to empty set
+    if (cachedNseHolidays) {
+      return cachedNseHolidays
+    }
+
+    cachedNseHolidays = new Set<string>()
+    holidaysCacheTimestamp = now
+    return cachedNseHolidays
   }
 }
 

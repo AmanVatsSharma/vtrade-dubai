@@ -10,13 +10,13 @@ todos:
     status: in_progress
   - id: fast-accepted-response
     content: Change order placement contract to return quickly with ACCEPTED/QUEUED status; stop awaiting full execution in request.
-    status: pending
+    status: in_progress
   - id: async-worker
     content: Implement portable async execution worker (EC2 process + Amplify-friendly Lambda/SQS option).
-    status: pending
+    status: in_progress
   - id: cache-market-timing
     content: Add TTL cache for NSE holiday/session lookups to reduce DB calls per order.
-    status: pending
+    status: in_progress
   - id: tests-docs
     content: Add minimal tests and short docs explaining the new async order lifecycle and deployment options.
     status: pending
