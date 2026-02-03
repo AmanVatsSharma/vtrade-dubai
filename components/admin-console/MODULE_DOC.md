@@ -108,6 +108,7 @@ flowchart TD
 - `PUT /api/admin/kyc` — approve/reject KYC
 - `GET /api/admin/kyc/{kycId}` — fetch KYC detail + logs
 - `GET /api/admin/me` — session user + permissions for UI gating
+- `GET/PUT /api/admin/users/{userId}/statement-override` — per-user statements tri-state override (default/force_enable/force_disable)
 
 ## Env vars
 None.
@@ -122,3 +123,4 @@ None.
 - 2026-01-15 (IST): Added RBAC access-control UI, restricted permission gating, and audit logging.
 - 2026-01-25 (IST): Hardened Access Control reliability via `AdminSessionProvider` (reactive permissions), improved `/api/admin/me` error handling/logging, and added RBAC audit diffs.
 - 2026-01-25 (IST): Added professional mini scrollbar to admin console sidebar.
+- 2026-02-03 (IST): Added app-wide statements toggle in Settings + per-user statements override (tri-state) in Edit User dialog; statement exports blocked when disabled.

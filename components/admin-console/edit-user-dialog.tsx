@@ -18,9 +18,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
-import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp, UserCheck, DollarSign, Wallet, AlertTriangle } from "lucide-react"
+import { User, Mail, Phone, Shield, Key, Save, X, CheckCircle, AlertCircle, TrendingUp, UserCheck, DollarSign, Wallet, AlertTriangle, FileText } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAdminSession } from "@/components/admin-console/admin-session-provider"
+
+type StatementOverrideMode = "default" | "force_enable" | "force_disable"
 
 interface EditUserDialogProps {
   open: boolean
@@ -50,6 +52,12 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
   const [selectedRMId, setSelectedRMId] = useState<string | null>(null)
   const [loadingRMs, setLoadingRMs] = useState(false)
   const [currentRMId, setCurrentRMId] = useState<string | null>(null)
+
+  // Statements override (tri-state)
+  const [statementOverrideMode, setStatementOverrideMode] = useState<StatementOverrideMode>("default")
+  const [originalStatementOverrideMode, setOriginalStatementOverrideMode] = useState<StatementOverrideMode>("default")
+  const [loadingStatementOverride, setLoadingStatementOverride] = useState(false)
+  const [savingStatementOverride, setSavingStatementOverride] = useState(false)
   
   // Trading account funds state (Super Admin only)
   const [tradingAccountData, setTradingAccountData] = useState<{
@@ -84,6 +92,9 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
       
       // Load risk limit data
       loadRiskLimit()
+
+      // Load statements override (tri-state)
+      loadStatementOverride()
       
       // Load RM assignment data
       if (canAssignRms) {
@@ -230,6 +241,67 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
       console.error("❌ [EDIT-USER-DIALOG] Error loading risk limit:", error)
     } finally {
       setLoadingRiskLimit(false)
+    }
+  }
+
+  const loadStatementOverride = async () => {
+    if (!user?.id) return
+
+    setLoadingStatementOverride(true)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/statement-override`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to load statement override")
+      }
+
+      const mode: StatementOverrideMode =
+        data?.mode === "force_enable" || data?.mode === "force_disable" ? data.mode : "default"
+
+      setStatementOverrideMode(mode)
+      setOriginalStatementOverrideMode(mode)
+      console.log("📄 [EDIT-USER-DIALOG] Statement override loaded", { userId: user.id, mode })
+    } catch (e) {
+      console.warn("⚠️ [EDIT-USER-DIALOG] Failed to load statement override; defaulting", e)
+      setStatementOverrideMode("default")
+      setOriginalStatementOverrideMode("default")
+    } finally {
+      setLoadingStatementOverride(false)
+    }
+  }
+
+  const saveStatementOverride = async () => {
+    if (!user?.id) return
+
+    setSavingStatementOverride(true)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/statement-override`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: statementOverrideMode }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to save statement override")
+      }
+
+      setOriginalStatementOverrideMode(statementOverrideMode)
+      toast({
+        title: "✅ Saved",
+        description:
+          statementOverrideMode === "default"
+            ? "Statements override cleared (follows global setting)"
+            : `Statements override saved: ${statementOverrideMode}`,
+      })
+    } catch (e: any) {
+      console.error("❌ [EDIT-USER-DIALOG] Failed to save statement override", e)
+      toast({
+        title: "❌ Error",
+        description: e?.message || "Failed to save statement override",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingStatementOverride(false)
     }
   }
 
@@ -760,6 +832,62 @@ export function EditUserDialog({ open, onOpenChange, user, onUserUpdated }: Edit
               </CardContent>
             </Card>
           )}
+
+          {/* Statements Visibility Override (tri-state) */}
+          <Card className="bg-muted/30 border-border">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-foreground">Statements Visibility</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Override whether this user can access statements, independent of the app-wide setting.
+              </p>
+
+              {loadingStatementOverride ? (
+                <div className="text-center py-3 text-muted-foreground">Loading statement override...</div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-foreground">Override Mode</Label>
+                    <Select value={statementOverrideMode} onValueChange={(v) => setStatementOverrideMode(v as StatementOverrideMode)}>
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Default (follow global)</SelectItem>
+                        <SelectItem value="force_enable">Force Enable</SelectItem>
+                        <SelectItem value="force_disable">Force Disable</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Tip: Use Force Disable for compliance / restricted accounts.
+                    </p>
+                  </div>
+
+                  {statementOverrideMode !== originalStatementOverrideMode && (
+                    <Button
+                      onClick={saveStatementOverride}
+                      disabled={savingStatementOverride}
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      {savingStatementOverride ? (
+                        <>
+                          <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Statements Override
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Leverage Override Section */}
           <Card className="bg-muted/30 border-border">

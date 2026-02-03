@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { ModeToggle } from "@/components/ui/modeToggle"
 import { toast } from "@/hooks/use-toast"
 import { useTransactions } from "@/lib/hooks/use-trading-data"
+import { useConsoleFeatures } from "@/lib/hooks/use-console-features"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -46,7 +47,8 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
     const [requestingRM, setRequestingRM] = useState(false)
 
     const account = portfolio?.account;
-    const { transactions, isLoading: txLoading } = useTransactions(account?.id)
+    const { statementsEnabled, source: statementsSource } = useConsoleFeatures()
+    const { transactions, isLoading: txLoading } = useTransactions(statementsEnabled ? account?.id : undefined)
 
     // Fetch RM data
     useEffect(() => {
@@ -99,6 +101,15 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
 
     // CSV Export
     const exportCSV = () => {
+        if (!statementsEnabled) {
+            console.log("[Account] exportCSV blocked: statements disabled", { statementsSource })
+            toast({
+                title: "Statements disabled",
+                description: "Statements are currently disabled for your account.",
+                variant: "destructive"
+            })
+            return
+        }
         if (!transactions?.length) return
         const header = 'Date,Time (IST),Type,Amount,Description\n'
         const rows = transactions.map((t: any) => {
@@ -448,45 +459,47 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
 
             {/* Fund transfer is handled within the Trading Console. Inline dialog removed in favor of a unified console experience. */}
 
-            {/* Statement Section */}
-            <Card className="rounded-2xl shadow-lg border-gray-100">
-                <CardContent className="p-4 sm:p-6">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
-                        <h2 className="text-xl font-bold text-gray-900">Statement</h2>
-                        <Button size="sm" variant="outline" onClick={exportCSV}>Export CSV</Button>
-                    </div>
-                    <div className="overflow-x-auto w-full">
-                        <table className="min-w-[400px] w-full text-xs md:text-sm">
-                            <thead>
-                                <tr className="bg-gray-50">
-                                    <th className="px-2 py-2 text-left font-semibold text-gray-700">Date</th>
-                                    <th className="px-2 py-2 text-left font-semibold text-gray-700">Time</th>
-                                    <th className="px-2 py-2 text-left font-semibold text-gray-700">Type</th>
-                                    <th className="px-2 py-2 text-right font-semibold text-gray-700">Amount</th>
-                                    <th className="px-2 py-2 text-left font-semibold text-gray-700">Description</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {txLoading ? (
-                                    <tr><td colSpan={5} className="text-center py-4">Loading...</td></tr>
-                                ) : transactions.length === 0 ? (
-                                    <tr><td colSpan={5} className="text-center py-4 text-gray-400">No transactions yet.</td></tr>
-                                ) : transactions.map((t: any) => (
-                                    <tr key={t.id} className="border-b hover:bg-gray-50">
-                                        <td className="px-2 py-1 whitespace-nowrap text-black">{new Date(t.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td>
-                                        <td className="px-2 py-1 whitespace-nowrap text-black">{new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</td>
-                                        <td className="px-2 py-1 whitespace-nowrap">
-                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${t.type === 'CREDIT' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{t.type}</span>
-                                        </td>
-                                        <td className={`px-2 py-1 whitespace-nowrap text-right font-mono ${t.type === 'CREDIT' ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(Number(t.amount))}</td>
-                                        <td className="px-2 py-1 whitespace-nowrap text-gray-600">{t.description}</td>
+            {/* Statement Section (feature-flagged) */}
+            {statementsEnabled && (
+                <Card className="rounded-2xl shadow-lg border-gray-100">
+                    <CardContent className="p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
+                            <h2 className="text-xl font-bold text-gray-900">Statement</h2>
+                            <Button size="sm" variant="outline" onClick={exportCSV}>Export CSV</Button>
+                        </div>
+                        <div className="overflow-x-auto w-full">
+                            <table className="min-w-[400px] w-full text-xs md:text-sm">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th className="px-2 py-2 text-left font-semibold text-gray-700">Date</th>
+                                        <th className="px-2 py-2 text-left font-semibold text-gray-700">Time</th>
+                                        <th className="px-2 py-2 text-left font-semibold text-gray-700">Type</th>
+                                        <th className="px-2 py-2 text-right font-semibold text-gray-700">Amount</th>
+                                        <th className="px-2 py-2 text-left font-semibold text-gray-700">Description</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                                </thead>
+                                <tbody>
+                                    {txLoading ? (
+                                        <tr><td colSpan={5} className="text-center py-4">Loading...</td></tr>
+                                    ) : transactions.length === 0 ? (
+                                        <tr><td colSpan={5} className="text-center py-4 text-gray-400">No transactions yet.</td></tr>
+                                    ) : transactions.map((t: any) => (
+                                        <tr key={t.id} className="border-b hover:bg-gray-50">
+                                            <td className="px-2 py-1 whitespace-nowrap text-black">{new Date(t.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td>
+                                            <td className="px-2 py-1 whitespace-nowrap text-black">{new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</td>
+                                            <td className="px-2 py-1 whitespace-nowrap">
+                                                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${t.type === 'CREDIT' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{t.type}</span>
+                                            </td>
+                                            <td className={`px-2 py-1 whitespace-nowrap text-right font-mono ${t.type === 'CREDIT' ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(Number(t.amount))}</td>
+                                            <td className="px-2 py-1 whitespace-nowrap text-gray-600">{t.description}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }
