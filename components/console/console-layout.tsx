@@ -22,9 +22,10 @@ interface ConsoleLayoutProps {
   children: React.ReactNode
   activeSection?: string
   onNavigateSection?: (section: string) => void
+  statementsEnabled?: boolean
 }
 
-function ConsoleLayoutInner({ children, activeSection, onNavigateSection }: ConsoleLayoutProps) {
+function ConsoleLayoutInner({ children, activeSection, onNavigateSection, statementsEnabled }: ConsoleLayoutProps) {
   const { open, setOpen } = useSidebar()
   
   console.log('🎨 [CONSOLE-LAYOUT] Rendering with:', { activeSection, sidebarOpen: open })
@@ -74,6 +75,7 @@ function ConsoleLayoutInner({ children, activeSection, onNavigateSection }: Cons
         <SidebarMenu
           activeSection={activeSection}
           onSectionChange={handleSectionChange}
+          statementsEnabled={statementsEnabled}
         />
       </MobileSidebar>
 
@@ -84,6 +86,7 @@ function ConsoleLayoutInner({ children, activeSection, onNavigateSection }: Cons
             <SidebarMenu
               activeSection={activeSection}
               onSectionChange={handleSectionChange}
+              statementsEnabled={statementsEnabled}
             />
           </DesktopSidebar>
         </div>

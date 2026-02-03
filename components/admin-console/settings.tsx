@@ -88,6 +88,10 @@ export function Settings() {
   const [maintenanceEndTime, setMaintenanceEndTime] = useState<string>("")
   const [maintenanceAllowBypass, setMaintenanceAllowBypass] = useState<boolean>(true)
   const [maintenanceSaving, setMaintenanceSaving] = useState<boolean>(false)
+
+  // Console feature toggles
+  const [statementsEnabledGlobal, setStatementsEnabledGlobal] = useState<boolean>(true)
+  const [consoleTogglesSaving, setConsoleTogglesSaving] = useState<boolean>(false)
   
   // Brokerage settings
   const [brokerageConfigs, setBrokerageConfigs] = useState<any[]>([])
@@ -236,6 +240,8 @@ export function Settings() {
             setMaintenanceEndTime(setting.value)
           } else if (setting.key === 'maintenance_allow_admin_bypass') {
             setMaintenanceAllowBypass(setting.value !== 'false')
+          } else if (setting.key === 'console_statements_enabled_global') {
+            setStatementsEnabledGlobal(setting.value !== 'false')
           }
         })
       }
@@ -504,6 +510,45 @@ export function Settings() {
       })
     } finally {
       setMaintenanceSaving(false)
+    }
+  }
+
+  /**
+   * Save console feature toggles
+   */
+  const saveConsoleToggles = async () => {
+    console.log("💾 [SETTINGS] Saving console toggles...", { statementsEnabledGlobal })
+    setConsoleTogglesSaving(true)
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "console_statements_enabled_global",
+          value: String(statementsEnabledGlobal),
+          description: "App-wide toggle for end-user statements UI (dashboard + console)",
+          category: "CONSOLE",
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to save console settings")
+      }
+
+      toast({
+        title: "✅ Saved",
+        description: "Console feature toggles updated successfully",
+      })
+      await fetchSettings()
+    } catch (e: any) {
+      console.error("❌ [SETTINGS] Save console toggles failed", e)
+      toast({
+        title: "❌ Save Failed",
+        description: e?.message || "Unable to save console feature toggles",
+        variant: "destructive",
+      })
+    } finally {
+      setConsoleTogglesSaving(false)
     }
   }
 
@@ -957,14 +1002,30 @@ export function Settings() {
                   Platform-wide configuration options
                 </CardDescription>
               </CardHeader>
-              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-                <Alert className="bg-blue-500/10 border-blue-500/50">
-                  <SettingsIcon className="h-4 w-4 text-blue-500" />
-                  <AlertTitle className="text-blue-500">Coming Soon</AlertTitle>
-                  <AlertDescription className="text-blue-500/80">
-                    Additional settings will be available in the next update
-                  </AlertDescription>
-                </Alert>
+              <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6 space-y-4">
+                {/* Statements toggle */}
+                <div className="flex items-center justify-between p-4 rounded-md bg-muted/50 border border-border">
+                  <div className="space-y-1">
+                    <Label className="text-foreground font-medium">Enable Statements (app-wide)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      When disabled, end users will not see statement sections in dashboard or console.
+                    </p>
+                  </div>
+                  <Switch checked={statementsEnabledGlobal} onCheckedChange={setStatementsEnabledGlobal} />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={saveConsoleToggles} disabled={consoleTogglesSaving} className="bg-primary text-primary-foreground">
+                    {consoleTogglesSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>Save Settings</>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
