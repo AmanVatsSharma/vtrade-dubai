@@ -62,20 +62,20 @@ export function OrderDialog(props: OrderDialogProps) {
   const segmentUpper = selectedStock.segment?.toUpperCase() || "NSE"
   const isBuy = orderSide === "BUY"
   
-  // Dynamic Theme Colors
-  const themeGradient = isBuy 
-    ? "from-emerald-50/50 via-white to-white dark:from-emerald-950/20 dark:via-gray-900 dark:to-gray-900" 
-    : "from-rose-50/50 via-white to-white dark:from-rose-950/20 dark:via-gray-900 dark:to-gray-900"
+  // Dynamic Theme Colors - Solid, Premium
+  const themeBorder = isBuy ? "border-emerald-500" : "border-rose-500"
+  const themeBg = isBuy ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-rose-50 dark:bg-rose-950/30"
 
   return (
     <Wrapper open={isOpen} onOpenChange={onClose} direction="bottom">
       <Content className={cn(
-        "flex flex-col max-w-md mx-auto w-full shadow-2xl transition-colors duration-500",
-        "bg-gradient-to-b", themeGradient,
-        "rounded-t-3xl h-[90vh] sm:h-auto sm:max-h-[90vh]"
+        "flex flex-col max-w-md mx-auto w-full shadow-2xl transition-colors duration-300",
+        "bg-white dark:bg-gray-950", // Solid background
+        "rounded-t-3xl h-[90vh] sm:h-auto sm:max-h-[90vh]",
+        "border-t-4", themeBorder // Colored top border
       )}>
-        {/* Glassmorphism Header */}
-        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100/50 dark:border-gray-800/50 backdrop-blur-md sticky top-0 z-20">
+        {/* Solid Header */}
+        <div className="flex-shrink-0 px-6 py-5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 sticky top-0 z-20 rounded-t-[20px]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <motion.div 
@@ -85,19 +85,19 @@ export function OrderDialog(props: OrderDialogProps) {
                   scale: [1, 1.2, 1]
                 }}
                 transition={{ duration: 0.3 }}
-                className="w-2 h-8 rounded-full"
+                className="w-1.5 h-6 rounded-full"
               />
-              <span className="text-xl font-bold tracking-tight">Place Order</span>
+              <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Place Order</span>
             </div>
             {!drawer && (
-              <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 scrollbar-hide">
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 scrollbar-hide bg-white dark:bg-gray-950">
           {/* Stock Header */}
           <OrderHeader stock={selectedStock} orderSide={orderSide} />
 
@@ -132,24 +132,26 @@ export function OrderDialog(props: OrderDialogProps) {
           )}
 
           {/* Inputs Section */}
-          <OrderInputs
-            isDerivatives={isDerivatives}
-            lots={lots}
-            setLots={setLots}
-            quantity={quantity}
-            setQuantity={setQuantity}
-            price={price}
-            setPrice={setPrice}
-            isMarket={isMarket}
-            setIsMarket={setIsMarket}
-            currentOrderType={currentOrderType}
-            setCurrentOrderType={setCurrentOrderType}
-            isMarketBlocked={isMarketBlocked}
-            lotSize={lotSize}
-            units={units}
-            segment={segmentUpper}
-            orderSide={orderSide}
-          />
+          <div className={cn("p-4 rounded-2xl border border-gray-100 dark:border-gray-800", themeBg)}>
+            <OrderInputs
+              isDerivatives={isDerivatives}
+              lots={lots}
+              setLots={setLots}
+              quantity={quantity}
+              setQuantity={setQuantity}
+              price={price}
+              setPrice={setPrice}
+              isMarket={isMarket}
+              setIsMarket={setIsMarket}
+              currentOrderType={currentOrderType}
+              setCurrentOrderType={setCurrentOrderType}
+              isMarketBlocked={isMarketBlocked}
+              lotSize={lotSize}
+              units={units}
+              segment={segmentUpper}
+              orderSide={orderSide}
+            />
+          </div>
 
           {/* Summary Section */}
           <OrderSummary
@@ -164,8 +166,8 @@ export function OrderDialog(props: OrderDialogProps) {
           />
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex-shrink-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-t border-gray-100 dark:border-gray-800 p-6 space-y-4 pb-8 sm:pb-6 z-20">
+        {/* Solid Footer */}
+        <div className="flex-shrink-0 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 p-6 space-y-4 pb-8 sm:pb-6 z-20">
           <div className="flex justify-end sm:hidden absolute top-4 right-4 pointer-events-none opacity-0">
              {/* Hidden close button for layout consistency if needed */}
           </div>

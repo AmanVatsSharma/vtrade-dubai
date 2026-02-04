@@ -446,7 +446,7 @@ export function PositionTracking({
 }: PositionTrackingProps) {
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
-  const { optimisticClosePosition, mutate: mutatePositions } = useRealtimePositions(userId)
+  const { optimisticClosePosition, mutate: mutatePositions, pnlMeta } = useRealtimePositions(userId)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [stopLossDialogOpen, setStopLossDialogOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
@@ -457,6 +457,7 @@ export function PositionTracking({
 
   // Calculate P&L Summary - Use display_price for live animated updates
   const { totalPnL, dayPnL, winRate, totalPositions, closedPositions, bookedPnL } = useMemo(() => {
+    const useServerPnL = pnlMeta?.pnlMode === "server" && pnlMeta?.workerHealthy
     let total = 0
     let day = 0
     let winners = 0
@@ -473,6 +474,15 @@ export function PositionTracking({
         booked += realized
         if (realized > 0) winners++
         closedCount++
+        return
+      }
+
+      if (useServerPnL) {
+        const pnl = (pos.unrealizedPnL ?? 0)
+        total += pnl
+        day += (pos.dayPnL ?? pnl)
+        if (pnl > 0) winners++
+        activePositions++
         return
       }
 
@@ -497,10 +507,11 @@ export function PositionTracking({
       closedPositions: closedCount,
       bookedPnL: booked
     }
-  }, [positions, quotes])
+  }, [positions, quotes, pnlMeta])
 
   // Filter positions - Use display_price for live filtering
   const filteredPositions = useMemo(() => {
+    const useServerPnL = pnlMeta?.pnlMode === "server" && pnlMeta?.workerHealthy
     return positions.filter(pos => {
         switch (activeFilter) {
           case 'long':
@@ -512,6 +523,7 @@ export function PositionTracking({
               const realized = pos.bookedPnL ?? pos.realizedPnL ?? pos.unrealizedPnL ?? 0
               return realized > 0
             }
+            if (useServerPnL) return (pos.unrealizedPnL ?? 0) > 0
             const quoteKey = getQuoteKeyForPosition(pos)
             const quote = quoteKey ? quotes[quoteKey] : null
             const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
@@ -522,6 +534,7 @@ export function PositionTracking({
               const realized = pos.bookedPnL ?? pos.realizedPnL ?? pos.unrealizedPnL ?? 0
               return realized < 0
             }
+            if (useServerPnL) return (pos.unrealizedPnL ?? 0) < 0
             const quoteKeyLoss = getQuoteKeyForPosition(pos)
             const quoteLoss = quoteKeyLoss ? quotes[quoteKeyLoss] : null
             const ltpLoss = (((quoteLoss as any)?.display_price ?? quoteLoss?.last_trade_price) ?? pos.averagePrice)
@@ -534,7 +547,7 @@ export function PositionTracking({
             return true
         }
     })
-  }, [positions, quotes, activeFilter])
+  }, [positions, quotes, activeFilter, pnlMeta])
 
   const handleAction = async (action: 'close' | 'stoploss' | 'target', positionId: string, value?: number) => {
     setLoading(positionId)

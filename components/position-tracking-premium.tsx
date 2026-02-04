@@ -16,8 +16,10 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { closePosition, updateStopLoss, updateTarget } from "@/lib/hooks/use-trading-data"
+import { useRealtimePositions } from "@/lib/hooks/use-realtime-positions"
 import { cn } from "@/lib/utils"
 import { formatExpiryDateIST, formatDateIST } from "@/lib/date-utils"
+import { useSession } from "next-auth/react"
 
 // Types
 interface Position {
@@ -390,6 +392,9 @@ export function PositionTracking({
   onPositionUpdate, 
   tradingAccountId 
 }: PositionTrackingProps) {
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
+  const { pnlMeta } = useRealtimePositions(userId)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [stopLossDialogOpen, setStopLossDialogOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
@@ -400,6 +405,7 @@ export function PositionTracking({
 
   // Calculate P&L Summary - Use display_price for live animated updates
   const { totalPnL, dayPnL, winRate, totalPositions } = useMemo(() => {
+    const useServerPnL = pnlMeta?.pnlMode === "server" && pnlMeta?.workerHealthy
     let total = 0
     let day = 0
     let winners = 0
@@ -411,6 +417,14 @@ export function PositionTracking({
         day += pos.unrealizedPnL ?? 0
         if (pos.unrealizedPnL > 0) winners++
       } else {
+        if (useServerPnL) {
+          const pnl = pos.unrealizedPnL ?? 0
+          total += pnl
+          day += pnl
+          if (pnl > 0) winners++
+          activePositions++
+          return
+        }
         const instrumentId = getInstrumentId(pos)
         const quote = instrumentId ? quotes[instrumentId] : null
         // Use display_price for live animated position updates
@@ -431,10 +445,11 @@ export function PositionTracking({
       winRate,
       totalPositions: activePositions
     }
-  }, [positions, quotes])
+  }, [positions, quotes, pnlMeta])
 
   // Filter positions - Use display_price for live filtering
   const filteredPositions = useMemo(() => {
+    const useServerPnL = pnlMeta?.pnlMode === "server" && pnlMeta?.workerHealthy
     return positions.filter(pos => {
       switch (activeFilter) {
         case 'long':
@@ -443,12 +458,14 @@ export function PositionTracking({
           return pos.quantity < 0
         case 'profit':
           if (pos.quantity === 0) return pos.unrealizedPnL > 0
+          if (useServerPnL) return (pos.unrealizedPnL ?? 0) > 0
           const instrumentId = getInstrumentId(pos)
           const quote = instrumentId ? quotes[instrumentId] : null
           const ltp = (((quote as any)?.display_price ?? quote?.last_trade_price) ?? pos.averagePrice)
           return (ltp - pos.averagePrice) * pos.quantity > 0
         case 'loss':
           if (pos.quantity === 0) return pos.unrealizedPnL < 0
+          if (useServerPnL) return (pos.unrealizedPnL ?? 0) < 0
           const instrumentIdLoss = getInstrumentId(pos)
           const quoteLoss = instrumentIdLoss ? quotes[instrumentIdLoss] : null
           const ltpLoss = (((quoteLoss as any)?.display_price ?? quoteLoss?.last_trade_price) ?? pos.averagePrice)
@@ -460,7 +477,7 @@ export function PositionTracking({
           return true
       }
     })
-  }, [positions, quotes, activeFilter])
+  }, [positions, quotes, activeFilter, pnlMeta])
 
   const handleAction = async (action: 'close' | 'stoploss' | 'target', positionId: string, value?: number) => {
     setLoading(positionId)
