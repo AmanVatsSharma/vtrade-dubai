@@ -19,6 +19,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 import { withApiTelemetry } from "@/lib/observability/api-telemetry"
+import { getPositionPnLSettings } from "@/lib/server/position-pnl-settings"
 
 type ApiPositionPayload = {
   id: string
@@ -74,8 +75,11 @@ export async function GET(req: Request) {
       })
 
       if (!tradingAccount) {
-        return NextResponse.json({ success: true, positions: [] })
+        const pnl = await getPositionPnLSettings()
+        return NextResponse.json({ success: true, positions: [], meta: { pnlMode: pnl.mode, workerHealthy: pnl.workerHealthy } })
       }
+
+      const pnlSettings = await getPositionPnLSettings()
 
       // Fetch all positions (open + closed) so UI can show booked profits
       const positions = await prisma.position.findMany({
@@ -146,7 +150,11 @@ export async function GET(req: Request) {
 
       return NextResponse.json({
         success: true,
-        positions: orderedPositions
+        positions: orderedPositions,
+        meta: {
+          pnlMode: pnlSettings.mode,
+          workerHealthy: pnlSettings.workerHealthy,
+        }
       })
     })
 

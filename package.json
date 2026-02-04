@@ -97,6 +97,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
@@ -104,6 +105,7 @@
     "dotenv": "^17.2.3",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
+    "jest": "^30.2.0",
     "postcss": "^8.5",
     "prisma": "6.18.0",
     "tailwindcss": "^4.1.9",
