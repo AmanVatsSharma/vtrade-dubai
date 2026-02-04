@@ -1,0 +1,276 @@
+/**
+ * File: lib/services/position/PositionPnLWorker.ts
+ * Module: position
+ * Purpose: Background worker to compute and persist server-side position PnL (unrealized/day) using batched quotes.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-04
+ * Notes:
+ * - Intended for EC2/Docker long-running worker OR cron-triggered execution.
+ * - Uses `SystemSettings` heartbeat key `positions_pnl_worker_heartbeat` for admin visibility.
+ * - Avoids spamming DB/SSE by skipping updates below a configurable threshold.
+ */
+
+import os from "os"
+import { Prisma } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
+import { requestQuotesBatched } from "@/lib/vortex/quotes-batcher"
+import { normalizeQuotePrices } from "@/lib/services/position/quote-normalizer"
+
+export const POSITIONS_PNL_WORKER_HEARTBEAT_KEY = "positions_pnl_worker_heartbeat" as const
+
+export type PositionPnLWorkerHeartbeat = {
+  lastRunAtIso: string
+  host: string
+  pid: number
+  scanned: number
+  updated: number
+  skipped: number
+  errors: number
+  elapsedMs: number
+}
+
+export type ProcessPositionPnLInput = {
+  limit?: number
+  /**
+   * Skip DB update if both |Δunrealized| and |Δday| are below this value.
+   * Default: 1 (₹1).
+   */
+  updateThreshold?: number
+  dryRun?: boolean
+}
+
+export type ProcessPositionPnLResult = {
+  success: boolean
+  scanned: number
+  updated: number
+  skipped: number
+  errors: number
+  elapsedMs: number
+  heartbeat: PositionPnLWorkerHeartbeat
+}
+
+function asDecimal(v: number): Prisma.Decimal {
+  // Store at 2 dp to match Decimal(18,2)
+  return new Prisma.Decimal(v.toFixed(2))
+}
+
+function toNumber(v: unknown): number {
+  if (v == null) return 0
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+function abs(n: number): number {
+  return Math.abs(n)
+}
+
+async function setGlobalSystemSetting(input: {
+  key: string
+  value: string
+  category?: string
+  description?: string
+}): Promise<void> {
+  const { key, value, category, description } = input
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.systemSettings.findFirst({
+      where: { key, ownerId: null },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true },
+    })
+
+    if (existing) {
+      await tx.systemSettings.update({
+        where: { id: existing.id },
+        data: {
+          value,
+          category: category || "GENERAL",
+          description,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+      })
+
+      await tx.systemSettings.updateMany({
+        where: { key, ownerId: null, id: { not: existing.id } },
+        data: { isActive: false, updatedAt: new Date() },
+      })
+
+      return
+    }
+
+    await tx.systemSettings.create({
+      data: {
+        key,
+        value,
+        category: category || "GENERAL",
+        description,
+        isActive: true,
+      },
+    })
+  })
+}
+
+export class PositionPnLWorker {
+  async processPositionPnL(input: ProcessPositionPnLInput = {}): Promise<ProcessPositionPnLResult> {
+    const startedAt = Date.now()
+    const limit = Math.max(1, Math.min(2000, input.limit ?? 500))
+    const updateThreshold = Math.max(0, input.updateThreshold ?? 1)
+    const dryRun = Boolean(input.dryRun)
+
+    let scanned = 0
+    let updated = 0
+    let skipped = 0
+    let errors = 0
+
+    console.log("🧮 [POSITION-PNL-WORKER] Start", { limit, updateThreshold, dryRun })
+
+    try {
+      const positions = await prisma.position.findMany({
+        where: { quantity: { not: 0 } },
+        include: {
+          Stock: {
+            select: {
+              instrumentId: true,
+              ltp: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      })
+
+      scanned = positions.length
+
+      // Deduplicate instrument ids for batching
+      const instruments = Array.from(
+        new Set(
+          positions
+            .map((p) => p.Stock?.instrumentId)
+            .filter((v): v is string => typeof v === "string" && v.length > 0),
+        ),
+      )
+
+      let quotes: Record<string, any> = {}
+      try {
+        if (instruments.length > 0) {
+          quotes = await requestQuotesBatched(instruments, "ltp", { clientId: "position-pnl-worker" })
+        }
+      } catch (e) {
+        console.error("❌ [POSITION-PNL-WORKER] Quotes batch failed; will fallback to Stock.ltp", e)
+        errors += 1
+        quotes = {}
+      }
+
+      // Update sequentially; small batches to reduce DB pressure.
+      for (const p of positions) {
+        try {
+          const quantity = Number(p.quantity || 0)
+          const avg = Number(p.averagePrice)
+
+          const instrumentId = p.Stock?.instrumentId || null
+          const quote = instrumentId ? (quotes as any)[instrumentId] : null
+
+          const norm = normalizeQuotePrices({
+            quote,
+            stockLtp: p.Stock?.ltp ?? null,
+            averagePrice: avg,
+          })
+
+          const currentPrice = norm.currentPrice
+          const prevClose = norm.prevClose
+
+          const unrealizedPnL = (currentPrice - avg) * quantity
+          const dayPnL = (currentPrice - prevClose) * quantity
+
+          const oldUnrealized = toNumber(p.unrealizedPnL)
+          const oldDay = toNumber(p.dayPnL)
+
+          const du = abs(unrealizedPnL - oldUnrealized)
+          const dd = abs(dayPnL - oldDay)
+
+          if (du < updateThreshold && dd < updateThreshold) {
+            skipped += 1
+            continue
+          }
+
+          if (!dryRun) {
+            await prisma.position.update({
+              where: { id: p.id },
+              data: {
+                unrealizedPnL: asDecimal(unrealizedPnL),
+                dayPnL: asDecimal(dayPnL),
+              },
+            })
+          }
+
+          updated += 1
+        } catch (e) {
+          errors += 1
+          console.error("❌ [POSITION-PNL-WORKER] Failed to process position", { positionId: p.id }, e)
+        }
+      }
+
+      const elapsedMs = Date.now() - startedAt
+      const heartbeat: PositionPnLWorkerHeartbeat = {
+        lastRunAtIso: new Date().toISOString(),
+        host: os.hostname(),
+        pid: process.pid,
+        scanned,
+        updated,
+        skipped,
+        errors,
+        elapsedMs,
+      }
+
+      try {
+        await setGlobalSystemSetting({
+          key: POSITIONS_PNL_WORKER_HEARTBEAT_KEY,
+          value: JSON.stringify(heartbeat),
+          category: "TRADING",
+          description: "Heartbeat for server-side position PnL worker (EC2/Docker/cron).",
+        })
+      } catch (e) {
+        console.error("❌ [POSITION-PNL-WORKER] Failed to write heartbeat setting", e)
+        // Do not fail the worker result on heartbeat write.
+      }
+
+      console.log("✅ [POSITION-PNL-WORKER] Done", heartbeat)
+
+      return {
+        success: true,
+        scanned,
+        updated,
+        skipped,
+        errors,
+        elapsedMs,
+        heartbeat,
+      }
+    } catch (e) {
+      const elapsedMs = Date.now() - startedAt
+      const heartbeat: PositionPnLWorkerHeartbeat = {
+        lastRunAtIso: new Date().toISOString(),
+        host: os.hostname(),
+        pid: process.pid,
+        scanned,
+        updated,
+        skipped,
+        errors: errors + 1,
+        elapsedMs,
+      }
+      console.error("❌ [POSITION-PNL-WORKER] Fatal error", e)
+      return {
+        success: false,
+        scanned,
+        updated,
+        skipped,
+        errors: errors + 1,
+        elapsedMs,
+        heartbeat,
+      }
+    }
+  }
+}
+
+export const positionPnLWorker = new PositionPnLWorker()
+

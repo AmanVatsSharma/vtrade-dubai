@@ -151,6 +151,12 @@ export class RealtimeEventEmitter {
    * Start heartbeat to keep connections alive
    */
   private startHeartbeat(): void {
+    // In test runs, avoid leaking timers that keep Jest alive.
+    if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID) {
+      console.log("🧪 [REALTIME-EMITTER] Test environment detected; heartbeat disabled")
+      return
+    }
+
     this.heartbeatInterval = setInterval(() => {
       const heartbeatMessage = `: heartbeat\n\n`
       const encoder = new TextEncoder()
@@ -186,6 +192,9 @@ export class RealtimeEventEmitter {
         console.log(`💓 [REALTIME-EMITTER] Heartbeat sent to ${totalSent} connection(s), cleaned ${deadConnections.length} dead`)
       }
     }, this.HEARTBEAT_INTERVAL)
+
+    // Do not keep the Node process alive solely for heartbeat.
+    ;(this.heartbeatInterval as any)?.unref?.()
   }
 
   /**
