@@ -30,6 +30,7 @@ export type TradingRealtimeContextValue = {
 
   orders: any[]
   positions: any[]
+  positionsPnLMeta: { pnlMode: "client" | "server"; workerHealthy: boolean }
   account: any | null
 
   isLoading: boolean
@@ -224,6 +225,7 @@ export function TradingRealtimeProvider({ userId, session, children }: TradingRe
       tradingAccountId,
       orders: ordersHook.orders,
       positions: positionsHook.positions,
+      positionsPnLMeta: positionsHook.pnlMeta,
       account: accountHook.account,
       isLoading,
       error,
@@ -241,6 +243,7 @@ export function TradingRealtimeProvider({ userId, session, children }: TradingRe
       tradingAccountId,
       ordersHook.orders,
       positionsHook.positions,
+      positionsHook.pnlMeta,
       accountHook.account,
       isLoading,
       error,

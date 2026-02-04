@@ -54,6 +54,8 @@ interface UseRealtimeOrdersReturn {
   error: Error | null
   refresh: () => Promise<any>
   optimisticUpdate: (newOrder: Partial<Order>) => void
+  resolveOptimisticOrder: (tempOrderId: string, patch?: Partial<Order>) => void
+  rejectOptimisticOrder: (tempOrderId: string, reason?: string) => void
   mutate: any
   retryCount: number
 }
@@ -344,7 +346,7 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
     }
   }, [mutate])
 
-  // Optimistic update function with validation
+  // Optimistic update function with validation (upsert by id)
   const optimisticUpdate = useCallback((newOrder: Partial<Order>) => {
     // Validate input
     if (!validateOrder(newOrder)) {
@@ -367,11 +369,21 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
             console.warn('⚠️ [REALTIME-ORDERS] Invalid orders array in current data')
             return currentData
           }
-          
-          return {
-            ...currentData,
-            orders: [newOrder as Order, ...currentData.orders]
+
+          const id = (newOrder as any)?.id as string | undefined
+          if (!id) return currentData
+
+          const idx = currentData.orders.findIndex((o: any) => o?.id === id)
+          if (idx === -1) {
+            return {
+              ...currentData,
+              orders: [newOrder as Order, ...currentData.orders],
+            }
           }
+
+          const updated = [...currentData.orders]
+          updated[idx] = { ...(updated[idx] as any), ...(newOrder as any) }
+          return { ...currentData, orders: updated }
         },
         false // Don't revalidate immediately
       )
@@ -386,6 +398,54 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
       console.error('❌ [REALTIME-ORDERS] Optimistic update failed:', error)
     }
   }, [mutate])
+
+  const resolveOptimisticOrder = useCallback(
+    (tempOrderId: string, patch?: Partial<Order>) => {
+      if (typeof tempOrderId !== "string" || tempOrderId.length === 0) return
+
+      mutate(
+        (currentData: OrdersResponse | undefined) => {
+          if (!currentData || !Array.isArray(currentData.orders)) return currentData
+
+          const idx = currentData.orders.findIndex((o: any) => o?.id === tempOrderId)
+          if (idx === -1) return currentData
+
+          const updated = [...currentData.orders]
+          const prev = updated[idx] as any
+          const next = { ...prev, ...(patch as any) }
+
+          // If backend id is provided, de-duplicate and replace id.
+          const nextId = (next as any)?.id as string | undefined
+          if (nextId && nextId !== tempOrderId) {
+            const withoutDup = updated.filter((o: any) => o?.id !== nextId && o?.id !== tempOrderId)
+            return { ...currentData, orders: [next, ...withoutDup] }
+          }
+
+          updated[idx] = next
+          return { ...currentData, orders: updated }
+        },
+        false,
+      )
+    },
+    [mutate],
+  )
+
+  const rejectOptimisticOrder = useCallback(
+    (tempOrderId: string, reason?: string) => {
+      if (typeof tempOrderId !== "string" || tempOrderId.length === 0) return
+      console.warn("⚠️ [REALTIME-ORDERS] Rejecting optimistic order", { tempOrderId, reason })
+
+      mutate(
+        (currentData: OrdersResponse | undefined) => {
+          if (!currentData || !Array.isArray(currentData.orders)) return currentData
+          const filtered = currentData.orders.filter((o: any) => o?.id !== tempOrderId)
+          return { ...currentData, orders: filtered }
+        },
+        false,
+      )
+    },
+    [mutate],
+  )
 
   // Safe data extraction with fallback
   const orders: Order[] = (() => {
@@ -406,6 +466,8 @@ export function useRealtimeOrders(userId: string | undefined | null): UseRealtim
     error: error || null,
     refresh,
     optimisticUpdate,
+    resolveOptimisticOrder,
+    rejectOptimisticOrder,
     mutate,
     retryCount: retryCountRef.current
   }
