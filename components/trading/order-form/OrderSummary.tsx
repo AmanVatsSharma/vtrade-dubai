@@ -45,7 +45,7 @@ export function OrderSummary({
   const themeBg = orderSide === "BUY" ? "bg-emerald-500" : "bg-rose-500"
 
   return (
-    <div className="bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
       {/* Main Summary Row */}
       <div className="p-4 space-y-3">
         <div className="flex justify-between items-end">
@@ -68,7 +68,7 @@ export function OrderSummary({
 
         {/* Visual Progress Bar */}
         <div className="space-y-1.5">
-          <div className="h-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
             <motion.div 
               className={cn("h-full rounded-full", isInsufficient ? "bg-red-500" : themeBg)}
               initial={{ width: 0 }}
@@ -91,7 +91,7 @@ export function OrderSummary({
 
       {/* Collapsible Details */}
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50/50 dark:bg-gray-800/30 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors border-t border-gray-100 dark:border-gray-700 group">
+        <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors border-t border-gray-100 dark:border-gray-800 group">
           <span className="font-medium">View Charges & Taxes</span>
           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isOpen && "rotate-180")} />
         </CollapsibleTrigger>
@@ -100,7 +100,7 @@ export function OrderSummary({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="px-4 pb-4 pt-2 space-y-2 text-xs bg-gray-50/50 dark:bg-gray-800/30"
+            className="px-4 pb-4 pt-2 space-y-2 text-xs bg-gray-50 dark:bg-gray-800"
           >
             <div className="flex justify-between py-1 border-b border-gray-100 dark:border-gray-700 border-dashed">
               <span className="text-gray-500">Order Value</span>

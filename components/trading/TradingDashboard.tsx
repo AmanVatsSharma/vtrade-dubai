@@ -150,6 +150,7 @@ const TradingDashboard: React.FC = () => {
     session,
     orders,
     positions,
+    positionsPnLMeta,
     account: realtimeAccountData,
     tradingAccountId,
     refreshAll,
@@ -233,6 +234,11 @@ const TradingDashboard: React.FC = () => {
   const { totalPnL, dayPnL }: PnLData = useMemo(() => {
     if (!positions?.length) return apiPnL
 
+    // If server-side PnL mode is enabled and worker is active, trust API values.
+    if (positionsPnLMeta?.pnlMode === "server" && positionsPnLMeta?.workerHealthy) {
+      return apiPnL
+    }
+
     // Quotes are keyed by token (string). Prefer live quotes; fall back to API-provided PnL.
     let total = 0
     let day = 0
@@ -255,7 +261,7 @@ const TradingDashboard: React.FC = () => {
     })
 
     return usedLive ? { totalPnL: total, dayPnL: day } : apiPnL
-  }, [positions, quotes, apiPnL])
+  }, [positions, quotes, apiPnL, positionsPnLMeta])
 
   // Loading state (do not block UI render; use only for subtle indicators)
   const anyLoading = isQuotesLoading
