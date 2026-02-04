@@ -49,6 +49,10 @@ interface Position {
 interface PositionsResponse {
   success: boolean
   positions: Position[]
+  meta?: {
+    pnlMode?: "client" | "server"
+    workerHealthy?: boolean
+  }
   error?: string
 }
 
@@ -56,9 +60,10 @@ interface UseRealtimePositionsReturn {
   positions: Position[]
   isLoading: boolean
   error: Error | null
+  pnlMeta: { pnlMode: "client" | "server"; workerHealthy: boolean }
   refresh: () => Promise<any>
   optimisticAddPosition: (newPosition: Partial<Position>) => void
-  optimisticClosePosition: (positionId: string) => void
+  optimisticClosePosition: (positionId: string, exitPrice?: number) => void
   mutate: any
   retryCount: number
 }
@@ -535,6 +540,10 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
     positions,
     isLoading,
     error: error || null,
+    pnlMeta: {
+      pnlMode: data?.meta?.pnlMode === "server" ? "server" : "client",
+      workerHealthy: Boolean(data?.meta?.workerHealthy),
+    },
     refresh,
     optimisticAddPosition,
     optimisticClosePosition,
