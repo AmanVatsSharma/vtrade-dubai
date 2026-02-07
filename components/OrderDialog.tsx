@@ -103,7 +103,7 @@ export function OrderDialog(props: OrderDialogProps) {
 
           {/* Market Status Banner */}
           <AnimatePresence>
-            {isMarketBlocked && (
+          {isMarketBlocked && (
               <motion.div 
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -113,15 +113,15 @@ export function OrderDialog(props: OrderDialogProps) {
                 <div className="p-3 rounded-xl border text-xs bg-amber-50 border-amber-200 text-amber-800 flex items-start gap-2 mb-4">
                   <span className="mt-0.5 text-lg">⚠️</span>
                   <p className="font-medium">
-                    {sessionStatus === 'pre-open'
-                      ? 'Pre-Open (09:00–09:15 IST): Orders are temporarily blocked.'
-                      : segmentUpper.includes('MCX')
-                        ? 'Market Closed: MCX orders are allowed between 09:00–23:55 IST.'
-                        : 'Market Closed: NSE orders are allowed between 09:15–15:30 IST.'}
+              {sessionStatus === 'pre-open'
+                ? 'Pre-Open (09:00–09:15 IST): Orders are temporarily blocked.'
+                : segmentUpper.includes('MCX')
+                  ? 'Market Closed: MCX orders are allowed between 09:00–23:55 IST.'
+                  : 'Market Closed: NSE orders are allowed between 09:15–15:30 IST.'}
                   </p>
-                </div>
+            </div>
               </motion.div>
-            )}
+          )}
           </AnimatePresence>
           
           {/* Dev Override Banner */}

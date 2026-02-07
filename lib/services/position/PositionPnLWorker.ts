@@ -15,7 +15,8 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requestQuotesBatched } from "@/lib/vortex/quotes-batcher"
 import { normalizeQuotePrices } from "@/lib/services/position/quote-normalizer"
-import { updateWorkerHeartbeat, WORKER_IDS } from "@/lib/server/workers/registry"
+
+export const POSITIONS_PNL_WORKER_HEARTBEAT_KEY = "positions_pnl_worker_heartbeat" as const
 
 export type PositionPnLWorkerHeartbeat = {
   lastRunAtIso: string
@@ -62,6 +63,52 @@ function toNumber(v: unknown): number {
 
 function abs(n: number): number {
   return Math.abs(n)
+}
+
+async function setGlobalSystemSetting(input: {
+  key: string
+  value: string
+  category?: string
+  description?: string
+}): Promise<void> {
+  const { key, value, category, description } = input
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.systemSettings.findFirst({
+      where: { key, ownerId: null },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true },
+    })
+
+    if (existing) {
+      await tx.systemSettings.update({
+        where: { id: existing.id },
+        data: {
+          value,
+          category: category || "GENERAL",
+          description,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+      })
+
+      await tx.systemSettings.updateMany({
+        where: { key, ownerId: null, id: { not: existing.id } },
+        data: { isActive: false, updatedAt: new Date() },
+      })
+
+      return
+    }
+
+    await tx.systemSettings.create({
+      data: {
+        key,
+        value,
+        category: category || "GENERAL",
+        description,
+        isActive: true,
+      },
+    })
+  })
 }
 
 export class PositionPnLWorker {
@@ -177,7 +224,12 @@ export class PositionPnLWorker {
       }
 
       try {
-        await updateWorkerHeartbeat(WORKER_IDS.POSITION_PNL, JSON.stringify(heartbeat))
+        await setGlobalSystemSetting({
+          key: POSITIONS_PNL_WORKER_HEARTBEAT_KEY,
+          value: JSON.stringify(heartbeat),
+          category: "TRADING",
+          description: "Heartbeat for server-side position PnL worker (EC2/Docker/cron).",
+        })
       } catch (e) {
         console.error("❌ [POSITION-PNL-WORKER] Failed to write heartbeat setting", e)
         // Do not fail the worker result on heartbeat write.

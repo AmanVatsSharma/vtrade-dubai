@@ -22,7 +22,6 @@ import { FundManagementService } from "@/lib/services/funds/FundManagementServic
 import { MarginCalculator } from "@/lib/services/risk/MarginCalculator"
 import { OrderSide, OrderStatus, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { updateWorkerHeartbeat, WORKER_IDS } from "@/lib/server/workers/registry"
 
 const ORDER_EXECUTION_ADVISORY_LOCK_NS = 910_001
 
@@ -83,12 +82,6 @@ export class OrderExecutionWorker {
     }
 
     console.log("✅ [ORDER-WORKER] Batch completed", result)
-
-    // Update heartbeat
-    await updateWorkerHeartbeat(WORKER_IDS.ORDER_EXECUTION).catch(err => {
-      console.warn("⚠️ [ORDER-WORKER] Failed to update heartbeat", err)
-    })
-
     return result
   }
 
