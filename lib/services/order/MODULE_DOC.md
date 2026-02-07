@@ -64,6 +64,17 @@ Implementation: `lib/services/order/OrderExecutionWorker.ts`
 ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 pnpm tsx scripts/order-worker.ts
 ```
 
+### Vercel (serverless) support
+
+Vercel does not run long-lived background workers by default. To ensure orders do not remain `PENDING`:
+
+- **Inline best-effort execution**: `POST /api/trading/orders` enqueues background execution using Vercel `waitUntil()` (non-blocking).
+- **Cron backstop (recommended)**: configure a Vercel Cron Job to call the batch worker endpoint to catch any missed orders.
+
+Cron endpoint:
+- `GET /api/cron/order-worker?limit=25`
+- Auth: `Authorization: Bearer $CRON_SECRET`
+
 ### Amplify-friendly fallback
 
 Amplify/serverless cannot reliably continue background work after returning a response.
@@ -83,4 +94,5 @@ Timing logs exist at:
 ## Changelog
 
 - **2026-02-03**: Switched to ACCEPTED/QUEUED response, removed nested Prisma transactions, added `OrderExecutionWorker` + cron trigger.
+- **2026-02-04**: Added Vercel-safe background execution (`waitUntil`) + advisory lock to prevent double-processing; documented cron backstop.
 

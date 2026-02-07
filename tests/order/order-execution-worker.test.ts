@@ -10,18 +10,35 @@ import { OrderExecutionWorker } from "@/lib/services/order/OrderExecutionWorker"
 import { OrderSide, OrderStatus, OrderType } from "@prisma/client"
 
 jest.mock("@/lib/prisma", () => {
+  const tx = {
+    $queryRaw: jest.fn(),
+    order: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      findMany: jest.fn(),
+    },
+  }
+
   return {
     prisma: {
-      order: {
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        findMany: jest.fn(),
-      },
+      // Expose tx for unit tests
+      __tx: tx,
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+      order: tx.order,
     },
   }
 })
 
 const prismaMock = jest.requireMock("@/lib/prisma").prisma as {
+  __tx: {
+    $queryRaw: jest.Mock
+    order: {
+      findUnique: jest.Mock
+      update: jest.Mock
+      findMany: jest.Mock
+    }
+  }
+  $transaction: jest.Mock
   order: {
     findUnique: jest.Mock
     update: jest.Mock
@@ -29,9 +46,13 @@ const prismaMock = jest.requireMock("@/lib/prisma").prisma as {
   }
 }
 
+const txMock = prismaMock.__tx
+
 describe("OrderExecutionWorker", () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // Default: advisory lock acquired
+    txMock.$queryRaw.mockResolvedValue([{ locked: true }])
   })
 
   it("cancels a PENDING order when no valid execution price is available", async () => {

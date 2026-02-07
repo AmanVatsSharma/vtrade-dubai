@@ -20,8 +20,10 @@ import { PositionRepository } from "@/lib/repositories/PositionRepository"
 import { TransactionRepository } from "@/lib/repositories/TransactionRepository"
 import { FundManagementService } from "@/lib/services/funds/FundManagementService"
 import { MarginCalculator } from "@/lib/services/risk/MarginCalculator"
-import { OrderSide, OrderStatus } from "@prisma/client"
+import { OrderSide, OrderStatus, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
+
+const ORDER_EXECUTION_ADVISORY_LOCK_NS = 910_001
 
 export interface ProcessPendingOrdersInput {
   limit?: number
@@ -90,49 +92,64 @@ export class OrderExecutionWorker {
   async processOrderById(orderId: string): Promise<"skipped" | "executed" | "cancelled"> {
     console.log("🎯 [ORDER-WORKER] Processing order", { orderId })
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        Stock: { select: { id: true, ltp: true, segment: true, lot_size: true } },
-        tradingAccount: { select: { id: true, userId: true } }
-      }
-    })
+    type TxResult =
+      | { outcome: "skipped" }
+      | { outcome: "cancelled" }
+      | { outcome: "executed"; executionPrice: number; userId?: string; symbol: string; quantity: number; orderSide: OrderSide }
 
-    if (!order) {
-      console.warn("⚠️ [ORDER-WORKER] Order not found; skipping", { orderId })
-      return "skipped"
-    }
-
-    if (order.status !== OrderStatus.PENDING) {
-      console.log("ℹ️ [ORDER-WORKER] Order not pending; skipping", { orderId, status: order.status })
-      return "skipped"
-    }
-
-    // Determine execution price
-    const executionPrice = (() => {
-      const p = order.averagePrice ?? order.price
-      const numeric = p != null ? Number(p) : null
-      if (numeric != null && Number.isFinite(numeric) && numeric > 0) return numeric
-      const ltp = order.Stock?.ltp
-      if (typeof ltp === "number" && Number.isFinite(ltp) && ltp > 0) return ltp
-      return 0
-    })()
-
-    if (!executionPrice || executionPrice <= 0) {
-      console.error("❌ [ORDER-WORKER] Invalid execution price; cancelling", { orderId, executionPrice })
-      await prisma.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } })
-      return "cancelled"
-    }
-
-    if (!order.stockId || !order.Stock?.id) {
-      console.error("❌ [ORDER-WORKER] Missing stock reference; cancelling", { orderId, stockId: order.stockId })
-      await prisma.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } })
-      return "cancelled"
-    }
-
-    // Execute core DB updates in one transaction
+    // Execute core DB updates in one transaction, guarded by an advisory xact lock to prevent double-processing
     try {
-      await executeInTransaction(async (tx) => {
+      const txResult = await executeInTransaction<TxResult>(async (tx) => {
+        // Advisory lock (per-order) to keep execution idempotent across cron + serverless + EC2 workers.
+        const lockRows = await tx.$queryRaw<{ locked: boolean }[]>(
+          Prisma.sql`SELECT pg_try_advisory_xact_lock(${ORDER_EXECUTION_ADVISORY_LOCK_NS}, hashtext(${orderId})) AS locked`
+        )
+        const locked = lockRows?.[0]?.locked === true
+        if (!locked) {
+          console.log("ℹ️ [ORDER-WORKER] Advisory lock not acquired; skipping", { orderId })
+          return { outcome: "skipped" }
+        }
+
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          include: {
+            Stock: { select: { id: true, ltp: true, segment: true, lot_size: true } },
+            tradingAccount: { select: { id: true, userId: true } }
+          }
+        })
+
+        if (!order) {
+          console.warn("⚠️ [ORDER-WORKER] Order not found; skipping", { orderId })
+          return { outcome: "skipped" }
+        }
+
+        if (order.status !== OrderStatus.PENDING) {
+          console.log("ℹ️ [ORDER-WORKER] Order not pending; skipping", { orderId, status: order.status })
+          return { outcome: "skipped" }
+        }
+
+        // Determine execution price
+        const executionPrice = (() => {
+          const p = order.averagePrice ?? order.price
+          const numeric = p != null ? Number(p) : null
+          if (numeric != null && Number.isFinite(numeric) && numeric > 0) return numeric
+          const ltp = order.Stock?.ltp
+          if (typeof ltp === "number" && Number.isFinite(ltp) && ltp > 0) return ltp
+          return 0
+        })()
+
+        if (!executionPrice || executionPrice <= 0) {
+          console.error("❌ [ORDER-WORKER] Invalid execution price; cancelling", { orderId, executionPrice })
+          await tx.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } })
+          return { outcome: "cancelled" }
+        }
+
+        if (!order.stockId || !order.Stock?.id) {
+          console.error("❌ [ORDER-WORKER] Missing stock reference; cancelling", { orderId, stockId: order.stockId })
+          await tx.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } })
+          return { outcome: "cancelled" }
+        }
+
         const signedQuantity = order.orderSide === OrderSide.BUY ? order.quantity : -order.quantity
 
         const position = await this.positionRepo.upsert(
@@ -150,53 +167,99 @@ export class OrderExecutionWorker {
 
         // Link related fund transactions to position for easier querying
         await this.transactionRepo.updateMany({ orderId }, { positionId: position.id }, tx)
+
+        return {
+          outcome: "executed",
+          executionPrice,
+          userId: order.tradingAccount?.userId,
+          symbol: order.symbol,
+          quantity: order.quantity,
+          orderSide: order.orderSide
+        }
       })
+
+      if (txResult.outcome === "skipped") return "skipped"
+      if (txResult.outcome === "cancelled") return "cancelled"
+
+      // Notifications can be safely attempted after commit
+      try {
+        if (txResult.userId) {
+          await NotificationService.notifyOrderExecuted(txResult.userId, {
+            symbol: txResult.symbol,
+            quantity: txResult.quantity,
+            orderSide: txResult.orderSide,
+            averagePrice: txResult.executionPrice
+          })
+        }
+      } catch (notifError) {
+        console.warn("⚠️ [ORDER-WORKER] Failed to create order executed notification", {
+          orderId,
+          message: notifError instanceof Error ? notifError.message : String(notifError)
+        })
+      }
+
+      console.log("🎉 [ORDER-WORKER] Order executed", { orderId, executionPrice: txResult.executionPrice })
+      return "executed"
     } catch (error: any) {
       console.error("❌ [ORDER-WORKER] Execution transaction failed; cancelling + releasing margin best-effort", {
         orderId,
         message: error?.message
       })
 
-      // Best-effort compensation (mirrors previous in-request cleanup style)
-      await executeInTransaction(async (tx) => {
-        await this.orderRepo.update(orderId, { status: OrderStatus.CANCELLED }, tx)
+      // Best-effort compensation (cancel + release margin), guarded by advisory lock.
+      let cancelled = false
+      try {
+        const comp = await executeInTransaction(async (tx) => {
+          const lockRows = await tx.$queryRaw<{ locked: boolean }[]>(
+            Prisma.sql`SELECT pg_try_advisory_xact_lock(${ORDER_EXECUTION_ADVISORY_LOCK_NS}, hashtext(${orderId})) AS locked`
+          )
+          const locked = lockRows?.[0]?.locked === true
+          if (!locked) return { cancelled: false }
 
-        // Release margin using current margin rules and executionPrice
-        // (Charges refund is not handled here; consistent with prior cleanup semantics.)
-        const logger = createTradingLogger({ tradingAccountId: order.tradingAccountId, userId: order.tradingAccount?.userId, symbol: order.symbol })
-        const fundService = new FundManagementService(logger)
-        const marginCalc = new MarginCalculator()
+          const order = await tx.order.findUnique({
+            where: { id: orderId },
+            include: {
+              Stock: { select: { id: true, ltp: true, segment: true, lot_size: true } },
+              tradingAccount: { select: { id: true, userId: true } }
+            }
+          })
 
-        const segment = (order.Stock?.segment || "NSE").toUpperCase()
-        const productType = (order.productType || "MIS").toUpperCase()
-        const lotSize = order.Stock?.lot_size ? Number(order.Stock.lot_size) : 1
+          if (!order || order.status !== OrderStatus.PENDING) return { cancelled: false }
 
-        const calc = await marginCalc.calculateMargin(segment, productType, order.quantity, executionPrice, lotSize)
-        await fundService.releaseMarginTx(tx, order.tradingAccountId, calc.requiredMargin, `Margin released for failed order ${orderId}`, { orderId })
-      })
+          await this.orderRepo.update(orderId, { status: OrderStatus.CANCELLED }, tx)
 
-      return "cancelled"
-    }
+          // Release margin using current margin rules (charges refund not handled here).
+          const executionPrice = (() => {
+            const p = order.averagePrice ?? order.price
+            const numeric = p != null ? Number(p) : null
+            if (numeric != null && Number.isFinite(numeric) && numeric > 0) return numeric
+            const ltp = order.Stock?.ltp
+            if (typeof ltp === "number" && Number.isFinite(ltp) && ltp > 0) return ltp
+            return 0
+          })()
 
-    // Notifications can be safely attempted after commit
-    try {
-      if (order.tradingAccount?.userId) {
-        await NotificationService.notifyOrderExecuted(order.tradingAccount.userId, {
-          symbol: order.symbol,
-          quantity: order.quantity,
-          orderSide: order.orderSide,
-          averagePrice: executionPrice
+          if (executionPrice > 0) {
+            const logger = createTradingLogger({ tradingAccountId: order.tradingAccountId, userId: order.tradingAccount?.userId, symbol: order.symbol })
+            const fundService = new FundManagementService(logger)
+            const marginCalc = new MarginCalculator()
+
+            const segment = (order.Stock?.segment || "NSE").toUpperCase()
+            const productType = (order.productType || "MIS").toUpperCase()
+            const lotSize = order.Stock?.lot_size ? Number(order.Stock.lot_size) : 1
+
+            const calc = await marginCalc.calculateMargin(segment, productType, order.quantity, executionPrice, lotSize)
+            await fundService.releaseMarginTx(tx, order.tradingAccountId, calc.requiredMargin, `Margin released for failed order ${orderId}`, { orderId })
+          }
+
+          return { cancelled: true }
         })
+        cancelled = Boolean((comp as any)?.cancelled)
+      } catch (compError) {
+        console.warn("⚠️ [ORDER-WORKER] Compensation failed", { orderId, message: (compError as any)?.message || String(compError) })
       }
-    } catch (notifError) {
-      console.warn("⚠️ [ORDER-WORKER] Failed to create order executed notification", {
-        orderId,
-        message: notifError instanceof Error ? notifError.message : String(notifError)
-      })
-    }
 
-    console.log("🎉 [ORDER-WORKER] Order executed", { orderId, executionPrice })
-    return "executed"
+      return cancelled ? "cancelled" : "skipped"
+    }
   }
 }
 
