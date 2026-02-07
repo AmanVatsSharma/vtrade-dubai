@@ -8,11 +8,17 @@
  * @created 2025-01-27
  */
 
+export const runtime = "nodejs"
+
+import os from "os"
 import { NextResponse } from "next/server"
 import { RiskMonitoringService } from "@/lib/services/risk/RiskMonitoringService"
+import { RISK_MONITORING_ENABLED_KEY, updateWorkerHeartbeat, WORKER_IDS } from "@/lib/server/workers/registry"
+import { getLatestActiveGlobalSettings, parseBooleanSetting } from "@/lib/server/workers/system-settings"
 
 export async function GET(req: Request) {
   console.log("⏰ [CRON-RISK-MONITORING] Cron request received")
+  const startedAt = Date.now()
 
   try {
     // Verify cron secret (for security)
@@ -29,6 +35,24 @@ export async function GET(req: Request) {
       console.warn("⚠️ [CRON-RISK-MONITORING] No CRON_SECRET set, allowing request (development mode)")
     }
 
+    // Soft-toggle support (Admin Console → Workers)
+    try {
+      const rows = await getLatestActiveGlobalSettings([RISK_MONITORING_ENABLED_KEY])
+      const raw = rows.get(RISK_MONITORING_ENABLED_KEY)?.value ?? null
+      const enabled = parseBooleanSetting(raw) ?? true
+      if (!enabled) {
+        console.log("⏸️ [CRON-RISK-MONITORING] Disabled via SystemSettings; skipping run")
+        return NextResponse.json(
+          { success: true, skipped: true, reason: "disabled", timestamp: new Date().toISOString() },
+          { status: 200 },
+        )
+      }
+    } catch (e) {
+      console.warn("⚠️ [CRON-RISK-MONITORING] Failed to read enabled flag; defaulting to enabled", {
+        message: (e as any)?.message || String(e),
+      })
+    }
+
     // Run risk monitoring
     const monitoringService = new RiskMonitoringService()
     const result = await monitoringService.monitorAllAccounts()
@@ -38,6 +62,23 @@ export async function GET(req: Request) {
       positionsClosed: result.positionsClosed,
       alertsCreated: result.alertsCreated
     })
+
+    // Heartbeat for Admin Console worker visibility
+    try {
+      const heartbeat = {
+        lastRunAtIso: new Date().toISOString(),
+        host: os.hostname(),
+        pid: process.pid,
+        checkedAccounts: result.checkedAccounts,
+        positionsClosed: result.positionsClosed,
+        alertsCreated: result.alertsCreated,
+        errorCount: Array.isArray(result.errors) ? result.errors.length : 0,
+        elapsedMs: Date.now() - startedAt,
+      }
+      await updateWorkerHeartbeat(WORKER_IDS.RISK_MONITORING, JSON.stringify(heartbeat))
+    } catch (err) {
+      console.warn("⚠️ [CRON-RISK-MONITORING] Failed to update heartbeat", err)
+    }
 
     return NextResponse.json({
       success: true,

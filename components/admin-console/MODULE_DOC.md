@@ -11,6 +11,7 @@
 - **Risk Management:** Platform risk config, user limits, and monitoring.
 - **Access Control:** RBAC management UI.
 - **KYC Queue:** Dedicated queue for KYC verification with SLA tracking.
+- **Workers:** Background worker visibility (status/heartbeat), enable/disable, and run-once triggers.
 - **System Health, Logs, Settings, Notifications, Financial Reports.**
 
 ## User Quick Actions
@@ -39,12 +40,16 @@ Exposes existing admin APIs in the User Management table:
 - `header.tsx` — loads admin session, role, and permissions
 - `sidebar.tsx` — navigation gated by permissions
 - `access-control.tsx` — RBAC management UI
+- `workers.tsx` — worker cards (health, enable/disable, run once, config inputs)
 - `kyc-queue.tsx` — KYC queue with assignment and AML controls
 - `app/(admin)/admin-console/kyc/page.tsx` — KYC queue entry
 - `app/(admin)/admin-console/access-control/page.tsx` — access control page entry
+- `app/(admin)/admin-console/workers/page.tsx` — workers page entry
 - `app/api/admin/access-control/route.ts` — RBAC config API
 - `app/api/admin/kyc/route.ts` — KYC queue + review actions API
 - `app/api/admin/kyc/[kycId]/route.ts` — KYC detail + review logs API
+- `app/api/admin/workers/route.ts` — worker status + manage API (no CRON secrets in browser)
+- `lib/server/workers/registry.ts` — worker registry + health rules + SystemSettings keys
 - `lib/admin/kyc-utils.ts` — SLA and AML flag utilities
 - `lib/services/admin/AccessControlService.ts` — RBAC config persistence
 - `MODULE_DOC.md` — this file
@@ -109,6 +114,8 @@ flowchart TD
 - `GET /api/admin/kyc/{kycId}` — fetch KYC detail + logs
 - `GET /api/admin/me` — session user + permissions for UI gating
 - `GET/PUT /api/admin/users/{userId}/statement-override` — per-user statements tri-state override (default/force_enable/force_disable)
+- `GET /api/admin/workers` — list workers with enabled + heartbeat health
+- `POST /api/admin/workers` — toggle enabled, run once, set PnL mode
 
 ## Env vars
 None.
@@ -124,3 +131,4 @@ None.
 - 2026-01-25 (IST): Hardened Access Control reliability via `AdminSessionProvider` (reactive permissions), improved `/api/admin/me` error handling/logging, and added RBAC audit diffs.
 - 2026-01-25 (IST): Added professional mini scrollbar to admin console sidebar.
 - 2026-02-03 (IST): Added app-wide statements toggle in Settings + per-user statements override (tri-state) in Edit User dialog; statement exports blocked when disabled.
+- 2026-02-04 (IST): Added Workers page to manage background workers (heartbeats, enable/disable toggles, and run-once triggers) via `/api/admin/workers`.
