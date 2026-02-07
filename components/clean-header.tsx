@@ -11,7 +11,7 @@ import { Wifi, WifiOff, TrendingUp, TrendingDown, Bell, Menu, Activity, Search }
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getMarketSession } from "@/lib/hooks/market-timing"
+import { useMarketData } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
 
 interface CleanHeaderProps {
   user?: {
@@ -33,7 +33,6 @@ export function CleanHeader({
   onNotificationClick,
   className,
 }: CleanHeaderProps) {
-  const [isOnline, setIsOnline] = useState(true)
   const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('open')
   const [niftyData, setNiftyData] = useState({
     value: 21845.25,
@@ -41,19 +40,8 @@ export function CleanHeader({
     changePercent: 0.58,
   })
 
-  // Check connection status
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
+  const { isConnected: wsConnectionState } = useMarketData()
+  const isOnline = wsConnectionState === 'connected'
 
   // Check market status using centralized IST-aware helper
   useEffect(() => {

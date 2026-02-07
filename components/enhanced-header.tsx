@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getMarketSession } from "@/lib/hooks/market-timing"
-import { formatTimeIST, getCurrentISTDate } from "@/lib/date-utils"
+import { useMarketData } from "@/lib/market-data/providers/WebSocketMarketDataProvider"
 
 interface IndexData {
   name: string
@@ -78,12 +78,14 @@ export function EnhancedHeader({
   onLogout,
   className,
 }: EnhancedHeaderProps) {
-  const [isOnline, setIsOnline] = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [marketStatus, setMarketStatus] = useState<'open' | 'closed' | 'pre-open'>('open')
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [notifications, setNotifications] = useState(3)
+
+  const { isConnected: wsConnectionState } = useMarketData()
+  const isOnline = wsConnectionState === 'connected'
 
   // Mock index data (replace with real data from your API)
   const [indices, setIndices] = useState<IndexData[]>([
@@ -109,20 +111,6 @@ export function EnhancedHeader({
       setCurrentTime(getCurrentISTDate())
     }, 1000)
     return () => clearInterval(timer)
-  }, [])
-
-  // Check connection status
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
   }, [])
 
   // Simulate real-time index updates (replace with actual WebSocket data)
