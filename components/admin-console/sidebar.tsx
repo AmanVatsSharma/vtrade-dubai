@@ -9,7 +9,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck, KeyRound, ShieldCheck } from "lucide-react"
+import { LayoutDashboard, Users, Wallet, Terminal, ChevronLeft, ChevronRight, Activity, Database, Settings, BarChart3, Eraser, Boxes, ListOrdered, Shield, TrendingUp, FileText, Bell, DollarSign, UserCheck, KeyRound, ShieldCheck, Cpu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -34,6 +34,7 @@ const menuItems = [
   { id: "audit", label: "Audit Trail", icon: FileText },
   { id: "risk", label: "Risk Management", icon: Shield },
   { id: "system-health", label: "System Health", icon: Activity },
+  { id: "workers", label: "Workers", icon: Cpu },
   { id: "financial-reports", label: "Financial Reports", icon: DollarSign },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "advanced", label: "Advanced (Trades)", icon: BarChart3 },

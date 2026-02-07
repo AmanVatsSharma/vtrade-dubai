@@ -92,11 +92,6 @@ export function Settings() {
   // Console feature toggles
   const [statementsEnabledGlobal, setStatementsEnabledGlobal] = useState<boolean>(true)
   const [consoleTogglesSaving, setConsoleTogglesSaving] = useState<boolean>(false)
-
-  // Trading PnL mode (client vs server)
-  const [positionPnLMode, setPositionPnLMode] = useState<"client" | "server">("client")
-  const [positionsPnlWorkerHeartbeat, setPositionsPnlWorkerHeartbeat] = useState<any | null>(null)
-  const [positionPnLModeSaving, setPositionPnLModeSaving] = useState<boolean>(false)
   
   // Brokerage settings
   const [brokerageConfigs, setBrokerageConfigs] = useState<any[]>([])
@@ -247,16 +242,6 @@ export function Settings() {
             setMaintenanceAllowBypass(setting.value !== 'false')
           } else if (setting.key === 'console_statements_enabled_global') {
             setStatementsEnabledGlobal(setting.value !== 'false')
-          } else if (setting.key === 'position_pnl_mode') {
-            setPositionPnLMode(setting.value === 'server' ? 'server' : 'client')
-          } else if (setting.key === 'positions_pnl_worker_heartbeat') {
-            try {
-              const parsed = JSON.parse(setting.value)
-              setPositionsPnlWorkerHeartbeat(parsed)
-            } catch (e) {
-              console.warn('[SETTINGS] Failed to parse positions PnL worker heartbeat', e)
-              setPositionsPnlWorkerHeartbeat(null)
-            }
           }
         })
       }
@@ -564,45 +549,6 @@ export function Settings() {
       })
     } finally {
       setConsoleTogglesSaving(false)
-    }
-  }
-
-  /**
-   * Save trading PnL mode (client-side vs server-side worker)
-   */
-  const savePositionPnLMode = async () => {
-    console.log("💾 [SETTINGS] Saving position PnL mode...", { positionPnLMode })
-    setPositionPnLModeSaving(true)
-    try {
-      const res = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "position_pnl_mode",
-          value: String(positionPnLMode),
-          description: "Position PnL calculation mode: client (quotes-driven) or server (worker-driven)",
-          category: "TRADING",
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || "Failed to save position PnL mode")
-      }
-
-      toast({
-        title: "✅ Saved",
-        description: "Position PnL mode updated successfully",
-      })
-      await fetchSettings()
-    } catch (e: any) {
-      console.error("❌ [SETTINGS] Save position PnL mode failed", e)
-      toast({
-        title: "❌ Save Failed",
-        description: e?.message || "Unable to save position PnL mode",
-        variant: "destructive",
-      })
-    } finally {
-      setPositionPnLModeSaving(false)
     }
   }
 
@@ -1068,64 +1014,8 @@ export function Settings() {
                   <Switch checked={statementsEnabledGlobal} onCheckedChange={setStatementsEnabledGlobal} />
                 </div>
 
-                {/* Position PnL mode */}
-                <div className="p-4 rounded-md bg-muted/50 border border-border space-y-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-foreground font-medium">Position PnL Mode</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Client mode uses live quotes for real-time PnL. Server mode uses an EC2/cron worker to compute and persist PnL in DB.
-                      </p>
-                    </div>
-                    <div className="min-w-[160px]">
-                      <Select value={positionPnLMode} onValueChange={(v) => setPositionPnLMode(v === "server" ? "server" : "client")}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select mode" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="client">Client (default)</SelectItem>
-                          <SelectItem value="server">Server (worker)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="text-xs text-muted-foreground">
-                      Worker heartbeat:{" "}
-                      <span className="font-mono text-foreground">
-                        {positionsPnlWorkerHeartbeat?.lastRunAtIso || "not available"}
-                      </span>
-                    </div>
-                    {(() => {
-                      const last = positionsPnlWorkerHeartbeat?.lastRunAtIso ? Date.parse(positionsPnlWorkerHeartbeat.lastRunAtIso) : 0
-                      const healthy = last > 0 && Date.now() - last < 2 * 60 * 1000
-                      return (
-                        <Badge variant={healthy ? "default" : "secondary"}>
-                          {healthy ? "Worker Active" : "Worker Not Active"}
-                        </Badge>
-                      )
-                    })()}
-                  </div>
-
-                  {positionPnLMode === "server" && (() => {
-                    const last = positionsPnlWorkerHeartbeat?.lastRunAtIso ? Date.parse(positionsPnlWorkerHeartbeat.lastRunAtIso) : 0
-                    const healthy = last > 0 && Date.now() - last < 2 * 60 * 1000
-                    if (healthy) return null
-                    return (
-                      <Alert>
-                        <AlertTitle>Server PnL needs worker</AlertTitle>
-                        <AlertDescription>
-                          Server mode is enabled, but the worker heartbeat is stale. UI will safely fall back to client-side PnL until the worker runs.
-                        </AlertDescription>
-                      </Alert>
-                    )
-                  })()}
-                </div>
-
                 <div className="flex justify-end">
-                  <div className="flex gap-2">
-                    <Button onClick={saveConsoleToggles} disabled={consoleTogglesSaving} className="bg-primary text-primary-foreground">
+                  <Button onClick={saveConsoleToggles} disabled={consoleTogglesSaving} className="bg-primary text-primary-foreground">
                     {consoleTogglesSaving ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1134,19 +1024,7 @@ export function Settings() {
                     ) : (
                       <>Save Settings</>
                     )}
-                    </Button>
-
-                    <Button onClick={savePositionPnLMode} disabled={positionPnLModeSaving} variant="secondary">
-                      {positionPnLModeSaving ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>Save PnL Mode</>
-                      )}
-                    </Button>
-                  </div>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
