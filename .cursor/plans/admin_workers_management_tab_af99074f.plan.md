@@ -4,10 +4,10 @@ overview: Create a dedicated Admin Console “Workers” page that lists every b
 todos:
   - id: inventory-worker-registry
     content: Create worker registry + SystemSettings keys + health logic under `lib/server/workers/`.
-    status: in_progress
+    status: completed
   - id: worker-heartbeats
     content: Add/standardize heartbeats for order worker + risk monitoring; keep position pnl heartbeat.
-    status: pending
+    status: in_progress
   - id: admin-workers-api
     content: Implement `app/api/admin/workers/route.ts` (GET status + POST actions) with RBAC via handleAdminApi.
     status: pending

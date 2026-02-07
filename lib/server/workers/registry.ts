@@ -113,11 +113,11 @@ export async function setWorkerEnabled(id: WorkerId, enabled: boolean) {
   })
 }
 
-export async function updateWorkerHeartbeat(id: WorkerId) {
+export async function updateWorkerHeartbeat(id: WorkerId, customValue?: string) {
   const key = WORKER_SETTING_KEYS[id].HEARTBEAT
   await upsertGlobalSetting({
     key,
-    value: new Date().toISOString(),
+    value: customValue || new Date().toISOString(),
     category: "WORKER_HEARTBEAT",
     description: `Last heartbeat for ${id} worker`,
   })
