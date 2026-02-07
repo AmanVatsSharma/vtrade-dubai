@@ -33,6 +33,14 @@ If you don't set `NEXT_PUBLIC_BASE_URL`, the app will:
 
 **Recommendation**: Set it explicitly to avoid any issues.
 
+### 1b. Vercel-only: Ensure order execution runs (important)
+
+On Vercel, API routes run serverless. Orders are accepted quickly (202) and then executed asynchronously.
+
+To avoid orders staying `PENDING`, configure at least one of:
+
+1) **Inline background execution (best-effort)**\n   Already supported in code (uses Vercel `waitUntil`).\n\n2) **Vercel Cron backstop (recommended)**\n   Create a Vercel Cron Job to call:\n\n   - `GET /api/cron/order-worker?limit=25`\n   - Header: `Authorization: Bearer $CRON_SECRET`\n\n   This sweeps and executes any missed `PENDING` orders.
+
 ### 2. Build & Deploy
 
 ```bash
