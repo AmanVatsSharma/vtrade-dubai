@@ -41,6 +41,54 @@ To avoid orders staying `PENDING`, configure at least one of:
 
 1) **Inline background execution (best-effort)**\n   Already supported in code (uses Vercel `waitUntil`).\n\n2) **Vercel Cron backstop (recommended)**\n   Create a Vercel Cron Job to call:\n\n   - `GET /api/cron/order-worker?limit=25`\n   - Header: `Authorization: Bearer $CRON_SECRET`\n\n   This sweeps and executes any missed `PENDING` orders.
 
+### 1c. Vercel-only: Optional worker cron backstops (recommended)
+
+If you use additional background workers on Vercel (serverless), add Cron Jobs as a safety net:
+
+- **Position PnL worker** (only if Admin Console → Workers → PnL mode is set to `server`)
+  - `GET /api/cron/position-pnl-worker`
+  - Header: `Authorization: Bearer $CRON_SECRET`
+- **Risk monitoring**
+  - `GET /api/cron/risk-monitoring`
+  - Header: `Authorization: Bearer $CRON_SECRET`
+
+### 1d. EC2/Docker: What to run (full power mode)
+
+On EC2/Docker (recommended for full worker reliability), run:
+
+1) **Web app**
+
+```bash
+pnpm start
+```
+
+2) **Order execution worker** (recommended always-on)
+
+```bash
+ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 pnpm tsx scripts/order-worker.ts
+```
+
+3) **Position PnL worker** (only if PnL mode is `server`)
+
+```bash
+POSITION_PNL_WORKER_INTERVAL_MS=3000 POSITION_PNL_WORKER_BATCH_LIMIT=500 POSITION_PNL_UPDATE_THRESHOLD=1 pnpm tsx scripts/position-pnl-worker.ts
+```
+
+4) **Risk monitoring** (cron/scheduler)
+
+- Recommended schedule: every 60 seconds
+- Options:
+  - Call `GET /api/cron/risk-monitoring` from an EC2 cron / external scheduler
+  - Or trigger manually from Admin Console → Workers → “Run now”
+
+### 1e. Admin Console: Worker visibility & control
+
+Visit `/admin-console/workers` to:
+
+- See **all workers** + **heartbeat health**
+- **Enable/disable** workers via DB (soft toggle)
+- Trigger **Run once now** (no `CRON_SECRET` exposed to the browser)
+
 ### 2. Build & Deploy
 
 ```bash

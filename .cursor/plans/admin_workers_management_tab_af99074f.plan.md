@@ -7,22 +7,22 @@ todos:
     status: completed
   - id: worker-heartbeats
     content: Add/standardize heartbeats for order worker + risk monitoring; keep position pnl heartbeat.
-    status: in_progress
+    status: completed
   - id: admin-workers-api
     content: Implement `app/api/admin/workers/route.ts` (GET status + POST actions) with RBAC via handleAdminApi.
-    status: pending
+    status: completed
   - id: admin-workers-ui
     content: Create `/admin-console/workers` page + `components/admin-console/workers.tsx` UI with enable/run-now/config controls.
-    status: pending
+    status: completed
   - id: sidebar-link
     content: Add Workers item to `components/admin-console/sidebar.tsx` navigation.
-    status: pending
+    status: completed
   - id: move-from-settings
     content: Move PnL mode/heartbeat UI from Settings page to Workers page.
-    status: pending
+    status: completed
   - id: docs-runbook
     content: "Update docs: deployment checklist + admin console module doc for worker management."
-    status: pending
+    status: completed
 isProject: false
 ---
 
