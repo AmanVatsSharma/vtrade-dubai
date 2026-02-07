@@ -166,7 +166,7 @@ const TradingDashboard: React.FC = () => {
 
   // Data hooks - Use only realtime hooks to avoid duplicate fetching
   // All hooks use SWR with deduplication, so same API calls are cached
-  const { quotes, isLoading: isQuotesLoading, isConnected: wsConnectionState } = useMarketData()
+  const { quotes, isLoading: isQuotesLoading, isConnected: wsConnectionState, reconnect } = useMarketData()
 
   // Check if WebSocket is connected (for market data)
   const isWebSocketConnected = wsConnectionState === 'connected'
@@ -205,6 +205,7 @@ const TradingDashboard: React.FC = () => {
 
   const handleRefreshAllData: RefreshHandler = useCallback(async () => {
     try {
+      reconnect()
       await refreshAll()
       toast({ title: "Refreshed", description: "Trading data updated." })
     } catch (err) {
@@ -416,7 +417,7 @@ const TradingDashboard: React.FC = () => {
             </div>
           </div>
         )}
-        {!isWebSocketConnected && (
+        {wsConnectionState === 'disconnected' && (
           <div className="mb-3 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -426,7 +427,7 @@ const TradingDashboard: React.FC = () => {
                 </span>
               </div>
               <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRefreshAllData}>
-                Refresh
+                Reconnect
               </Button>
             </div>
           </div>

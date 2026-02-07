@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: update-dashboard-banner
     content: Update `components/trading/TradingDashboard.tsx` banner logic and refresh handler.
-    status: in_progress
+    status: completed
 isProject: false
 ---
 
