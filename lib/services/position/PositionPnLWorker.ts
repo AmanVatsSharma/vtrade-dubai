@@ -15,6 +15,8 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requestQuotesBatched } from "@/lib/vortex/quotes-batcher"
 import { normalizeQuotePrices } from "@/lib/services/position/quote-normalizer"
+import { parsePositionPnLMode, POSITION_PNL_MODE_KEY } from "@/lib/server/workers/registry"
+import { getLatestActiveGlobalSettings } from "@/lib/server/workers/system-settings"
 
 export const POSITIONS_PNL_WORKER_HEARTBEAT_KEY = "positions_pnl_worker_heartbeat" as const
 
@@ -27,6 +29,8 @@ export type PositionPnLWorkerHeartbeat = {
   skipped: number
   errors: number
   elapsedMs: number
+  mode?: "client" | "server"
+  reason?: string
 }
 
 export type ProcessPositionPnLInput = {
@@ -126,6 +130,41 @@ export class PositionPnLWorker {
     console.log("🧮 [POSITION-PNL-WORKER] Start", { limit, updateThreshold, dryRun })
 
     try {
+      // Soft-toggle support: only run when server PnL mode is enabled.
+      try {
+        const rows = await getLatestActiveGlobalSettings([POSITION_PNL_MODE_KEY])
+        const raw = rows.get(POSITION_PNL_MODE_KEY)?.value ?? null
+        const mode = parsePositionPnLMode(raw)
+        if (mode !== "server") {
+          const elapsedMs = Date.now() - startedAt
+          const heartbeat: PositionPnLWorkerHeartbeat = {
+            lastRunAtIso: new Date().toISOString(),
+            host: os.hostname(),
+            pid: process.pid,
+            scanned: 0,
+            updated: 0,
+            skipped: 0,
+            errors: 0,
+            elapsedMs,
+            mode,
+            reason: "disabled_mode_client",
+          }
+          await setGlobalSystemSetting({
+            key: POSITIONS_PNL_WORKER_HEARTBEAT_KEY,
+            value: JSON.stringify(heartbeat),
+            category: "TRADING",
+            description: "Heartbeat for server-side position PnL worker (EC2/Docker/cron).",
+          }).catch(() => {})
+
+          console.log("⏸️ [POSITION-PNL-WORKER] Skipped (mode=client)", { mode })
+          return { success: true, scanned: 0, updated: 0, skipped: 0, errors: 0, elapsedMs, heartbeat }
+        }
+      } catch (e) {
+        console.warn("⚠️ [POSITION-PNL-WORKER] Failed to read position_pnl_mode; defaulting to run", {
+          message: (e as any)?.message || String(e),
+        })
+      }
+
       const positions = await prisma.position.findMany({
         where: { quantity: { not: 0 } },
         include: {

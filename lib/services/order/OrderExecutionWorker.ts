@@ -13,6 +13,7 @@
  */
 
 import { executeInTransaction } from "@/lib/services/utils/prisma-transaction"
+import os from "os"
 import { createTradingLogger } from "@/lib/services/logging/TradingLogger"
 import { NotificationService } from "@/lib/services/notifications/NotificationService"
 import { OrderRepository } from "@/lib/repositories/OrderRepository"
@@ -22,8 +23,35 @@ import { FundManagementService } from "@/lib/services/funds/FundManagementServic
 import { MarginCalculator } from "@/lib/services/risk/MarginCalculator"
 import { OrderSide, OrderStatus, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
+import { ORDER_WORKER_ENABLED_KEY, updateWorkerHeartbeat, WORKER_IDS } from "@/lib/server/workers/registry"
+import { getLatestActiveGlobalSettings, parseBooleanSetting } from "@/lib/server/workers/system-settings"
 
 const ORDER_EXECUTION_ADVISORY_LOCK_NS = 910_001
+const ORDER_WORKER_ENABLED_CACHE_TTL_MS = 5_000
+
+let cachedOrderWorkerEnabled: { value: boolean; expiresAtMs: number } | null = null
+
+async function isOrderWorkerEnabled(): Promise<boolean> {
+  const now = Date.now()
+  if (cachedOrderWorkerEnabled && cachedOrderWorkerEnabled.expiresAtMs > now) {
+    return cachedOrderWorkerEnabled.value
+  }
+
+  try {
+    const rows = await getLatestActiveGlobalSettings([ORDER_WORKER_ENABLED_KEY])
+    const raw = rows.get(ORDER_WORKER_ENABLED_KEY)?.value ?? null
+    const parsed = parseBooleanSetting(raw)
+    const resolved = parsed ?? true // default enabled
+    cachedOrderWorkerEnabled = { value: resolved, expiresAtMs: now + ORDER_WORKER_ENABLED_CACHE_TTL_MS }
+    return resolved
+  } catch (e) {
+    console.warn("⚠️ [ORDER-WORKER] Failed to resolve enabled flag; defaulting to enabled", {
+      message: (e as any)?.message || String(e),
+    })
+    cachedOrderWorkerEnabled = { value: true, expiresAtMs: now + ORDER_WORKER_ENABLED_CACHE_TTL_MS }
+    return true
+  }
+}
 
 export interface ProcessPendingOrdersInput {
   limit?: number
@@ -47,10 +75,17 @@ export class OrderExecutionWorker {
    * Designed for: EC2 loop worker OR Lambda/EventBridge scheduled trigger.
    */
   async processPendingOrders(input: ProcessPendingOrdersInput = {}): Promise<ProcessPendingOrdersResult> {
+    const startedAt = Date.now()
     const limit = Math.min(Math.max(1, input.limit ?? 25), 200)
     const maxAgeMs = input.maxAgeMs ?? 0
 
     console.log("🧵 [ORDER-WORKER] Processing pending orders", { limit, maxAgeMs })
+
+    const enabled = await isOrderWorkerEnabled()
+    if (!enabled) {
+      console.log("⏸️ [ORDER-WORKER] Disabled via SystemSettings; skipping batch", { limit, maxAgeMs })
+      return { scanned: 0, executed: 0, cancelled: 0, errors: [] }
+    }
 
     const cutoff = maxAgeMs > 0 ? new Date(Date.now() - maxAgeMs) : null
 
@@ -82,6 +117,26 @@ export class OrderExecutionWorker {
     }
 
     console.log("✅ [ORDER-WORKER] Batch completed", result)
+
+    // Heartbeat (for Admin Console visibility)
+    try {
+      const heartbeat = {
+        lastRunAtIso: new Date().toISOString(),
+        host: os.hostname(),
+        pid: process.pid,
+        limit,
+        maxAgeMs,
+        scanned: result.scanned,
+        executed: result.executed,
+        cancelled: result.cancelled,
+        errorCount: result.errors.length,
+        elapsedMs: Date.now() - startedAt,
+      }
+      await updateWorkerHeartbeat(WORKER_IDS.ORDER_EXECUTION, JSON.stringify(heartbeat))
+    } catch (err) {
+      console.warn("⚠️ [ORDER-WORKER] Failed to update heartbeat", err)
+    }
+
     return result
   }
 
@@ -90,6 +145,12 @@ export class OrderExecutionWorker {
    * Returns a stable string outcome so callers can aggregate metrics.
    */
   async processOrderById(orderId: string): Promise<"skipped" | "executed" | "cancelled"> {
+    const enabled = await isOrderWorkerEnabled()
+    if (!enabled) {
+      console.log("⏸️ [ORDER-WORKER] Disabled via SystemSettings; skipping order", { orderId })
+      return "skipped"
+    }
+
     console.log("🎯 [ORDER-WORKER] Processing order", { orderId })
 
     type TxResult =

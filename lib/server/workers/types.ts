@@ -1,15 +1,13 @@
 /**
- * File: lib/server/workers/types.ts
- * Module: workers
- * Purpose: Shared worker types for Admin Console worker management (status, heartbeat, actions).
- * Author: Cursor / BharatERP
- * Last-updated: 2026-02-04
- * Notes:
- * - This is a lightweight typing layer; actual execution happens in worker services and admin APIs.
+ * @file types.ts
+ * @module workers
+ * @description Shared worker types for Admin Console worker management (status, heartbeat, actions).
+ * @author BharatERP
+ * @created 2026-02-04
  */
 
-export const WORKER_IDS = ["order_execution", "position_pnl", "risk_monitoring"] as const
-export type WorkerId = (typeof WORKER_IDS)[number]
+export const WORKER_ID_LIST = ["order_execution", "position_pnl", "risk_monitoring"] as const
+export type WorkerId = (typeof WORKER_ID_LIST)[number]
 
 export type WorkerHealth = "healthy" | "stale" | "unknown" | "disabled"
 
