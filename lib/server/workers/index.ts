@@ -1,9 +1,9 @@
 /**
- * File: lib/server/workers/index.ts
- * Module: workers
- * Purpose: Public exports for worker management server utilities.
- * Author: Cursor / BharatERP
- * Last-updated: 2026-02-04
+ * @file index.ts
+ * @module workers
+ * @description Public exports for worker management server utilities.
+ * @author BharatERP
+ * @created 2026-02-04
  */
 
 export * from "@/lib/server/workers/types"

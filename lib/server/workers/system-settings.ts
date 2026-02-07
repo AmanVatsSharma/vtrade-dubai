@@ -1,12 +1,13 @@
 /**
- * File: lib/server/workers/system-settings.ts
- * Module: workers
- * Purpose: Safe read/write helpers for global SystemSettings keys (ownerId=null) used by worker management.
- * Author: Cursor / BharatERP
- * Last-updated: 2026-02-04
+ * @file system-settings.ts
+ * @module workers
+ * @description Safe read/write helpers for global SystemSettings keys (ownerId=null) used by worker management.
+ * @author BharatERP
+ * @created 2026-02-04
+ *
  * Notes:
- * - `SystemSettings` uses a UNIQUE(ownerId,key) with nullable ownerId. In Postgres, NULLs do not collide,
- *   so multiple global rows can exist for the same key. We always select the latest by `updatedAt`.
+ * - `SystemSettings` uses a UNIQUE(ownerId,key) with nullable ownerId. In Postgres, NULLs do not collide, so
+ *   multiple global rows can exist for the same key. We always select the latest by `updatedAt`.
  * - Writes soft-disable duplicates for safety.
  */
 

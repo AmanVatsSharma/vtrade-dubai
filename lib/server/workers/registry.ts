@@ -1,15 +1,16 @@
 /**
- * File: lib/server/workers/registry.ts
- * Module: workers
- * Purpose: Central registry for background workers (status, enable flags, heartbeats) used by Admin Console.
- * Author: Cursor / BharatERP
- * Last-updated: 2026-02-04
+ * @file registry.ts
+ * @module workers
+ * @description Central registry for background workers (status, enable flags, heartbeats) used by Admin Console.
+ * @author BharatERP
+ * @created 2026-02-04
+ *
  * Notes:
  * - Treats SystemSettings(ownerId=null) keys as non-unique; picks latest active row by updatedAt.
  * - Enable/disable here is a soft-toggle; OS process control is out-of-scope.
  */
 
-import { getLatestActiveGlobalSettings, parseBooleanSetting } from "@/lib/server/workers/system-settings"
+import { getLatestActiveGlobalSettings, parseBooleanSetting, upsertGlobalSetting } from "@/lib/server/workers/system-settings"
 import type { WorkerHealth, WorkerHeartbeat, WorkerId, WorkerSnapshot } from "@/lib/server/workers/types"
 
 export const WORKER_SETTINGS_CATEGORY = "SYSTEM" as const
@@ -24,6 +25,12 @@ export const POSITION_PNL_HEARTBEAT_KEY = "positions_pnl_worker_heartbeat" as co
 export const RISK_MONITORING_ENABLED_KEY = "worker_risk_monitoring_enabled" as const
 export const RISK_MONITORING_HEARTBEAT_KEY = "risk_monitoring_heartbeat" as const
 
+export const WORKER_IDS = {
+  ORDER_EXECUTION: "order_execution",
+  POSITION_PNL: "position_pnl",
+  RISK_MONITORING: "risk_monitoring",
+} as const
+
 export type PositionPnLMode = "client" | "server"
 
 export function parsePositionPnLMode(value: string | null | undefined): PositionPnLMode {
@@ -32,15 +39,25 @@ export function parsePositionPnLMode(value: string | null | undefined): Position
 
 function parseHeartbeat(value: string | null | undefined): WorkerHeartbeat | null {
   if (!value) return null
+  // Backward-compatible: accept either JSON heartbeat {lastRunAtIso,...} OR plain ISO string.
   try {
     const parsed = JSON.parse(value)
-    if (!parsed || typeof parsed !== "object") return null
-    const lastRunAtIso = (parsed as any).lastRunAtIso
-    if (typeof lastRunAtIso !== "string" || lastRunAtIso.length === 0) return null
-    return parsed as WorkerHeartbeat
+    if (parsed && typeof parsed === "object") {
+      const lastRunAtIso = (parsed as any).lastRunAtIso
+      if (typeof lastRunAtIso === "string" && lastRunAtIso.length > 0) {
+        return parsed as WorkerHeartbeat
+      }
+    }
   } catch {
-    return null
+    // ignore
   }
+
+  const t = Date.parse(value)
+  if (Number.isFinite(t) && t > 0) {
+    return { lastRunAtIso: value }
+  }
+
+  return null
 }
 
 function computeHealth(input: { enabled: boolean; lastRunAtIso: string | null; ttlMs: number }): WorkerHealth {
@@ -153,5 +170,45 @@ export async function getWorkersSnapshot(options: WorkersSnapshotOptions = {}): 
 
 export function isKnownWorkerId(id: string): id is WorkerId {
   return id === "order_execution" || id === "position_pnl" || id === "risk_monitoring"
+}
+
+function heartbeatKeyFor(workerId: WorkerId): string {
+  if (workerId === WORKER_IDS.ORDER_EXECUTION) return ORDER_WORKER_HEARTBEAT_KEY
+  if (workerId === WORKER_IDS.POSITION_PNL) return POSITION_PNL_HEARTBEAT_KEY
+  return RISK_MONITORING_HEARTBEAT_KEY
+}
+
+function heartbeatCategoryFor(workerId: WorkerId): string {
+  if (workerId === WORKER_IDS.RISK_MONITORING) return "RISK"
+  return WORKER_TRADING_CATEGORY
+}
+
+function heartbeatDescriptionFor(workerId: WorkerId): string {
+  if (workerId === WORKER_IDS.ORDER_EXECUTION) return "Heartbeat for Order Execution Worker (cron/EC2)."
+  if (workerId === WORKER_IDS.POSITION_PNL) return "Heartbeat for Positions PnL Worker (cron/EC2)."
+  return "Heartbeat for Risk Monitoring (cron)."
+}
+
+export async function updateWorkerHeartbeat(workerId: WorkerId, heartbeatJson?: string): Promise<void> {
+  const value = heartbeatJson || JSON.stringify({ lastRunAtIso: new Date().toISOString() })
+  await upsertGlobalSetting({
+    key: heartbeatKeyFor(workerId),
+    value,
+    category: heartbeatCategoryFor(workerId),
+    description: heartbeatDescriptionFor(workerId),
+  })
+}
+
+export async function setWorkerEnabled(workerId: WorkerId, enabled: boolean): Promise<void> {
+  if (workerId === WORKER_IDS.POSITION_PNL) {
+    throw new Error("Position PnL worker enabled flag is derived from position_pnl_mode (use set_mode).")
+  }
+  const key = workerId === WORKER_IDS.ORDER_EXECUTION ? ORDER_WORKER_ENABLED_KEY : RISK_MONITORING_ENABLED_KEY
+  await upsertGlobalSetting({
+    key,
+    value: String(enabled),
+    category: WORKER_SETTINGS_CATEGORY,
+    description: `Enable/disable ${workerId} worker`,
+  })
 }
 
