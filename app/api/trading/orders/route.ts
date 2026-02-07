@@ -6,6 +6,8 @@ import { placeOrderSchema, modifyOrderSchema, cancelOrderSchema } from '@/lib/se
 import { checkRateLimit, getRateLimitKey, RateLimitPresets } from '@/lib/services/security/RateLimiter'
 import { trackOperation } from '@/lib/services/monitoring/PerformanceMonitor'
 import { getSegmentTradingSession } from '@/lib/server/market-timing'
+import { enqueueBackgroundTask } from "@/lib/server/background-tasks"
+import { orderExecutionWorker } from "@/lib/services/order/OrderExecutionWorker"
 
 export async function POST(req: Request) {
   console.log("🌐 [API-ORDERS] POST request received")
@@ -78,6 +80,12 @@ export async function POST(req: Request) {
     
     console.log("🎉 [API-ORDERS] Order placement result:", result)
     
+    // Vercel/serverless support: best-effort background execution so orders don't remain PENDING forever.
+    // This must be idempotent / concurrency-safe (worker is hardened with DB advisory locks).
+    if (result?.executionScheduled && result?.orderId) {
+      enqueueBackgroundTask(orderExecutionWorker.processOrderById(result.orderId))
+    }
+
     const httpStatus = result?.executionScheduled ? 202 : 200
     return NextResponse.json(result, { 
       status: httpStatus,
