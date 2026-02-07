@@ -4,7 +4,7 @@ overview: Create a dedicated Admin Console “Workers” page that lists every b
 todos:
   - id: inventory-worker-registry
     content: Create worker registry + SystemSettings keys + health logic under `lib/server/workers/`.
-    status: pending
+    status: in_progress
   - id: worker-heartbeats
     content: Add/standardize heartbeats for order worker + risk monitoring; keep position pnl heartbeat.
     status: pending
