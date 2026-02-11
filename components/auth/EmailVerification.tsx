@@ -15,7 +15,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FaCheckCircle, FaExclamationTriangle, FaEnvelope } from 'react-icons/fa'
 import { motion, AnimatePresence } from 'framer-motion'
-import confetti from 'canvas-confetti'
+// `canvas-confetti` ships without TypeScript declarations in this repo; keep it typed as `any`.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const confetti: any = require('canvas-confetti')
 import { newVerification, sendVerificationEmailAgain } from '@/actions/auth.actions'
 // import { sendVerificationEmail } from '@/lib/ResendMail'
 import { getVerificationTokenByToken } from '@/data/verification-token'

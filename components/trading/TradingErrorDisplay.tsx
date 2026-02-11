@@ -162,7 +162,7 @@ export function TradingErrorDisplay({
 
   const handleContactSupport = () => {
     // Open support email or support page
-    window.location.href = `mailto:support@marketpulse360.com?subject=Application Error Report&body=Error Details:%0D%0A${error?.message || 'Unknown error'}`
+    window.location.href = `mailto:support@vtrade.live?subject=Application Error Report&body=Error Details:%0D%0A${error?.message || 'Unknown error'}`
   }
 
   return (
@@ -197,7 +197,7 @@ export function TradingErrorDisplay({
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm">
               <TrendingUp className="h-4 w-4" />
             </div>
-            <span className="text-sm font-semibold text-muted-foreground">MarketPulse360</span>
+            <span className="text-sm font-semibold text-muted-foreground">VTrade</span>
           </div>
 
           <CardTitle className="text-2xl font-bold text-foreground">
