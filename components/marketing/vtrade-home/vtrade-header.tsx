@@ -68,7 +68,7 @@ function Dropdown({
 
 export function VTradeHeader(): React.JSX.Element {
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#070727]/80 backdrop-blur">
+    <header className="sticky top-0 z-40 w-full border-b border-white/5 bg-[#070727]/90 backdrop-blur shadow-lg shadow-black/10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
@@ -106,13 +106,13 @@ export function VTradeHeader(): React.JSX.Element {
           <div className="hidden items-center gap-3 lg:flex">
             <Link
               href="/auth/login"
-              className="rounded-md px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
             >
               Login
             </Link>
             <Link
               href="/auth/register"
-              className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+              className="vtrade-cta-primary px-3 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#070727]"
             >
               Signup
             </Link>
@@ -123,7 +123,7 @@ export function VTradeHeader(): React.JSX.Element {
             <summary className="list-none">
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-md border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+                className="inline-flex items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15"
                 aria-label="Open menu"
               >
                 Menu
@@ -187,7 +187,10 @@ export function VTradeHeader(): React.JSX.Element {
                   <Link href="/auth/login" className="rounded-md border px-3 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Login
                   </Link>
-                  <Link href="/auth/register" className="rounded-md bg-primary px-3 py-2 text-center text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                  <Link
+                    href="/auth/register"
+                    className="vtrade-cta-primary px-3 py-2 text-center text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  >
                     Signup
                   </Link>
                 </div>
