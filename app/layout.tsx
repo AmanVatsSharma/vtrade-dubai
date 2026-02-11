@@ -1,3 +1,13 @@
+/**
+ * File: app/layout.tsx
+ * Module: app
+ * Purpose: Root layout and global providers for the VTrade web app.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Updated metadata branding from MarketPulse360 to VTrade.
+ */
+
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -11,8 +21,8 @@ import { GlobalErrorHandler } from "@/components/trading/GlobalErrorHandler";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MarketPulse360",
-  description: "Just Rock And Trade Buddy!",
+  title: "VTrade",
+  description: "Trade Live. Trade Sharp.",
 };
 
 export default async function RootLayout({
