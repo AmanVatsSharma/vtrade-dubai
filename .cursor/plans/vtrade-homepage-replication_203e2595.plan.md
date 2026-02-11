@@ -13,10 +13,10 @@ todos:
     status: completed
   - id: rebrand-metadata-assets
     content: Update `app/layout.tsx` metadata and `components/auth/AuthHeader.tsx` logo/alt text to VTrade; add `public/vtrade/` assets.
-    status: in_progress
+    status: completed
   - id: docs-tests
     content: Add `MODULE_DOC.md` + content-schema test (`tests/marketing/vtrade-homepage-content.test.ts`) validating homepage content config.
-    status: pending
+    status: completed
 isProject: false
 ---
 

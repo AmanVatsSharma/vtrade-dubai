@@ -9,19 +9,13 @@
 import React from "react"
 import Link from "next/link"
 import { MarketingPageShell } from "@/components/marketing/vtrade-home/marketing-page-shell"
-
-const posts = [
-  "What is a Forward Market? Meaning, Functions, and Real-World Insights",
-  "Cryptocurrency Market Cap Reaches Record $4 Trillion: Causes and Impact",
-  "What Is Algorithm Trading? Definition, How It Works, Pros & Cons",
-  "Multi-Commodity Exchange of India (NSE: MCX) Sheds 6.3% – Analysing the Recent Decline and What Lies Ahead",
-]
+import { VTRADE_HOMEPAGE_CONTENT } from "@/lib/marketing/vtrade-homepage-content"
 
 export default function NewsBlogsPage(): React.JSX.Element {
   return (
     <MarketingPageShell title="News & Blogs">
       <div className="grid gap-3 sm:grid-cols-2">
-        {posts.map((t) => (
+        {VTRADE_HOMEPAGE_CONTENT.blogTitles.map((t) => (
           <Link
             key={t}
             href="/blog"
