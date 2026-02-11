@@ -27,7 +27,11 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
 
 # Install all deps to build (includes `prisma` CLI in devDependencies).
-RUN pnpm install --frozen-lockfile
+# IMPORTANT:
+# - This repo runs `prisma generate` in `postinstall`.
+# - In the deps layer we only copy lockfiles, so Prisma schema isn't present yet.
+# - Therefore install deps without scripts here; Prisma generation happens during the build stage.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 

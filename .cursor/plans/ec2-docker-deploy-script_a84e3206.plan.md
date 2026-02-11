@@ -7,16 +7,16 @@ todos:
     status: completed
   - id: add-compose
     content: Add `docker-compose.prod.yml` with `web`, `order-worker`, `position-pnl-worker`, healthchecks, and depends_on ordering.
-    status: in_progress
+    status: completed
   - id: add-nginx-template
     content: Add host NGINX site config template for tradebazar.live + www with websocket proxy headers.
-    status: pending
+    status: completed
   - id: add-deploy-script
     content: Add `deploy/ec2/deploy.sh` implementing setup-ec2, fresh-install, update, logs, restart-workers subcommands (idempotent).
-    status: pending
+    status: completed
   - id: add-deploy-docs
     content: Add `deploy/ec2/README.md` documenting env setup, commands, and troubleshooting.
-    status: pending
+    status: completed
 isProject: false
 ---
 
