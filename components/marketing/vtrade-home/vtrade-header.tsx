@@ -45,9 +45,9 @@ function Dropdown({
 }): React.JSX.Element {
   return (
     <details className="group relative">
-      <summary className="flex cursor-pointer list-none items-center gap-1 whitespace-nowrap px-2 py-1 text-sm font-medium text-slate-700 hover:text-slate-900">
+      <summary className="flex cursor-pointer list-none items-center gap-1 whitespace-nowrap px-2 py-1 text-sm font-medium text-white/80 hover:text-white">
         <span>{label}</span>
-        <span className="text-slate-400 group-open:rotate-180">▾</span>
+        <span className="text-white/60 group-open:rotate-180">▾</span>
       </summary>
       <div className="absolute left-0 top-full z-50 mt-2 min-w-56 overflow-hidden rounded-lg border bg-white shadow-xl">
         <div className="p-2">
@@ -68,7 +68,7 @@ function Dropdown({
 
 export function VTradeHeader(): React.JSX.Element {
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#070727]/80 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
@@ -83,20 +83,20 @@ export function VTradeHeader(): React.JSX.Element {
           </Link>
 
           <nav className="hidden items-center gap-3 lg:flex" aria-label="Primary">
-            <Link href="/" className="px-2 py-1 text-sm font-medium text-slate-900">
+            <Link href="/" className="px-2 py-1 text-sm font-medium text-white">
               Home
             </Link>
             <Dropdown label="About us" items={aboutLinks} />
             <Dropdown label="Products" items={productLinks} />
             <Link
               href="/news-blogs"
-              className="whitespace-nowrap px-2 py-1 text-sm font-medium text-slate-700 hover:text-slate-900"
+              className="whitespace-nowrap px-2 py-1 text-sm font-medium text-white/80 hover:text-white"
             >
               News & Blogs
             </Link>
             <Link
               href="/contact"
-              className="whitespace-nowrap px-2 py-1 text-sm font-medium text-slate-700 hover:text-slate-900"
+              className="whitespace-nowrap px-2 py-1 text-sm font-medium text-white/80 hover:text-white"
             >
               Contact
             </Link>
@@ -106,13 +106,13 @@ export function VTradeHeader(): React.JSX.Element {
           <div className="hidden items-center gap-3 lg:flex">
             <Link
               href="/auth/login"
-              className="rounded-md px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-md px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 hover:text-white"
             >
               Login
             </Link>
             <Link
               href="/auth/register"
-              className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
             >
               Signup
             </Link>
@@ -123,7 +123,7 @@ export function VTradeHeader(): React.JSX.Element {
             <summary className="list-none">
               <button
                 type="button"
-                className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-md border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
                 aria-label="Open menu"
               >
                 Menu

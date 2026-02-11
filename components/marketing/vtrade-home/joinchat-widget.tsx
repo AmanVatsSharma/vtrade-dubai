@@ -35,7 +35,7 @@ export function JoinchatWidget(): React.JSX.Element | null {
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+            className="flex items-center gap-2 rounded-full bg-[#25d366] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-black/15 hover:bg-[#1fbe58] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#25d366] focus-visible:ring-offset-2"
             aria-label="Open chat widget"
           >
             <span className="h-2 w-2 rounded-full bg-white/90" />
@@ -45,7 +45,7 @@ export function JoinchatWidget(): React.JSX.Element | null {
 
         <PopoverContent align="end" side="top" sideOffset={12} className="w-[340px] p-0">
           <div className="overflow-hidden rounded-xl border bg-white shadow-2xl">
-            <div className="bg-emerald-600 px-4 py-3">
+            <div className="bg-[#25d366] px-4 py-3">
               <p className="text-sm font-semibold text-white">{title}</p>
             </div>
             <div className="px-4 py-4">
@@ -53,7 +53,7 @@ export function JoinchatWidget(): React.JSX.Element | null {
               <div className="mt-4 flex items-center justify-between">
                 <Link
                   href={ctaHref}
-                  className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                  className="inline-flex items-center justify-center rounded-md bg-[#25d366] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1fbe58]"
                 >
                   {ctaLabel}
                 </Link>

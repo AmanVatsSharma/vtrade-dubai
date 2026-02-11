@@ -209,7 +209,7 @@ const MobileAuthFlow: React.FC<MobileAuthFlowProps> = ({ initialStep = 'login' }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-emerald-100 flex items-center justify-center p-4 w-screen">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4 w-screen">
       <div className="w-full max-w-md">
         {/* Progress indicator */}
         <div className="mb-6">
