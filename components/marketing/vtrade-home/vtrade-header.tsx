@@ -187,7 +187,7 @@ export function VTradeHeader(): React.JSX.Element {
                   <Link href="/auth/login" className="rounded-md border px-3 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Login
                   </Link>
-                  <Link href="/auth/register" className="rounded-md bg-emerald-600 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-emerald-700">
+                  <Link href="/auth/register" className="rounded-md bg-primary px-3 py-2 text-center text-sm font-semibold text-primary-foreground hover:bg-primary/90">
                     Signup
                   </Link>
                 </div>

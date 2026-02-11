@@ -182,7 +182,7 @@ export function VTradePlatformsSection(): React.JSX.Element {
               href={p.href}
               className="group rounded-xl border bg-white p-6 text-center shadow-sm hover:bg-slate-50"
             >
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <span className="text-lg font-extrabold">{p.label.slice(0, 1)}</span>
               </div>
               <p className="mt-3 text-sm font-semibold text-slate-900">{p.label}</p>
