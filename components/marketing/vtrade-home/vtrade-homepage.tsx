@@ -10,6 +10,7 @@
 
 import React from "react"
 import { JoinchatWidget } from "./joinchat-widget"
+import { PlatformStickyButtons } from "./platform-sticky-buttons"
 import { ScheduledUpgradeBanner } from "./scheduled-upgrade-banner"
 import { VTradeHeader } from "./vtrade-header"
 import {
@@ -52,6 +53,7 @@ export function VTradeHomepage(): React.JSX.Element {
       </main>
 
       <VTradeFooter />
+      <PlatformStickyButtons />
       <JoinchatWidget />
     </div>
   )

@@ -14,11 +14,26 @@ import Image from "next/image"
 import Link from "next/link"
 import { VTRADE_HOMEPAGE_CONTENT } from "@/lib/marketing/vtrade-homepage-content"
 
+function getPlatformIconSrc(platformLabel: string): string {
+  switch (platformLabel.toLowerCase()) {
+    case "android":
+      return "/vtrade/icons/android.svg"
+    case "ios":
+      return "/vtrade/icons/ios.svg"
+    case "desktop":
+      return "/vtrade/icons/desktop.svg"
+    case "web":
+      return "/vtrade/icons/web.svg"
+    default:
+      return "/vtrade/icons/web.svg"
+  }
+}
+
 function PrimaryCta({ href, children }: { href: string; children: React.ReactNode }): React.JSX.Element {
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+      className="vtrade-cta-primary inline-flex items-center justify-center px-5 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
     >
       {children}
     </Link>
@@ -29,7 +44,7 @@ function SecondaryCta({ href, children }: { href: string; children: React.ReactN
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+      className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
     >
       {children}
     </Link>
@@ -47,7 +62,7 @@ export function VTradeHeroSection(): React.JSX.Element {
         backgroundSize: "cover",
       }}
     >
-      <div className="absolute inset-0 bg-black/60" />
+      <div className="absolute inset-0 bg-black/50" />
       <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
           <div className="text-white">
@@ -74,7 +89,7 @@ export function VTradeHeroSection(): React.JSX.Element {
               </PrimaryCta>
               <Link
                 href={VTRADE_HOMEPAGE_CONTENT.hero.ctas.secondaryHref}
-                className="inline-flex items-center justify-center rounded-md border border-white/60 bg-transparent px-5 py-3 text-sm font-semibold text-white hover:bg-white hover:text-slate-900"
+                className="vtrade-cta-secondary inline-flex items-center justify-center px-5 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070727]"
               >
                 {VTRADE_HOMEPAGE_CONTENT.hero.ctas.secondaryLabel}
               </Link>
@@ -82,7 +97,7 @@ export function VTradeHeroSection(): React.JSX.Element {
           </div>
 
           <div className="relative">
-            <div className="overflow-hidden rounded-xl border border-white/20 bg-white/5 shadow-sm backdrop-blur">
+            <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/5 shadow-lg shadow-black/15 backdrop-blur">
               <Image
                 src="/vtrade/benefits.jpg"
                 alt="VTrade trading platform"
@@ -101,9 +116,9 @@ export function VTradeHeroSection(): React.JSX.Element {
 
 export function VTradeStatsSection(): React.JSX.Element {
   return (
-    <section className="bg-white">
+    <section className="bg-[var(--vtrade-section-bg)]">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-6 rounded-2xl border bg-white p-6 shadow-sm lg:grid-cols-3 lg:items-center">
+        <div className="grid gap-6 rounded-2xl border bg-white p-6 shadow-md lg:grid-cols-3 lg:items-center">
           <div>
             <p className="text-3xl font-extrabold text-primary">{VTRADE_HOMEPAGE_CONTENT.stats.value}</p>
             <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-slate-600">{VTRADE_HOMEPAGE_CONTENT.stats.label}</p>
@@ -126,11 +141,11 @@ export function VTradeStatsSection(): React.JSX.Element {
 
 export function VTradeHighlightsSection(): React.JSX.Element {
   return (
-    <section className="bg-white">
+    <section className="bg-[var(--vtrade-section-bg)]">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {VTRADE_HOMEPAGE_CONTENT.highlights.map((label) => (
-            <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
+            <div key={label} className="vtrade-card-premium rounded-xl border bg-white p-5">
               <p className="text-sm font-semibold text-slate-900">{label}</p>
             </div>
           ))}
@@ -142,7 +157,7 @@ export function VTradeHighlightsSection(): React.JSX.Element {
 
 export function VTradeCashSettlementSection(): React.JSX.Element {
   return (
-    <section className="bg-white">
+    <section className="bg-[var(--vtrade-section-bg)]">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
           <div>
@@ -151,7 +166,7 @@ export function VTradeCashSettlementSection(): React.JSX.Element {
               Deposit & withdrawal options available to support your trading workflow.
             </p>
           </div>
-          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-md">
             <Image
               src="/vtrade/payment-mode.png"
               alt="Payment methods"
@@ -168,7 +183,7 @@ export function VTradeCashSettlementSection(): React.JSX.Element {
 
 export function VTradePlatformsSection(): React.JSX.Element {
   return (
-    <section className="bg-white" id="platforms">
+    <section className="bg-[var(--vtrade-section-bg)]" id="platforms">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="text-2xl font-extrabold text-slate-900">Platforms We Are Available On</h2>
@@ -180,10 +195,17 @@ export function VTradePlatformsSection(): React.JSX.Element {
             <Link
               key={p.label}
               href={p.href}
-              className="group rounded-xl border bg-white p-6 text-center shadow-sm hover:bg-slate-50"
+              className="group vtrade-card-premium rounded-xl border bg-white p-6 text-center hover:bg-slate-50"
             >
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <span className="text-lg font-extrabold">{p.label.slice(0, 1)}</span>
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Image
+                  src={getPlatformIconSrc(p.label)}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="h-6 w-6"
+                  aria-hidden="true"
+                />
               </div>
               <p className="mt-3 text-sm font-semibold text-slate-900">{p.label}</p>
               <p className="mt-1 text-xs text-slate-500">Open</p>
@@ -206,7 +228,7 @@ export function VTradeBenefitsAndMarginSection(): React.JSX.Element {
   ]
 
   return (
-    <section className="bg-white" id="why-vtrade">
+    <section className="bg-[var(--vtrade-section-bg)]" id="why-vtrade">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <div>
@@ -228,7 +250,7 @@ export function VTradeBenefitsAndMarginSection(): React.JSX.Element {
 
           <div className="grid gap-4 sm:grid-cols-2">
             {cards.map((c, idx) => (
-              <div key={`${c.title}-${idx}`} className="rounded-xl border bg-white p-5 shadow-sm">
+              <div key={`${c.title}-${idx}`} className="vtrade-card-premium rounded-xl border bg-white p-5">
                 <p className="text-sm font-semibold text-slate-900">{c.title}</p>
                 <p className="mt-2 text-xs leading-relaxed text-slate-600">{c.body}</p>
               </div>
@@ -244,7 +266,7 @@ export function VTradeOpenAccountSection(): React.JSX.Element {
   return (
     <section className="bg-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid gap-6 rounded-2xl bg-slate-800/60 p-8 lg:grid-cols-2 lg:items-center">
+        <div className="grid gap-6 rounded-2xl bg-slate-800/60 p-8 shadow-xl shadow-black/25 lg:grid-cols-2 lg:items-center">
           <div>
             <h2 className="text-2xl font-extrabold text-white">Open Live Account</h2>
             <p className="mt-2 text-sm text-slate-200">
@@ -262,9 +284,9 @@ export function VTradeOpenAccountSection(): React.JSX.Element {
 
 export function VTradePaymentsUpdateSection(): React.JSX.Element {
   return (
-    <section className="bg-white">
+    <section className="bg-[var(--vtrade-section-bg)]">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid gap-8 rounded-2xl border bg-white p-8 shadow-sm lg:grid-cols-2 lg:items-center">
+        <div className="grid gap-8 rounded-2xl border bg-white p-8 shadow-md lg:grid-cols-2 lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Payments Update</p>
             <h2 className="mt-2 text-2xl font-extrabold text-slate-900">24X7 Instant Deposit & Withdrawal</h2>
@@ -284,7 +306,7 @@ export function VTradePaymentsUpdateSection(): React.JSX.Element {
 
 export function VTradeBlogPreviewSection(): React.JSX.Element {
   return (
-    <section className="bg-white" id="news">
+    <section className="bg-[var(--vtrade-section-bg)]" id="news">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="text-2xl font-extrabold text-slate-900">Stay Updated with Zero Brokerage Trading Platform</h2>
@@ -296,7 +318,7 @@ export function VTradeBlogPreviewSection(): React.JSX.Element {
             <Link
               key={`${idx}-${title}`}
               href="/blog"
-              className="group overflow-hidden rounded-xl border bg-white shadow-sm hover:bg-slate-50"
+              className="group vtrade-card-premium overflow-hidden rounded-xl border bg-white hover:bg-slate-50"
             >
               <div className="aspect-[4/3] w-full bg-slate-100">
                 <Image
@@ -304,7 +326,7 @@ export function VTradeBlogPreviewSection(): React.JSX.Element {
                   alt={title}
                   width={800}
                   height={600}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
               </div>
               <div className="p-4">
