@@ -7,10 +7,10 @@ todos:
     status: completed
   - id: vtrade-homepage-components
     content: Create `components/marketing/vtrade-home/` components and rebuild `app/page.tsx` to match vtrade.live section structure and copy.
-    status: in_progress
+    status: completed
   - id: banner-chat-widgets
     content: Add scheduled-upgrade banner (env-toggled) and Joinchat-like floating widget as a client component.
-    status: pending
+    status: in_progress
   - id: rebrand-metadata-assets
     content: Update `app/layout.tsx` metadata and `components/auth/AuthHeader.tsx` logo/alt text to VTrade; add `public/vtrade/` assets.
     status: pending

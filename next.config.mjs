@@ -51,6 +51,16 @@ const nextConfig = {
     MAINTENANCE_MESSAGE: process.env.MAINTENANCE_MESSAGE,
     MAINTENANCE_END_TIME: process.env.MAINTENANCE_END_TIME,
     MAINTENANCE_ALLOW_ADMIN_BYPASS: process.env.MAINTENANCE_ALLOW_ADMIN_BYPASS || 'true',
+    // Marketing site banner (public homepage)
+    SITE_BANNER_ENABLED: process.env.SITE_BANNER_ENABLED || 'true',
+    SITE_BANNER_TITLE: process.env.SITE_BANNER_TITLE,
+    SITE_BANNER_MESSAGE: process.env.SITE_BANNER_MESSAGE,
+    // Joinchat-like widget (public homepage)
+    CHAT_WIDGET_ENABLED: process.env.CHAT_WIDGET_ENABLED || 'true',
+    CHAT_WIDGET_TITLE: process.env.CHAT_WIDGET_TITLE,
+    CHAT_WIDGET_MESSAGE: process.env.CHAT_WIDGET_MESSAGE,
+    CHAT_WIDGET_CTA_LABEL: process.env.CHAT_WIDGET_CTA_LABEL,
+    CHAT_WIDGET_CTA_HREF: process.env.CHAT_WIDGET_CTA_HREF || '/contact',
   },
 };
 export default nextConfig;
