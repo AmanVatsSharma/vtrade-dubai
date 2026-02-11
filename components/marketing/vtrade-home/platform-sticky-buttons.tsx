@@ -34,7 +34,7 @@ export function PlatformStickyButtons(): React.JSX.Element {
         <Link
           key={p.id}
           href={p.href}
-          className="group relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-black/20 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+          className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-black/20 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
           aria-label={`Open ${p.label} downloads`}
         >
           <Image
@@ -45,7 +45,7 @@ export function PlatformStickyButtons(): React.JSX.Element {
             className="h-[18px] w-[18px] brightness-0 invert"
             aria-hidden="true"
           />
-          <span className="pointer-events-none absolute right-full mr-2 hidden whitespace-nowrap rounded-lg bg-[#070727]/95 px-2 py-1 text-xs font-semibold text-white shadow-lg shadow-black/25 backdrop-blur group-hover:block">
+          <span className="pointer-events-none absolute right-full mr-2 hidden whitespace-nowrap rounded-lg bg-[#070727]/95 px-2 py-1 text-xs font-semibold text-white shadow-lg shadow-black/25 backdrop-blur group-hover:block group-focus-visible:block">
             {p.label}
           </span>
         </Link>

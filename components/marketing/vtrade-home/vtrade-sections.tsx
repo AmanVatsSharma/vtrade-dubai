@@ -116,7 +116,7 @@ export function VTradeHeroSection(): React.JSX.Element {
 
 export function VTradeStatsSection(): React.JSX.Element {
   return (
-    <section className="bg-[var(--vtrade-section-bg)]">
+    <section className="bg-transparent">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-6 rounded-2xl border bg-white p-6 shadow-md lg:grid-cols-3 lg:items-center">
           <div>
@@ -141,7 +141,7 @@ export function VTradeStatsSection(): React.JSX.Element {
 
 export function VTradeHighlightsSection(): React.JSX.Element {
   return (
-    <section className="bg-[var(--vtrade-section-bg)]">
+    <section className="bg-transparent">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {VTRADE_HOMEPAGE_CONTENT.highlights.map((label) => (
@@ -157,7 +157,7 @@ export function VTradeHighlightsSection(): React.JSX.Element {
 
 export function VTradeCashSettlementSection(): React.JSX.Element {
   return (
-    <section className="bg-[var(--vtrade-section-bg)]">
+    <section className="bg-transparent">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
           <div>
@@ -183,7 +183,7 @@ export function VTradeCashSettlementSection(): React.JSX.Element {
 
 export function VTradePlatformsSection(): React.JSX.Element {
   return (
-    <section className="bg-[var(--vtrade-section-bg)]" id="platforms">
+    <section className="bg-transparent" id="platforms">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="text-2xl font-extrabold text-slate-900">Platforms We Are Available On</h2>
@@ -228,7 +228,7 @@ export function VTradeBenefitsAndMarginSection(): React.JSX.Element {
   ]
 
   return (
-    <section className="bg-[var(--vtrade-section-bg)]" id="why-vtrade">
+    <section className="bg-transparent" id="why-vtrade">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <div>
@@ -284,7 +284,7 @@ export function VTradeOpenAccountSection(): React.JSX.Element {
 
 export function VTradePaymentsUpdateSection(): React.JSX.Element {
   return (
-    <section className="bg-[var(--vtrade-section-bg)]">
+    <section className="bg-transparent">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-8 rounded-2xl border bg-white p-8 shadow-md lg:grid-cols-2 lg:items-center">
           <div>
@@ -306,7 +306,7 @@ export function VTradePaymentsUpdateSection(): React.JSX.Element {
 
 export function VTradeBlogPreviewSection(): React.JSX.Element {
   return (
-    <section className="bg-[var(--vtrade-section-bg)]" id="news">
+    <section className="bg-transparent" id="news">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="text-2xl font-extrabold text-slate-900">Stay Updated with Zero Brokerage Trading Platform</h2>

@@ -41,15 +41,20 @@ export function VTradeHomepage(): React.JSX.Element {
 
       <main className="pb-32">
         <VTradeHeroSection />
-        <VTradeStatsSection />
-        <VTradeHighlightsSection />
-        <VTradeCashSettlementSection />
-        <VTradePlatformsSection />
-        <VTradeBenefitsAndMarginSection />
-        <VTradeOpenAccountSection />
-        <VTradePaymentsUpdateSection />
-        <VTradeBlogPreviewSection />
-        <ScheduledUpgradeBanner />
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/70 via-white/90 to-white" />
+          <div className="relative">
+            <VTradeStatsSection />
+            <VTradeHighlightsSection />
+            <VTradeCashSettlementSection />
+            <VTradePlatformsSection />
+            <VTradeBenefitsAndMarginSection />
+            <VTradeOpenAccountSection />
+            <VTradePaymentsUpdateSection />
+            <VTradeBlogPreviewSection />
+            <ScheduledUpgradeBanner />
+          </div>
+        </div>
       </main>
 
       <VTradeFooter />
