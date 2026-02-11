@@ -1,4 +1,13 @@
-// components/auth/MobileRegistrationForm.tsx
+/**
+ * File: components/auth/MobileRegistrationForm.tsx
+ * Module: components/auth
+ * Purpose: Mobile registration form (name/email/phone/password) with OTP follow-up.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Rebranded user-facing copy from MarketPulse360 to VTrade.
+ */
+
 "use client"
 import React, { useState, useTransition } from 'react'
 import CardWrapper from './CardWrapper'
@@ -62,7 +71,7 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
 
   return (
     <CardWrapper
-      headerLabel='Create your MarketPulse360 account'
+      headerLabel='Create your VTrade account'
       backButtonLabel="Already have an account? Sign in"
       backButtonHref='/auth/login'
       showSocial={false}
@@ -207,7 +216,7 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
           <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded-md">
             <p className="font-semibold mb-1">By creating an account, you agree to:</p>
             <ul className="space-y-1">
-              <li>• MarketPulse360's Terms of Service</li>
+              <li>• VTrade's Terms of Service</li>
               <li>• Privacy Policy and Data Protection</li>
               <li>• Trading Guidelines and Risk Disclosure</li>
             </ul>
@@ -230,7 +239,7 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
                 Creating account...
               </div>
             ) : (
-              "Create MarketPulse360 Account"
+              "Create VTrade Account"
             )}
           </Button>
 

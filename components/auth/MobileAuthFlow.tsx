@@ -1,4 +1,13 @@
-// components/auth/MobileAuthFlow.tsx
+/**
+ * File: components/auth/MobileAuthFlow.tsx
+ * Module: components/auth
+ * Purpose: Step-based mobile auth flow (login/register/otp/mpin).
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Rebranded user-facing copy from MarketPulse360 to VTrade.
+ */
+
 "use client"
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -231,7 +240,7 @@ const MobileAuthFlow: React.FC<MobileAuthFlowProps> = ({ initialStep = 'login' }
           <div className="text-center mt-6">
             {currentStep === 'login' ? (
               <p className="text-sm text-gray-600">
-                New to MarketPulse360 ?{' '}
+                New to VTrade?{" "}
                 <button
                   onClick={switchToRegister}
                   className="text-emerald-600 hover:text-emerald-700 font-medium"
