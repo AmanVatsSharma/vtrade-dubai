@@ -1,0 +1,354 @@
+/**
+ * File: components/marketing/vtrade-home/vtrade-sections.tsx
+ * Module: marketing/vtrade-home
+ * Purpose: Homepage sections matching vtrade.live structure and copy.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Keep sections stateless and SSR-friendly.
+ * - Copy is intentionally aligned with the reference site (pixel-close intent).
+ */
+
+import React from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { VTRADE_HOMEPAGE_CONTENT } from "@/lib/marketing/vtrade-homepage-content"
+
+function PrimaryCta({ href, children }: { href: string; children: React.ReactNode }): React.JSX.Element {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+    >
+      {children}
+    </Link>
+  )
+}
+
+function SecondaryCta({ href, children }: { href: string; children: React.ReactNode }): React.JSX.Element {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+    >
+      {children}
+    </Link>
+  )
+}
+
+export function VTradeHeroSection(): React.JSX.Element {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+          <div>
+            <h1 className="text-balance text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+              {VTRADE_HOMEPAGE_CONTENT.hero.headline}
+            </h1>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              {VTRADE_HOMEPAGE_CONTENT.hero.productTabs.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+
+            <p className="mt-6 text-lg font-semibold text-slate-800">{VTRADE_HOMEPAGE_CONTENT.hero.subheadline}</p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <PrimaryCta href={VTRADE_HOMEPAGE_CONTENT.hero.ctas.primaryHref}>
+                {VTRADE_HOMEPAGE_CONTENT.hero.ctas.primaryLabel}
+              </PrimaryCta>
+              <SecondaryCta href={VTRADE_HOMEPAGE_CONTENT.hero.ctas.secondaryHref}>
+                {VTRADE_HOMEPAGE_CONTENT.hero.ctas.secondaryLabel}
+              </SecondaryCta>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+              <Image
+                src="/vtrade/benefits.jpg"
+                alt="VTrade trading platform"
+                width={1200}
+                height={900}
+                className="h-auto w-full object-cover"
+                priority
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradeStatsSection(): React.JSX.Element {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid gap-6 rounded-2xl border bg-white p-6 shadow-sm lg:grid-cols-3 lg:items-center">
+          <div>
+            <p className="text-3xl font-extrabold text-slate-900">{VTRADE_HOMEPAGE_CONTENT.stats.value}</p>
+            <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-slate-600">{VTRADE_HOMEPAGE_CONTENT.stats.label}</p>
+          </div>
+          <div className="lg:col-span-2">
+            <div className="flex flex-wrap gap-3 lg:justify-end">
+              <SecondaryCta href={VTRADE_HOMEPAGE_CONTENT.stats.ctas.leftHref}>
+                {VTRADE_HOMEPAGE_CONTENT.stats.ctas.leftLabel}
+              </SecondaryCta>
+              <PrimaryCta href={VTRADE_HOMEPAGE_CONTENT.stats.ctas.rightHref}>
+                {VTRADE_HOMEPAGE_CONTENT.stats.ctas.rightLabel}
+              </PrimaryCta>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradeHighlightsSection(): React.JSX.Element {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {VTRADE_HOMEPAGE_CONTENT.highlights.map((label) => (
+            <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradeCashSettlementSection(): React.JSX.Element {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-900">Cash Settlement</h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+              Deposit & withdrawal options available to support your trading workflow.
+            </p>
+          </div>
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <Image
+              src="/vtrade/payment-mode.png"
+              alt="Payment methods"
+              width={1200}
+              height={800}
+              className="h-auto w-full object-cover"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradePlatformsSection(): React.JSX.Element {
+  return (
+    <section className="bg-white" id="platforms">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-extrabold text-slate-900">Platforms We Are Available On</h2>
+          <p className="mt-2 text-sm text-slate-600">Initiate Smart Trading Across Multiple Platforms</p>
+        </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {VTRADE_HOMEPAGE_CONTENT.platforms.map((p) => (
+            <Link
+              key={p.label}
+              href={p.href}
+              className="group rounded-xl border bg-white p-6 text-center shadow-sm hover:bg-slate-50"
+            >
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                <span className="text-lg font-extrabold">{p.label.slice(0, 1)}</span>
+              </div>
+              <p className="mt-3 text-sm font-semibold text-slate-900">{p.label}</p>
+              <p className="mt-1 text-xs text-slate-500">Open</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradeBenefitsAndMarginSection(): React.JSX.Element {
+  const cards = [
+    { title: "Secure Investment", body: "At V Trade, we safeguard your interests and ensure your investment journey is as secure as it is prosperous." },
+    { title: "Zero Brokerage", body: "Say goodbye to brokerage blues! V Trade brings you a trading revolution with zero brokerage – because we believe in maximising your gains, not cutting into them." },
+    { title: "500x Margin Facilities", body: "At V Trade, we’ve got your back, ready to fuel your financial ambitions. Let’s turn your ideas into profits with huge margins!" },
+    { title: "24x7 Deposit & Withdrawal", body: "Our platform allows you to deposit & withdrawal around the clock, ensuring your financial freedom." },
+    { title: "Round-The-Clock Customer Support", body: "Round-The-Clock Customer Support" },
+    { title: "Round-The-Clock Customer Support", body: "Round-The-Clock Customer Support" },
+  ]
+
+  return (
+    <section className="bg-white" id="why-vtrade">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-900">Enjoy Maximum Profits with ZERO BROKERAGE</h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+              Is money-making your passion? Our platform makes trading easy and fun. Trade anytime, anywhere, on any device with absolute ZERO BROKERAGE costs
+            </p>
+
+            <h3 className="mt-8 text-xl font-extrabold text-slate-900">500x Margin For Maximum Returns</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Make Big Moves with Lesser Capital as We Offer Upto 500x Margin.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <PrimaryCta href="/auth/register">Trade Now</PrimaryCta>
+              <SecondaryCta href="/contact">Contact</SecondaryCta>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {cards.map((c, idx) => (
+              <div key={`${c.title}-${idx}`} className="rounded-xl border bg-white p-5 shadow-sm">
+                <p className="text-sm font-semibold text-slate-900">{c.title}</p>
+                <p className="mt-2 text-xs leading-relaxed text-slate-600">{c.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradeOpenAccountSection(): React.JSX.Element {
+  return (
+    <section className="bg-slate-900">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-6 rounded-2xl bg-slate-800/60 p-8 lg:grid-cols-2 lg:items-center">
+          <div>
+            <h2 className="text-2xl font-extrabold text-white">Open Live Account</h2>
+            <p className="mt-2 text-sm text-slate-200">
+              Is money-making your passion? Our platform makes trading easy and fun. Trade anytime, anywhere, on any device with absolute ZERO BROKERAGE costs
+            </p>
+          </div>
+          <div className="flex gap-3 lg:justify-end">
+            <PrimaryCta href="/auth/register">Open Live Account</PrimaryCta>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradePaymentsUpdateSection(): React.JSX.Element {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-8 rounded-2xl border bg-white p-8 shadow-sm lg:grid-cols-2 lg:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Payments Update</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">24X7 Instant Deposit & Withdrawal</h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+              Is money-making your passion? Our platform makes trading easy and fun. Trade anytime, anywhere, on any device with absolute ZERO BROKERAGE costs
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <SecondaryCta href="/why-vtrade">Why Vtrade</SecondaryCta>
+            <PrimaryCta href="/auth/register">Trade Now</PrimaryCta>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradeBlogPreviewSection(): React.JSX.Element {
+  return (
+    <section className="bg-white" id="news">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-extrabold text-slate-900">Stay Updated with Zero Brokerage Trading Platform</h2>
+          <p className="mt-2 text-sm text-slate-600">Initiate Smart Trading Across Multiple Platforms</p>
+        </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {VTRADE_HOMEPAGE_CONTENT.blogTitles.map((title, idx) => (
+            <Link
+              key={`${idx}-${title}`}
+              href="/blog"
+              className="group overflow-hidden rounded-xl border bg-white shadow-sm hover:bg-slate-50"
+            >
+              <div className="aspect-[4/3] w-full bg-slate-100">
+                <Image
+                  src={`/vtrade/blog-${idx + 1}.jpg`}
+                  alt={title}
+                  width={800}
+                  height={600}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="p-4">
+                <p className="text-sm font-semibold leading-snug text-slate-900 group-hover:underline">{title}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function VTradeFooter(): React.JSX.Element {
+  return (
+    <footer className="border-t bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-sm font-extrabold text-slate-900">VTrade</p>
+            <p className="mt-2 text-sm text-slate-600">Trade Live. Trade Sharp.</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">About us</p>
+            <div className="mt-3 space-y-2">
+              <Link href="/why-vtrade" className="block text-sm text-slate-700 hover:underline">Why VTrade</Link>
+              <Link href="/affiliate" className="block text-sm text-slate-700 hover:underline">Become an Affiliate</Link>
+              <Link href="/privacy-policy" className="block text-sm text-slate-700 hover:underline">Privacy Policy</Link>
+              <Link href="/terms" className="block text-sm text-slate-700 hover:underline">Terms & Conditions</Link>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Products</p>
+            <div className="mt-3 space-y-2">
+              <Link href="/products/cfd-instrument" className="block text-sm text-slate-700 hover:underline">CFD Instrument</Link>
+              <Link href="/products/indexes" className="block text-sm text-slate-700 hover:underline">Indexes</Link>
+              <Link href="/products/stocks" className="block text-sm text-slate-700 hover:underline">Stocks</Link>
+              <Link href="/products/commodity" className="block text-sm text-slate-700 hover:underline">Commodity</Link>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Platforms</p>
+            <div className="mt-3 space-y-2">
+              <Link href="/downloads#android" className="block text-sm text-slate-700 hover:underline">Android</Link>
+              <Link href="/downloads#ios" className="block text-sm text-slate-700 hover:underline">IOS</Link>
+              <Link href="/downloads#desktop" className="block text-sm text-slate-700 hover:underline">Desktop App</Link>
+              <Link href="/downloads#web" className="block text-sm text-slate-700 hover:underline">Web Trader</Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-10 border-t pt-6 text-sm text-slate-600">
+          ©opyright 2025 - VTrade | All rights reserved.
+        </div>
+      </div>
+    </footer>
+  )
+}
+
