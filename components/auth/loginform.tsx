@@ -1,4 +1,13 @@
-//components/auth/loginform.tsx
+/**
+ * File: components/auth/loginform.tsx
+ * Module: components/auth
+ * Purpose: Email/password login form UI.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Rebranded user-facing copy from MarketPulse360 to VTrade.
+ */
+
 "use client"
 import React, { useState, useTransition } from 'react'
 import CardWrapper from './CardWrapper'
@@ -57,7 +66,7 @@ const LoginForm = () => {
 
     return (
         <CardWrapper
-            headerLabel='Welcome back to MarketPulse360'
+            headerLabel='Welcome back to VTrade'
             backButtonLabel="Don't have an account?"
             backButtonHref='/auth/register'
             // showSocial
@@ -150,7 +159,7 @@ const LoginForm = () => {
                                     Signing in...
                                 </div>
                             ) : (
-                                "Sign in to MarketPulse360"
+                                "Sign in to VTrade"
                             )}
                         </Button>
                 </form>

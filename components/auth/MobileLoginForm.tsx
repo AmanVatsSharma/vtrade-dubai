@@ -1,4 +1,13 @@
-// components/auth/MobileLoginForm.tsx
+/**
+ * File: components/auth/MobileLoginForm.tsx
+ * Module: components/auth
+ * Purpose: Mobile login form (Mobile/Client ID + password).
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Rebranded user-facing copy from MarketPulse360 to VTrade.
+ */
+
 "use client"
 import React, { useState, useTransition } from 'react'
 import CardWrapper from './CardWrapper'
@@ -66,8 +75,8 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
 
   return (
     <CardWrapper
-      headerLabel='Welcome to MarketPulse360'
-      backButtonLabel="New to MarketPulse360? Create account"
+      headerLabel='Welcome to VTrade'
+      backButtonLabel="New to VTrade? Create account"
       backButtonHref='/auth/register'
       showSocial={false}
     >
@@ -178,7 +187,7 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
                 Signing in...
               </div>
             ) : (
-              "Sign in to MarketPulse360"
+              "Sign in to VTrade"
             )}
           </Button>
 
