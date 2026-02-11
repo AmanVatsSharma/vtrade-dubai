@@ -66,7 +66,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ message = "Please wait to
     <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground mb-4">
       <TrendingUp className="h-4 w-4" />
     </div>
-    <h1 className="text-xl font-semibold text-foreground mb-2">MarketPulse360</h1>
+    <h1 className="text-xl font-semibold text-foreground mb-2">VTrade</h1>
     <p className="text-sm text-muted-foreground mb-6">{message}</p>
     <Loader2 className="h-8 w-8 animate-spin text-primary" />
   </div>
@@ -362,7 +362,7 @@ const TradingDashboard: React.FC = () => {
             <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm">
               <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
-            <span className="text-sm sm:text-base font-semibold hidden xs:inline">MarketPulse360</span>
+            <span className="text-sm sm:text-base font-semibold hidden xs:inline">VTrade</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
             {INDEX_CONFIGS.map(({ name, instrumentId }) => (

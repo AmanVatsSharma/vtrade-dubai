@@ -1,3 +1,13 @@
+/**
+ * File: components/auth/EmailVerification.tsx
+ * Module: components/auth
+ * Purpose: Email verification result screen (success/error + resend).
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Rebranded user-facing copy from MarketPulse360 to VTrade.
+ */
+
 'use client'
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -137,7 +147,7 @@ const EmailVerification = () => {
                         >
                             <FaCheckCircle className="mx-auto text-6xl text-green-600 mb-4" />
                             <h2 className="text-xl font-semibold mb-2">Email Verified!</h2>
-                            <p className="text-gray-600">Your email has been successfully verified. You can now access all features of MarketPulse360.</p>
+                            <p className="text-gray-600">Your email has been successfully verified. You can now access all features of VTrade.</p>
                         </motion.div>
                     )}
                     {verificationStatus === 'error' && (
@@ -166,7 +176,10 @@ const EmailVerification = () => {
             </CardContent>
             <CardFooter className="bg-gray-50 p-4">
                 <p className="text-sm text-gray-600 text-center w-full">
-                    If you&apos;re having trouble, please contact <a href="mailto:support@promerchants.com" className="text-green-600 hover:underline">support@marketpulse360.live</a>
+                    If you&apos;re having trouble, please contact{" "}
+                    <a href="mailto:support@vtrade.live" className="text-green-600 hover:underline">
+                        support@vtrade.live
+                    </a>
                 </p>
             </CardFooter>
         </Card>
