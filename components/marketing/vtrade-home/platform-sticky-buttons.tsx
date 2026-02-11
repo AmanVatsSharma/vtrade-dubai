@@ -29,24 +29,27 @@ const PLATFORM_LINKS: PlatformLink[] = [
 
 export function PlatformStickyButtons(): React.JSX.Element {
   return (
-    <div className="fixed bottom-4 left-1/2 z-40 w-[min(94vw,980px)] -translate-x-1/2 px-1">
-      <div className="rounded-2xl border border-white/10 bg-[#070727]/92 shadow-2xl shadow-black/25 backdrop-blur">
-        <div className="flex flex-wrap items-center justify-center gap-2 px-2 py-2 pr-16 sm:flex-nowrap sm:justify-between sm:gap-3 sm:px-3">
-          {PLATFORM_LINKS.map((p) => (
-            <Link
-              key={p.id}
-              href={p.href}
-              className="group flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-black/20 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#070727] sm:flex-1 sm:text-sm"
-              aria-label={`Open ${p.label} downloads`}
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                <Image src={p.iconSrc} alt="" width={18} height={18} className="h-[18px] w-[18px] text-white" aria-hidden="true" />
-              </span>
-              <span className="whitespace-nowrap">{p.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
+    <div className="fixed bottom-24 right-5 z-40 flex flex-col gap-2">
+      {PLATFORM_LINKS.map((p) => (
+        <Link
+          key={p.id}
+          href={p.href}
+          className="group relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-black/20 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+          aria-label={`Open ${p.label} downloads`}
+        >
+          <Image
+            src={p.iconSrc}
+            alt=""
+            width={18}
+            height={18}
+            className="h-[18px] w-[18px] brightness-0 invert"
+            aria-hidden="true"
+          />
+          <span className="pointer-events-none absolute right-full mr-2 hidden whitespace-nowrap rounded-lg bg-[#070727]/95 px-2 py-1 text-xs font-semibold text-white shadow-lg shadow-black/25 backdrop-blur group-hover:block">
+            {p.label}
+          </span>
+        </Link>
+      ))}
     </div>
   )
 }
