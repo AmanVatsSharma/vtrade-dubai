@@ -158,26 +158,26 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
     >
       {/* Account creation confirmation banner with Client ID */}
       {userData?.clientId && (
-        <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-md p-4">
+        <div className="mb-6 bg-orange-50 border border-orange-200 rounded-md p-4">
           <div className="flex items-start">
-            <div className="mr-3 mt-1 text-emerald-600">
+            <div className="mr-3 mt-1 text-primary">
               <FaCheckCircle />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-emerald-700">Account created successfully</p>
-              <p className="text-sm text-emerald-800 mt-1">
+              <p className="font-semibold text-orange-700">Account created successfully</p>
+              <p className="text-sm text-orange-800 mt-1">
                 Your Client ID:
-                <span className="font-mono font-bold ml-2 px-2 py-0.5 bg-white border border-emerald-200 rounded">
+                <span className="font-mono font-bold ml-2 px-2 py-0.5 bg-white border border-orange-200 rounded">
                   {userData.clientId}
                 </span>
               </p>
-              <p className="text-xs text-emerald-700 mt-2">
+              <p className="text-xs text-orange-700 mt-2">
                 Save this Client ID. You'll use it for login along with your password.
               </p>
               <button
                 type="button"
                 onClick={copyClientIdToClipboard}
-                className="mt-3 inline-flex items-center text-xs text-emerald-700 hover:text-emerald-800"
+                className="mt-3 inline-flex items-center text-xs text-primary hover:opacity-90"
               >
                 <FaCopy className="mr-2" /> {copied ? 'Copied' : 'Copy Client ID'}
               </button>
@@ -187,8 +187,8 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
       )}
 
       <div className="text-center mb-6">
-        <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-          <FaShieldAlt className="text-emerald-600 text-2xl" />
+        <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+          <FaShieldAlt className="text-primary text-2xl" />
         </div>
         <p className="text-gray-600 text-sm">
           {getPurposeMessage()}
@@ -215,7 +215,7 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
                     placeholder="123456"
                     type='text'
                     maxLength={6}
-                    className="text-center text-2xl font-mono tracking-widest border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                    className="text-center text-2xl font-mono tracking-widest border-slate-300 focus:border-primary focus:ring focus:ring-primary/20 focus:ring-opacity-50 rounded-md shadow-sm"
                     onChange={(e) => {
                       const value = e.target.value.replace(/\D/g, '').slice(0, 6)
                       field.onChange(value)
@@ -243,7 +243,7 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
                 variant="ghost"
                 disabled={isResending}
                 onClick={handleResendOtp}
-                className="text-emerald-600 hover:text-emerald-700 text-sm"
+                className="text-primary hover:opacity-90 text-sm"
               >
                 {isResending ? "Sending..." : "Resend OTP"}
               </Button>
@@ -256,7 +256,7 @@ const OtpVerificationForm: React.FC<OtpVerificationFormProps> = ({
           <Button
             disabled={isPending || form.watch('otp').length !== 6}
             type='submit'
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
+            className="w-full bg-primary hover:opacity-90 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
           >
             {isPending ? (
               <div className="flex items-center justify-center">

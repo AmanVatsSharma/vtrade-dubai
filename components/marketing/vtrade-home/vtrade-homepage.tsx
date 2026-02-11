@@ -29,7 +29,7 @@ import {
 export function VTradeHomepage(): React.JSX.Element {
   return (
     <div
-      className="min-h-screen text-slate-900"
+      className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 text-slate-900"
       style={{
         backgroundImage: "url(/vtrade/bg-website.jpg)",
         backgroundPosition: "left top",
@@ -41,20 +41,15 @@ export function VTradeHomepage(): React.JSX.Element {
 
       <main className="pb-32">
         <VTradeHeroSection />
-        <div className="relative">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/70 via-white/90 to-white" />
-          <div className="relative">
-            <VTradeStatsSection />
-            <VTradeHighlightsSection />
-            <VTradeCashSettlementSection />
-            <VTradePlatformsSection />
-            <VTradeBenefitsAndMarginSection />
-            <VTradeOpenAccountSection />
-            <VTradePaymentsUpdateSection />
-            <VTradeBlogPreviewSection />
-            <ScheduledUpgradeBanner />
-          </div>
-        </div>
+        <VTradeStatsSection />
+        <VTradeHighlightsSection />
+        <VTradeCashSettlementSection />
+        <VTradePlatformsSection />
+        <VTradeBenefitsAndMarginSection />
+        <VTradeOpenAccountSection />
+        <VTradePaymentsUpdateSection />
+        <VTradeBlogPreviewSection />
+        <ScheduledUpgradeBanner />
       </main>
 
       <VTradeFooter />
