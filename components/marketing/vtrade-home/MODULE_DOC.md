@@ -41,4 +41,5 @@
 - 2026-02-11: Exposed marketing env vars and switched chat widget to Radix Popover client component.
 - 2026-02-11: Added local marketing assets under `public/vtrade/` and updated auth branding to VTrade.
 - 2026-02-11: Centralized homepage copy/links into `lib/marketing/vtrade-homepage-content.ts` and added Zod-based Jest validation.
+- 2026-02-11: Fixed Vercel asset redirects by bypassing middleware for static assets (prevents 307 to `/auth/login` for `/vtrade/*` and other files).
 

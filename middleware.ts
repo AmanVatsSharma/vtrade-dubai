@@ -95,10 +95,31 @@ const adminRoutes = [
   "/admin-console"  // ✅ Added admin-console route protection
 ];
 
+/**
+ * Detect requests for static assets (public/ files) that must NOT be redirected.
+ * This is critical on Vercel because middleware redirects (307) break CSS/images.
+ */
+function isStaticAssetRequest(pathname: string): boolean {
+  // Next internals or common static endpoints
+  if (pathname.startsWith("/_next/")) return true
+  if (pathname === "/favicon.ico") return true
+
+  // Public asset folders we serve directly
+  if (pathname.startsWith("/vtrade/")) return true
+
+  // Any path with a file extension (e.g. .png, .jpg, .css, .js, .woff2)
+  return /\.[a-zA-Z0-9]+$/.test(pathname)
+}
+
 export default authEdge((req) => {
   const { nextUrl } = req;
   const isLoggedIn = !!req.auth;
   
+  // 0. STATIC ASSET BYPASS (must happen before any auth redirects)
+  if (isStaticAssetRequest(nextUrl.pathname)) {
+    return NextResponse.next()
+  }
+
   // Console logging for debugging
   console.log(`[MIDDLEWARE] 🔍 Request to: ${nextUrl.pathname}, Logged in: ${isLoggedIn}`);
   
@@ -323,5 +344,6 @@ export default authEdge((req) => {
 
 // This config specifies which routes the middleware should be invoked on.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|vercel.svg|next.svg).*)"],
+  // Exclude next internals + any file with an extension (public assets, css/js/fonts/images, etc.)
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|vercel.svg|next.svg|.*\\..*).*)"],
 };
