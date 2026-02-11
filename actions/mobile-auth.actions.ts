@@ -533,7 +533,7 @@ export const setupMpin = async (
     }
 
     return {
-      success: "Login successful! Welcome to MarketPulse360.",
+      success: "Login successful! Welcome to VTrade.",
       redirectTo: "/dashboard"
     }
 
@@ -617,7 +617,7 @@ export const verifyMpin = async (values: z.infer<typeof mpinVerificationSchema>)
     }
 
     return {
-      success: "Login successful! Welcome back to MarketPulse360.",
+      success: "Login successful! Welcome back to VTrade.",
       redirectTo: "/dashboard"
     }
 

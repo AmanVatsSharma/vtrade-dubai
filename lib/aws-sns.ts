@@ -152,7 +152,7 @@ export async function sendSMS({ phoneNumber, message, messageAttributes }: SendS
 }
 
 export async function sendOtpSMS(phoneNumber: string, otp: string, purpose: string = "verification") {
-  const message = `Your MarketPulse360 ${purpose} OTP is: ${otp}. Valid for 5 minutes. Do not share this OTP with anyone. -MarketPulse360`;
+  const message = `Your VTrade ${purpose} OTP is: ${otp}. Valid for 5 minutes. Do not share this OTP with anyone. -VTrade`;
   
   // Development fallback when AWS credentials are not configured
   if (!snsClient) {
