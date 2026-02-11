@@ -18,7 +18,7 @@ function PrimaryCta({ href, children }: { href: string; children: React.ReactNod
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+      className="inline-flex items-center justify-center rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
     >
       {children}
     </Link>
@@ -38,11 +38,20 @@ function SecondaryCta({ href, children }: { href: string; children: React.ReactN
 
 export function VTradeHeroSection(): React.JSX.Element {
   return (
-    <section className="bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
-        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
-          <div>
-            <h1 className="text-balance text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+    <section
+      className="relative overflow-hidden"
+      style={{
+        backgroundImage: "url(/vtrade/vtrade-banner.png)",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
+      }}
+    >
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
+          <div className="text-white">
+            <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
               {VTRADE_HOMEPAGE_CONTENT.hero.headline}
             </h1>
 
@@ -50,27 +59,30 @@ export function VTradeHeroSection(): React.JSX.Element {
               {VTRADE_HOMEPAGE_CONTENT.hero.productTabs.map((t) => (
                 <span
                   key={t}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700"
+                  className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur"
                 >
                   {t}
                 </span>
               ))}
             </div>
 
-            <p className="mt-6 text-lg font-semibold text-slate-800">{VTRADE_HOMEPAGE_CONTENT.hero.subheadline}</p>
+            <p className="mt-6 text-lg font-medium text-white/90">{VTRADE_HOMEPAGE_CONTENT.hero.subheadline}</p>
 
             <div className="mt-6 flex flex-wrap gap-3">
               <PrimaryCta href={VTRADE_HOMEPAGE_CONTENT.hero.ctas.primaryHref}>
                 {VTRADE_HOMEPAGE_CONTENT.hero.ctas.primaryLabel}
               </PrimaryCta>
-              <SecondaryCta href={VTRADE_HOMEPAGE_CONTENT.hero.ctas.secondaryHref}>
+              <Link
+                href={VTRADE_HOMEPAGE_CONTENT.hero.ctas.secondaryHref}
+                className="inline-flex items-center justify-center rounded-md border border-white/60 bg-transparent px-5 py-3 text-sm font-semibold text-white hover:bg-white hover:text-slate-900"
+              >
                 {VTRADE_HOMEPAGE_CONTENT.hero.ctas.secondaryLabel}
-              </SecondaryCta>
+              </Link>
             </div>
           </div>
 
           <div className="relative">
-            <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-white/20 bg-white/5 shadow-sm backdrop-blur">
               <Image
                 src="/vtrade/benefits.jpg"
                 alt="VTrade trading platform"
@@ -93,7 +105,7 @@ export function VTradeStatsSection(): React.JSX.Element {
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-6 rounded-2xl border bg-white p-6 shadow-sm lg:grid-cols-3 lg:items-center">
           <div>
-            <p className="text-3xl font-extrabold text-slate-900">{VTRADE_HOMEPAGE_CONTENT.stats.value}</p>
+            <p className="text-3xl font-extrabold text-primary">{VTRADE_HOMEPAGE_CONTENT.stats.value}</p>
             <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-slate-600">{VTRADE_HOMEPAGE_CONTENT.stats.label}</p>
           </div>
           <div className="lg:col-span-2">

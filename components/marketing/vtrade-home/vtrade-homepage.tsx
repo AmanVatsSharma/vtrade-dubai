@@ -27,7 +27,15 @@ import {
 
 export function VTradeHomepage(): React.JSX.Element {
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div
+      className="min-h-screen text-slate-900"
+      style={{
+        backgroundImage: "url(/vtrade/bg-website.jpg)",
+        backgroundPosition: "left top",
+        backgroundRepeat: "repeat",
+        backgroundSize: "auto",
+      }}
+    >
       <VTradeHeader />
 
       <main>
