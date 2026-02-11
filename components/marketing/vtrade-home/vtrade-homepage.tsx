@@ -39,7 +39,7 @@ export function VTradeHomepage(): React.JSX.Element {
     >
       <VTradeHeader />
 
-      <main>
+      <main className="pb-32">
         <VTradeHeroSection />
         <VTradeStatsSection />
         <VTradeHighlightsSection />

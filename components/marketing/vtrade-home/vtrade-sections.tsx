@@ -342,44 +342,125 @@ export function VTradeBlogPreviewSection(): React.JSX.Element {
 
 export function VTradeFooter(): React.JSX.Element {
   return (
-    <footer className="border-t bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="border-t border-white/10 bg-[#070727] text-white">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-sm font-extrabold text-slate-900">VTrade</p>
-            <p className="mt-2 text-sm text-slate-600">Trade Live. Trade Sharp.</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">About us</p>
-            <div className="mt-3 space-y-2">
-              <Link href="/why-vtrade" className="block text-sm text-slate-700 hover:underline">Why VTrade</Link>
-              <Link href="/affiliate" className="block text-sm text-slate-700 hover:underline">Become an Affiliate</Link>
-              <Link href="/privacy-policy" className="block text-sm text-slate-700 hover:underline">Privacy Policy</Link>
-              <Link href="/terms" className="block text-sm text-slate-700 hover:underline">Terms & Conditions</Link>
+            <div className="flex items-center gap-3">
+              <Image src="/vtrade/logo.png" alt="VTrade" width={140} height={40} className="h-9 w-auto" />
+            </div>
+            <p className="mt-3 text-sm text-white/75">Trade Live. Trade Sharp.</p>
+
+            <div className="mt-5 flex items-center gap-3">
+              <a
+                href="#"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/90 transition-colors hover:bg-white/15"
+                aria-label="VTrade on Facebook"
+              >
+                <span className="text-sm font-extrabold" aria-hidden="true">
+                  f
+                </span>
+              </a>
+              <a
+                href="#"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/90 transition-colors hover:bg-white/15"
+                aria-label="VTrade on Instagram"
+              >
+                <span className="text-sm font-extrabold" aria-hidden="true">
+                  ig
+                </span>
+              </a>
+              <a
+                href="#"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/90 transition-colors hover:bg-white/15"
+                aria-label="VTrade on YouTube"
+              >
+                <span className="text-sm font-extrabold" aria-hidden="true">
+                  yt
+                </span>
+              </a>
+              <a
+                href="#"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/90 transition-colors hover:bg-white/15"
+                aria-label="VTrade on WhatsApp"
+              >
+                <span className="text-sm font-extrabold" aria-hidden="true">
+                  wa
+                </span>
+              </a>
+              <a
+                href="mailto:support@vtrade.live"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/90 transition-colors hover:bg-white/15"
+                aria-label="Email VTrade support"
+              >
+                <span className="text-sm font-extrabold" aria-hidden="true">
+                  @
+                </span>
+              </a>
             </div>
           </div>
+
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Products</p>
-            <div className="mt-3 space-y-2">
-              <Link href="/products/cfd-instrument" className="block text-sm text-slate-700 hover:underline">CFD Instrument</Link>
-              <Link href="/products/indexes" className="block text-sm text-slate-700 hover:underline">Indexes</Link>
-              <Link href="/products/stocks" className="block text-sm text-slate-700 hover:underline">Stocks</Link>
-              <Link href="/products/commodity" className="block text-sm text-slate-700 hover:underline">Commodity</Link>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/70">About us</p>
+            <div className="mt-4 space-y-2">
+              <Link href="/why-vtrade" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Why VTrade
+              </Link>
+              <Link href="/affiliate" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Become an Affiliate
+              </Link>
+              <Link href="/privacy-policy" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Terms & Conditions
+              </Link>
             </div>
           </div>
+
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Platforms</p>
-            <div className="mt-3 space-y-2">
-              <Link href="/downloads#android" className="block text-sm text-slate-700 hover:underline">Android</Link>
-              <Link href="/downloads#ios" className="block text-sm text-slate-700 hover:underline">IOS</Link>
-              <Link href="/downloads#desktop" className="block text-sm text-slate-700 hover:underline">Desktop App</Link>
-              <Link href="/downloads#web" className="block text-sm text-slate-700 hover:underline">Web Trader</Link>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Products</p>
+            <div className="mt-4 space-y-2">
+              <Link href="/products/cfd-instrument" className="block text-sm text-white/80 hover:text-white hover:underline">
+                CFD Instrument
+              </Link>
+              <Link href="/products/indexes" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Indexes
+              </Link>
+              <Link href="/products/stocks" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Stocks
+              </Link>
+              <Link href="/products/commodity" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Commodity
+              </Link>
+              <Link href="/news-blogs" className="block text-sm text-white/80 hover:text-white hover:underline">
+                News & Blogs
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Platforms</p>
+            <div className="mt-4 space-y-2">
+              <Link href="/downloads#android" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Android
+              </Link>
+              <Link href="/downloads#ios" className="block text-sm text-white/80 hover:text-white hover:underline">
+                IOS
+              </Link>
+              <Link href="/downloads#desktop" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Desktop App
+              </Link>
+              <Link href="/downloads#web" className="block text-sm text-white/80 hover:text-white hover:underline">
+                Web Trader
+              </Link>
             </div>
           </div>
         </div>
 
-        <div className="mt-10 border-t pt-6 text-sm text-slate-600">
-          ©opyright 2025 - VTrade | All rights reserved.
+        <div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-6 text-sm text-white/70 sm:flex-row sm:items-center sm:justify-between">
+          <span>©opyright 2025 - VTrade | All rights reserved.</span>
+          <span className="text-white/50">Trade Live. Trade Sharp.</span>
         </div>
       </div>
     </footer>
