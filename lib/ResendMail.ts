@@ -97,7 +97,7 @@ export const sendVerificationEmail = async (email: string, token: string) => {
             <body>
                 <div class="container">
                     <div class="logo">
-                        <img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-WgXBGSOL7Eq1QZ7NcZItH5rbxyqXmt.png" alt="MarketPulse360 Logo">
+                        <img src="https://vtrade.live/wp-content/uploads/2021/11/Logo-vtrade-live.png" alt="VTrade Logo">
                     </div>
                     <h1>Welcome to VTrade!</h1>
                     <p>Dear Store Owner,</p>
