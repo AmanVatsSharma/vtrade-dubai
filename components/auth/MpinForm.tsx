@@ -136,13 +136,13 @@ const MpinForm: React.FC<MpinFormProps> = ({
       showSocial={false}
     >
       {userData?.clientId && (
-        <div className="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-3">
+        <div className="mb-4 text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded p-3">
           Your Client ID: <span className="font-mono font-bold">{userData.clientId}</span>
         </div>
       )}
       <div className="text-center mb-6">
-        <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-          <FaKey className="text-emerald-600 text-2xl" />
+        <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+          <FaKey className="text-primary text-2xl" />
         </div>
         <p className="text-gray-600 text-sm">
           {isSetupMode 
@@ -171,7 +171,7 @@ const MpinForm: React.FC<MpinFormProps> = ({
                       placeholder={isSetupMode ? "Create mPin" : "Enter mPin"}
                       type={showMpin ? 'text' : 'password'}
                       maxLength={6}
-                      className="pl-10 pr-10 text-center font-mono tracking-wider border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                      className="pl-10 pr-10 text-center font-mono tracking-wider border-slate-300 focus:border-primary focus:ring focus:ring-primary/20 focus:ring-opacity-50 rounded-md shadow-sm"
                       onChange={(e) => {
                         const value = e.target.value.replace(/\D/g, '').slice(0, 6)
                         field.onChange(value)
@@ -209,7 +209,7 @@ const MpinForm: React.FC<MpinFormProps> = ({
                         placeholder="Confirm mPin"
                         type={showConfirmMpin ? 'text' : 'password'}
                         maxLength={6}
-                        className="pl-10 pr-10 text-center font-mono tracking-wider border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                        className="pl-10 pr-10 text-center font-mono tracking-wider border-slate-300 focus:border-primary focus:ring focus:ring-primary/20 focus:ring-opacity-50 rounded-md shadow-sm"
                         onChange={(e) => {
                           const value = e.target.value.replace(/\D/g, '').slice(0, 6)
                           field.onChange(value)
@@ -239,7 +239,7 @@ const MpinForm: React.FC<MpinFormProps> = ({
               verifyForm.watch('mpin').length < 4
             )}
             type='submit'
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
+            className="w-full bg-primary hover:opacity-90 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
           >
             {isPending ? (
               <div className="flex items-center justify-center">
@@ -265,7 +265,7 @@ const MpinForm: React.FC<MpinFormProps> = ({
                 <p>🔒 mPin protects your trading account</p>
               <p className="mt-1">❓ <button
                 type="button"
-                className="text-emerald-600 hover:underline"
+                className="text-primary hover:underline"
                 onClick={() => {
                   console.log('[MpinForm] Forgot mPin clicked. Requesting OTP...')
                   setError("")

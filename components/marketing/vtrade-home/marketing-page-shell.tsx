@@ -9,6 +9,7 @@
  */
 
 import React from "react"
+import { PlatformStickyButtons } from "./platform-sticky-buttons"
 import { VTradeHeader } from "./vtrade-header"
 import { VTradeFooter } from "./vtrade-sections"
 import { JoinchatWidget } from "./joinchat-widget"
@@ -22,7 +23,7 @@ export function MarketingPageShell({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 text-slate-900">
       <VTradeHeader />
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-extrabold text-slate-900">{title}</h1>
@@ -30,6 +31,7 @@ export function MarketingPageShell({
       </main>
       <ScheduledUpgradeBanner />
       <VTradeFooter />
+      <PlatformStickyButtons />
       <JoinchatWidget />
     </div>
   )

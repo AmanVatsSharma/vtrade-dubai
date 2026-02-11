@@ -193,7 +193,7 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
                         disabled={isPending}
                         placeholder="Create a strong password"
                         type={showPassword ? 'text' : 'password'}
-                        className="pl-10 pr-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                        className="pl-10 pr-10 border-slate-300 focus:border-primary focus:ring focus:ring-primary/20 focus:ring-opacity-50 rounded-md shadow-sm"
                       />
                       <button
                         type="button"
@@ -228,7 +228,7 @@ const MobileRegistrationForm: React.FC<MobileRegistrationFormProps> = ({ onRegis
           <Button
             disabled={isPending}
             type='submit'
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
+            className="w-full bg-primary hover:opacity-90 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
           >
             {isPending ? (
               <div className="flex items-center justify-center">
