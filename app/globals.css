@@ -15,6 +15,13 @@
   /* VTrade brand: orange accent (approx #FF6000) */
   --primary: oklch(0.72 0.2 45);
   --primary-foreground: oklch(1 0 0);
+  /* VTrade marketing tokens (homepage polish) */
+  --vtrade-primary-hex: #ff6000;
+  --vtrade-header-bg: #070727;
+  --vtrade-section-bg: oklch(0.99 0 0);
+  --vtrade-cta-radius: 0.5rem; /* Tailwind rounded-lg */
+  --vtrade-card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --vtrade-card-shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
   --secondary: oklch(0.6 0.15 264);
   --secondary-foreground: oklch(1 0 0);
   --muted: oklch(0.97 0 0);
@@ -55,6 +62,13 @@
   /* VTrade brand: orange accent (approx #FF6000) */
   --primary: oklch(0.72 0.2 45);
   --primary-foreground: oklch(0.08 0 0);
+  /* VTrade marketing tokens (homepage polish) */
+  --vtrade-primary-hex: #ff6000;
+  --vtrade-header-bg: #070727;
+  --vtrade-section-bg: oklch(0.12 0 0);
+  --vtrade-cta-radius: 0.5rem; /* Tailwind rounded-lg */
+  --vtrade-card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --vtrade-card-shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.45), 0 4px 6px -4px rgb(0 0 0 / 0.35);
   --secondary: oklch(0.2 0 0);
   --secondary-foreground: oklch(0.95 0 0);
   --muted: oklch(0.2 0 0);
@@ -144,6 +158,40 @@
     background-color: color-mix(in oklab, var(--card), transparent 30%);
     backdrop-filter: blur(10px);
     border: 1px solid oklch(var(--border) / 0.8);
+  }
+
+  /* VTrade marketing polish utilities */
+  .vtrade-card-premium {
+    box-shadow: var(--vtrade-card-shadow);
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .vtrade-card-premium:hover {
+    box-shadow: var(--vtrade-card-shadow-hover);
+    transform: translateY(-2px);
+  }
+  .vtrade-cta-primary {
+    border-radius: var(--vtrade-cta-radius);
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: 0 10px 18px -12px rgb(0 0 0 / 0.35);
+    transition: transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+  }
+  .vtrade-cta-primary:hover {
+    background-color: color-mix(in oklab, var(--primary), black 12%);
+    box-shadow: 0 14px 22px -14px rgb(0 0 0 / 0.4);
+    transform: translateY(-1px);
+  }
+  .vtrade-cta-secondary {
+    border-radius: var(--vtrade-cta-radius);
+    border: 1px solid color-mix(in oklab, white, transparent 40%);
+    background-color: color-mix(in oklab, white, transparent 88%);
+    color: oklch(0.95 0 0);
+    transition: background-color 200ms ease, color 200ms ease, transform 200ms ease;
+  }
+  .vtrade-cta-secondary:hover {
+    background-color: white;
+    color: oklch(0.25 0 0);
+    transform: translateY(-1px);
   }
 
   /* Professional Mini Scrollbar */
