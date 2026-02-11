@@ -5,12 +5,15 @@
  * Author: Cursor / BharatERP
  * Last-updated: 2026-02-11
  * Notes:
- * - Uses native <details> for zero-JS toggle and SSR friendliness.
+ * - Client component using Radix Popover to match “floating chat” behavior.
  * - CTA defaults to internal `/contact` per project decision.
  */
 
+"use client"
+
 import React from "react"
 import Link from "next/link"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 function isEnabled(value: string | undefined, fallback = true): boolean {
   if (value === undefined) return fallback
@@ -28,8 +31,8 @@ export function JoinchatWidget(): React.JSX.Element | null {
 
   return (
     <div className="fixed bottom-5 right-5 z-50">
-      <details className="group">
-        <summary className="list-none">
+      <Popover>
+        <PopoverTrigger asChild>
           <button
             type="button"
             className="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
@@ -38,26 +41,28 @@ export function JoinchatWidget(): React.JSX.Element | null {
             <span className="h-2 w-2 rounded-full bg-white/90" />
             <span>Open Chat</span>
           </button>
-        </summary>
+        </PopoverTrigger>
 
-        <div className="mt-3 w-[min(340px,calc(100vw-40px))] overflow-hidden rounded-xl border bg-white shadow-2xl">
-          <div className="bg-emerald-600 px-4 py-3">
-            <p className="text-sm font-semibold text-white">{title}</p>
-          </div>
-          <div className="px-4 py-4">
-            <p className="text-sm text-slate-700">{message}</p>
-            <div className="mt-4 flex items-center justify-between">
-              <Link
-                href={ctaHref}
-                className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-              >
-                {ctaLabel}
-              </Link>
-              <span className="text-xs text-slate-400">Powered by Joinchat</span>
+        <PopoverContent align="end" side="top" sideOffset={12} className="w-[340px] p-0">
+          <div className="overflow-hidden rounded-xl border bg-white shadow-2xl">
+            <div className="bg-emerald-600 px-4 py-3">
+              <p className="text-sm font-semibold text-white">{title}</p>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-sm text-slate-700">{message}</p>
+              <div className="mt-4 flex items-center justify-between">
+                <Link
+                  href={ctaHref}
+                  className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                  {ctaLabel}
+                </Link>
+                <span className="text-xs text-slate-400">Powered by Joinchat</span>
+              </div>
             </div>
           </div>
-        </div>
-      </details>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

@@ -1,3 +1,13 @@
+/**
+ * File: components/auth/AuthHeader.tsx
+ * Module: components/auth
+ * Purpose: Auth header branding for login/register flows.
+ * Author: Cursor / BharatERP
+ * Last-updated: 2026-02-11
+ * Notes:
+ * - Updated branding from MarketPulse360 to VTrade.
+ */
+
 import { cn } from '@/lib/utils';
 import { Poppins } from 'next/font/google'
 import Image from 'next/image';
@@ -19,8 +29,8 @@ export const AuthHeader = ({ label }: HeaderProps) => {
                 font.className
             )}>
                 <Image 
-                src="https://firebasestorage.googleapis.com/v0/b/theaweshop.appspot.com/o/uploads%2Flogo.png?alt=media&token=248632f8-8183-4ba0-b999-3046c165ab09" 
-                alt="MarketPulse360 logo" 
+                src="/vtrade/logo.png"
+                alt="VTrade logo"
                 className='h-1/2 aspect-auto' 
                 width={500}
                 height={200}
