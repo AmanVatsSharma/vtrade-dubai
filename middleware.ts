@@ -9,7 +9,19 @@ import { isMaintenanceModeActive, canBypassMaintenance } from "@/lib/maintenance
  * @type {string[]}
  */
 const publicRoutes = [
-  // "/",
+  "/",
+  "/downloads",
+  "/blog",
+  "/news-blogs",
+  "/contact",
+  "/why-vtrade",
+  "/affiliate",
+  "/privacy-policy",
+  "/terms",
+  "/products",
+  "/products/*",
+  "/payment-method",
+  "/payment-method/*",
   "/auth/error",
   "/api/graphql",
   "/api/quotes",
