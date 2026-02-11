@@ -240,9 +240,9 @@ export default function KYC() {
 
   if (status === 'loading' || isLoadingKYC) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-gray-600">Loading KYC information...</p>
         </div>
       </div>
@@ -256,7 +256,7 @@ export default function KYC() {
   // Show error state with retry option
   if (error && !isLoadingKYC && !existingKYC) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 px-4">
         <div className="w-full max-w-md bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-slate-100 text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-semibold text-gray-900 mb-4">Error Loading KYC</h2>
@@ -264,7 +264,7 @@ export default function KYC() {
           <div className="space-y-3">
             <button
               onClick={() => window.location.reload()}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-lg shadow-lg transition"
+              className="w-full bg-primary hover:opacity-90 text-white font-medium py-3 rounded-lg shadow-lg transition"
             >
               Retry
             </button>
@@ -281,7 +281,7 @@ export default function KYC() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 px-4">
       <Button
         onClick={() => signOut({ callbackUrl: "/auth/login" })}
         className="fixed top-4 right-4 md:hidden bg-white/80 hover:bg-white/90 text-gray-700 shadow-lg rounded-full p-2 backdrop-blur-md"
@@ -334,7 +334,7 @@ export default function KYC() {
               placeholder="Enter Aadhaar Number"
               pattern="[0-9]{12}"
               maxLength={12}
-              className="w-full border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 rounded-lg px-4 py-2 transition shadow-sm"
+              className="w-full border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary rounded-lg px-4 py-2 transition shadow-sm"
             />
           </div>
 
@@ -350,7 +350,7 @@ export default function KYC() {
               placeholder="Enter PAN Number"
               pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
               maxLength={10}
-              className="w-full border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 rounded-lg px-4 py-2 transition shadow-sm"
+              className="w-full border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary rounded-lg px-4 py-2 transition shadow-sm"
             />
           </div>
 
@@ -363,7 +363,7 @@ export default function KYC() {
               accept="image/*,.pdf"
               onChange={e => setBankProof(e.target.files?.[0] || null)}
               required={!existingKYC?.bankProofUrl}
-              className="w-full border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 rounded-lg px-4 py-2 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 shadow-sm"
+              className="w-full border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary rounded-lg px-4 py-2 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 shadow-sm"
             />
             {existingKYC?.bankProofUrl && (
               <p className="text-sm text-gray-500 mt-1">
@@ -387,7 +387,7 @@ export default function KYC() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-70 text-white font-medium py-3 rounded-lg shadow-lg transition"
+            className="w-full bg-primary hover:opacity-90 disabled:opacity-70 text-white font-medium py-3 rounded-lg shadow-lg transition"
           >
             {loading ? "Submitting..." : existingKYC ? "Update KYC" : "Submit KYC"}
           </button>
