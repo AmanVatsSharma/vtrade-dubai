@@ -29,20 +29,20 @@ const PLATFORM_LINKS: PlatformLink[] = [
 
 export function PlatformStickyButtons(): React.JSX.Element {
   return (
-    <div className="fixed bottom-4 left-1/2 z-40 w-[min(92vw,900px)] -translate-x-1/2 px-1">
-      <div className="rounded-2xl border bg-white/95 shadow-xl shadow-black/10 backdrop-blur">
-        <div className="flex items-center justify-between gap-1 px-2 py-2 pr-16 sm:gap-2 sm:px-3">
+    <div className="fixed bottom-4 left-1/2 z-40 w-[min(94vw,980px)] -translate-x-1/2 px-1">
+      <div className="rounded-2xl border border-white/10 bg-[#070727]/92 shadow-2xl shadow-black/25 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-center gap-2 px-2 py-2 pr-16 sm:flex-nowrap sm:justify-between sm:gap-3 sm:px-3">
           {PLATFORM_LINKS.map((p) => (
             <Link
               key={p.id}
               href={p.href}
-              className="group flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 sm:text-sm"
+              className="group flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-black/20 transition-transform duration-200 hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#070727] sm:flex-1 sm:text-sm"
               aria-label={`Open ${p.label} downloads`}
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                <Image src={p.iconSrc} alt="" width={18} height={18} className="h-[18px] w-[18px]" aria-hidden="true" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                <Image src={p.iconSrc} alt="" width={18} height={18} className="h-[18px] w-[18px] text-white" aria-hidden="true" />
               </span>
-              <span className="hidden sm:inline">{p.label}</span>
+              <span className="whitespace-nowrap">{p.label}</span>
             </Link>
           ))}
         </div>

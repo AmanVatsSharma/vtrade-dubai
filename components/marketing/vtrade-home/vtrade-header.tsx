@@ -119,15 +119,15 @@ export function VTradeHeader(): React.JSX.Element {
           </div>
 
           {/* Mobile menu */}
-          <details className="relative lg:hidden">
-            <summary className="list-none">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15"
-                aria-label="Open menu"
-              >
-                Menu
-              </button>
+          <details className="group relative lg:hidden">
+            <summary
+              className="inline-flex cursor-pointer list-none items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070727]"
+              aria-label="Open menu"
+            >
+              <span className="mr-2">Menu</span>
+              <span className="text-white/70 transition-transform group-open:rotate-180" aria-hidden="true">
+                ▾
+              </span>
             </summary>
             <div className="absolute right-0 top-full z-50 mt-2 w-[min(92vw,360px)] overflow-hidden rounded-xl border bg-white shadow-2xl">
               <div className="p-3">

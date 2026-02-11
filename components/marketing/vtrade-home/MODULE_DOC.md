@@ -43,4 +43,5 @@
 - 2026-02-11: Centralized homepage copy/links into `lib/marketing/vtrade-homepage-content.ts` and added Zod-based Jest validation.
 - 2026-02-11: Fixed Vercel asset redirects by bypassing middleware for static assets (prevents 307 to `/auth/login` for `/vtrade/*` and other files).
 - 2026-02-11: Premium branding pass — added VTrade marketing tokens/utilities, upgraded header + CTAs + card depth/hover, added platform SVG icons, and added sticky platform quick-access bar.
+- 2026-02-11: Polished footer to premium dark VTrade style, fixed mobile header menu toggle behavior, and made floating platform buttons more prominent.
 
