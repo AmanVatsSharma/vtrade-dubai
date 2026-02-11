@@ -22,9 +22,12 @@ const CardWrapper = ({
     showSocial
 }: CardWrapperProps) => {
     return (
-        <Card className='md:w-[420px] w-full shadow-xl border-0 bg-white/80 backdrop-blur-md rounded-2xl'>
-            <CardHeader className="pb-2">
-                <AuthHeader label={headerLabel}/>
+        <Card className='md:w-[420px] w-full overflow-hidden rounded-2xl border-0 bg-white/80 shadow-xl backdrop-blur-md'>
+            {/* Dark header strip for logo contrast (VTrade navy) */}
+            <CardHeader className="bg-[#070727] pb-3 pt-5">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+                    <AuthHeader label={headerLabel}/>
+                </div>
             </CardHeader>
             <CardContent className="pt-0">
             {children}
