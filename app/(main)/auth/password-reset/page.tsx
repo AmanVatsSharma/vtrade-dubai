@@ -57,7 +57,7 @@ const PasswordResetContent = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-emerald-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <CardWrapper
           headerLabel="Reset your password"
@@ -70,7 +70,7 @@ const PasswordResetContent = () => {
               <FormError message={"Missing or invalid reset token."} />
               <p className="text-sm text-gray-600">Please use the password reset link from your email.</p>
               <div className="text-center">
-                <Link href="/auth/forgot-password" className="text-emerald-600 hover:text-emerald-700 font-medium">
+                <Link href="/auth/forgot-password" className="text-primary hover:opacity-90 font-medium">
                   Request a new reset link
                 </Link>
               </div>
@@ -90,7 +90,7 @@ const PasswordResetContent = () => {
                           disabled={isPending}
                           placeholder="Enter new password"
                           type="password"
-                          className="border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                          className="border-slate-300 focus:border-primary focus:ring focus:ring-primary/20 focus:ring-opacity-50 rounded-md shadow-sm"
                         />
                       </FormControl>
                       <FormMessage />
@@ -104,7 +104,7 @@ const PasswordResetContent = () => {
                 <Button
                   disabled={isPending}
                   type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
+                  className="w-full bg-primary hover:opacity-90 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
                 >
                   {isPending ? "Updating..." : "Update password"}
                 </Button>

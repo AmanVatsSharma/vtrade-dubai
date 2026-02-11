@@ -133,7 +133,7 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
                         disabled={isPending}
                         placeholder="••••••••"
                         type={showPassword ? 'text' : 'password'}
-                        className="pl-10 pr-10 border-slate-300 focus:border-emerald-600 focus:ring focus:ring-emerald-200 focus:ring-opacity-50 rounded-md shadow-sm"
+                        className="pl-10 pr-10 border-slate-300 focus:border-primary focus:ring focus:ring-primary/20 focus:ring-opacity-50 rounded-md shadow-sm"
                       />
                       <button
                         type="button"
@@ -157,14 +157,14 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
-                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded"
+                className="h-4 w-4 text-primary focus:ring-primary border-slate-300 rounded"
               />
               <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                 Remember me
               </label>
             </div>
             <div className="text-sm">
-              <Link href="/auth/forgot-password" className="font-medium text-emerald-700 hover:text-emerald-600">
+              <Link href="/auth/forgot-password" className="font-medium text-primary hover:opacity-90">
                 Forgot password?
               </Link>
             </div>
@@ -176,7 +176,7 @@ const MobileLoginForm: React.FC<MobileLoginFormProps> = ({ onLoginSuccess }) => 
           <Button
             disabled={isPending}
             type='submit'
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
+            className="w-full bg-primary hover:opacity-90 text-white font-bold py-3 px-4 rounded-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
           >
             {isPending ? (
               <div className="flex items-center justify-center">

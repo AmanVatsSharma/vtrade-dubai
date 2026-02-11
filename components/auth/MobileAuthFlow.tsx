@@ -215,13 +215,13 @@ const MobileAuthFlow: React.FC<MobileAuthFlowProps> = ({ initialStep = 'login' }
         <div className="mb-6">
           <div className="flex items-center justify-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${
-              ['login', 'register'].includes(currentStep) ? 'bg-emerald-600' : 'bg-gray-300'
+              ['login', 'register'].includes(currentStep) ? 'bg-primary' : 'bg-gray-300'
             }`} />
             <div className={`w-2 h-2 rounded-full ${
-              currentStep === 'otp' ? 'bg-emerald-600' : 'bg-gray-300'
+              currentStep === 'otp' ? 'bg-primary' : 'bg-gray-300'
             }`} />
             <div className={`w-2 h-2 rounded-full ${
-              ['mpin-setup', 'mpin-verify'].includes(currentStep) ? 'bg-emerald-600' : 'bg-gray-300'
+              ['mpin-setup', 'mpin-verify'].includes(currentStep) ? 'bg-primary' : 'bg-gray-300'
             }`} />
           </div>
           <div className="text-center mt-2 text-sm text-gray-600">
@@ -243,7 +243,7 @@ const MobileAuthFlow: React.FC<MobileAuthFlowProps> = ({ initialStep = 'login' }
                 New to VTrade?{" "}
                 <button
                   onClick={switchToRegister}
-                  className="text-emerald-600 hover:text-emerald-700 font-medium"
+                  className="text-primary hover:opacity-90 font-medium"
                 >
                   Create an account
                 </button>
@@ -253,7 +253,7 @@ const MobileAuthFlow: React.FC<MobileAuthFlowProps> = ({ initialStep = 'login' }
                 Already have an account?{' '}
                 <button
                   onClick={switchToLogin}
-                  className="text-emerald-600 hover:text-emerald-700 font-medium"
+                  className="text-primary hover:opacity-90 font-medium"
                 >
                   Sign in
                 </button>
