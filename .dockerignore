@@ -1,0 +1,20 @@
+# Docker build context exclusions
+.git
+.gitignore
+.cursor
+.vscode
+
+node_modules
+.next
+dist
+build
+coverage
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.env
+.env.*
+!.env.example
+
