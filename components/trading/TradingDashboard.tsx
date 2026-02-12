@@ -357,7 +357,7 @@ const TradingDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* Header - Responsive */}
-      <header className="bg-card border-b border-border sticky top-0 z-40 w-full backdrop-blur-lg bg-card/95">
+      <header className="border-b border-border sticky top-0 z-40 w-full backdrop-blur-lg bg-card/95">
         <div className="flex h-14 items-center justify-between px-3 sm:px-4 max-w-4xl mx-auto">
           <VtradeLogoLink href="/dashboard" priority className="shrink-0" />
           <div className="flex items-center gap-2 sm:gap-3 md:gap-4">

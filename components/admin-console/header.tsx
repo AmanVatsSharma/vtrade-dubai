@@ -17,6 +17,7 @@ import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { AdminNotificationBell } from "./admin-notification-bell"
 import { useAdminSession } from "@/components/admin-console/admin-session-provider"
+import { VtradeLogoLink } from "@/components/vtrade-logo-link"
 
 interface HeaderProps {
   onQRScannerOpen: () => void
@@ -56,6 +57,8 @@ export function Header({ onQRScannerOpen, onMobileMenuToggle }: HeaderProps) {
           >
             <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
+
+          <VtradeLogoLink href="/admin-console" priority className="shrink-0" />
 
           {/* Search - Hidden on small screens, shown on medium+ */}
           <div className="relative flex-1 max-w-md hidden sm:block min-w-0">
