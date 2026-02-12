@@ -2,7 +2,7 @@
  * @file order-worker.ts
  * @module scripts
  * @description Long-running order execution worker for EC2/Docker/ECS.
- * Run with: `pnpm tsx scripts/order-worker.ts` (or `npm run` equivalent).
+ * Run with: `npm run worker:order`.
  * @author BharatERP
  * @created 2026-02-03
  */

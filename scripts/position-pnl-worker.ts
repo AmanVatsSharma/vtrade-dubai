@@ -2,7 +2,7 @@
  * @file position-pnl-worker.ts
  * @module scripts
  * @description Long-running positions PnL worker for EC2/Docker/ECS.
- * Run with: `pnpm tsx scripts/position-pnl-worker.ts`.
+ * Run with: `npm run worker:pnl`.
  * @author BharatERP
  * @created 2026-02-04
  */
