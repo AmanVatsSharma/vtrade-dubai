@@ -2,7 +2,7 @@ module.exports = {
     apps: [
       {
         name: "vtrade-web",
-        cwd: "/opt/vtrade", // change to your repo path on server
+        cwd: "/home/ubuntu/vtrade-dubai",
         script: "node_modules/next/dist/bin/next",
         args: "start -p 3000",
         exec_mode: "cluster",
@@ -19,7 +19,7 @@ module.exports = {
   
       {
         name: "vtrade-order-worker",
-        cwd: "/opt/vtrade",
+        cwd: "/home/ubuntu/vtrade-dubai",
         script: "node_modules/tsx/dist/cli.mjs",
         args: "scripts/order-worker.ts",
         exec_mode: "fork",
@@ -36,7 +36,7 @@ module.exports = {
   
       {
         name: "vtrade-position-pnl-worker",
-        cwd: "/opt/vtrade",
+        cwd: "/home/ubuntu/vtrade-dubai",
         script: "node_modules/tsx/dist/cli.mjs",
         args: "scripts/position-pnl-worker.ts",
         exec_mode: "fork",
