@@ -60,17 +60,24 @@ export function useConsoleData(userId?: string) {
   const fetchPaymentSettings = useCallback(async () => {
     try {
       console.log('🔄 [USE-CONSOLE-DATA] Fetching payment settings')
-      const [qrRes, upiRes] = await Promise.all([
-        fetch('/api/admin/settings?key=payment_qr_code'),
-        fetch('/api/admin/settings?key=payment_upi_id')
-      ])
-      const [qrJson, upiJson] = await Promise.all([qrRes.json(), upiRes.json()])
-      const qr = qrJson?.setting?.value as string | undefined
-      const upi = upiJson?.setting?.value as string | undefined
-      setPaymentSettings({ upiId: upi, qrCodeUrl: qr })
-      console.log('✅ [USE-CONSOLE-DATA] Payment settings loaded', { upi, qr })
+      const response = await fetch("/api/settings/payment", { cache: "no-store" })
+      const json = await response.json()
+
+      if (!response.ok || !json?.success) {
+        throw new Error(json?.error || `Failed to load payment settings (${response.status})`)
+      }
+
+      const qr = (json?.data?.qrCodeUrl as string | null | undefined) ?? undefined
+      const upi = (json?.data?.upiId as string | null | undefined) ?? undefined
+
+      setPaymentSettings({
+        upiId: upi || undefined,
+        qrCodeUrl: qr || undefined,
+      })
+      console.log("✅ [USE-CONSOLE-DATA] Payment settings loaded", { upi, qr })
     } catch (e) {
       console.warn('⚠️ [USE-CONSOLE-DATA] Failed to load payment settings')
+      setPaymentSettings(null)
     }
   }, [])
 
@@ -293,6 +300,8 @@ export function useConsoleData(userId?: string) {
     consoleData,
     isLoading,
     error,
+    paymentSettings,
+    refetchPaymentSettings: fetchPaymentSettings,
     refetch: fetchConsoleData,
     updateUserProfile,
     addBankAccount,
