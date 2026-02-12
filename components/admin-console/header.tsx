@@ -9,7 +9,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Bell, Search, Settings, User, Moon, Sun, Menu, QrCode } from "lucide-react"
+import { Search, Settings, User, Moon, Sun, Menu, QrCode } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useEffect, useState } from "react"
