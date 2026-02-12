@@ -288,7 +288,7 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                                             />
                                                         ) : (
                                                             <span className="text-2xl font-bold text-blue-600">
-                                                                {(rmData.rm.name || "RM").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                                                                {(rmData.rm.name || "RM").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
                                                             </span>
                                                         )}
                                                     </div>
