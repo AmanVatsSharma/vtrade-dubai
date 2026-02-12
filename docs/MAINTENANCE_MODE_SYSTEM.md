@@ -104,8 +104,6 @@ env: {
 2. **Restart Application**:
    ```bash
    npm run dev
-   # or
-   pnpm dev
    ```
 
 3. **Verify**: Visit any route - you should be redirected to `/maintenance`
@@ -120,8 +118,6 @@ env: {
 2. **Restart Application**:
    ```bash
    npm run dev
-   # or
-   pnpm dev
    ```
 
 ### Admin Bypass

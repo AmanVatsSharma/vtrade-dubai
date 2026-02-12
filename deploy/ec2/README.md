@@ -55,8 +55,7 @@ Edit it and set real values (minimum):
 Then rerun:
 
 ```bash
-cd /opt/vtrade
-docker compose -f docker-compose.prod.yml up -d --build
+bash /opt/vtrade/deploy/ec2/deploy.sh up --build
 ```
 
 ## 3) Configure NGINX + TLS (Let’s Encrypt)
@@ -129,4 +128,23 @@ This deployment does **not** run risk monitoring as a long-running container. Th
 - `GET /api/cron/risk-monitoring` (protected by `CRON_SECRET`)
 
 You can schedule it externally (cron, EventBridge, etc.) to call it every 60 seconds.
+
+## Useful operational commands
+
+```bash
+# status (shows web + workers)
+bash /opt/vtrade/deploy/ec2/deploy.sh status
+
+# stop services
+bash /opt/vtrade/deploy/ec2/deploy.sh down
+
+# start services
+bash /opt/vtrade/deploy/ec2/deploy.sh up
+
+# restart everything
+bash /opt/vtrade/deploy/ec2/deploy.sh restart all
+
+# restart only the web container
+bash /opt/vtrade/deploy/ec2/deploy.sh restart web
+```
 
