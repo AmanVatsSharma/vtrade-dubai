@@ -31,6 +31,14 @@ sudo bash deploy/ec2/deploy.sh setup-ec2
 Notes:
 - The setup adds your `sudo` user to the `docker` group. **Log out and log back in** (or reboot) to use docker without sudo.
 
+## Interactive mode (recommended)
+
+You can also run the script with **no arguments** and it will show a menu:
+
+```bash
+bash /opt/vtrade/deploy/ec2/deploy.sh
+```
+
 ## 2) Fresh install (clone to /opt/vtrade and start containers)
 
 ```bash

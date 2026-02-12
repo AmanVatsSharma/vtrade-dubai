@@ -22,6 +22,7 @@ DOMAIN_WWW="www.tradebazar.live"
 NGINX_SITE_NAME="tradebazar.live.conf"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SELF_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
 
 compose() {
   (cd "$APP_DIR" && docker compose -f docker-compose.prod.yml "$@")
@@ -50,6 +51,9 @@ usage() {
   cat <<'EOF'
 Usage:
   deploy/ec2/deploy.sh <command> [options]
+
+Tip:
+  Run without a command to open an interactive menu.
 
 Commands:
   status
@@ -89,6 +93,195 @@ Environment overrides:
   APP_DIR=/opt/vtrade
 
 EOF
+}
+
+is_tty() {
+  [[ -t 0 && -t 1 ]]
+}
+
+pause() {
+  if is_tty; then
+    read -r -p "Press Enter to continue..." _
+  fi
+}
+
+prompt_yes_no() {
+  local prompt="$1"
+  local default="${2:-N}" # Y or N
+  local suffix="[y/N]"
+  if [[ "$default" == "Y" ]]; then
+    suffix="[Y/n]"
+  fi
+
+  while true; do
+    local ans=""
+    read -r -p "${prompt} ${suffix} " ans
+    ans="${ans:-$default}"
+    case "${ans,,}" in
+      y|yes) return 0 ;;
+      n|no) return 1 ;;
+      *) log "Please answer y or n." ;;
+    esac
+  done
+}
+
+run_self() {
+  bash "$SELF_PATH" "$@"
+}
+
+run_self_root() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    run_self "$@"
+    return $?
+  fi
+
+  sudo APP_DIR="$APP_DIR" bash "$SELF_PATH" "$@"
+}
+
+run_menu_cmd() {
+  local title="$1"
+  shift || true
+
+  log ""
+  log "============================================================"
+  log "$title"
+  log "============================================================"
+
+  if "$@"; then
+    log ""
+    log "✅ Done."
+  else
+    local rc=$?
+    log ""
+    log "❌ Failed (exit code: $rc)."
+  fi
+
+  log ""
+  pause
+}
+
+interactive_menu() {
+  if ! is_tty; then
+    usage
+    return 0
+  fi
+
+  while true; do
+    log ""
+    log "==================== VTrade EC2 Deploy Menu ===================="
+    log "APP_DIR: $APP_DIR"
+    log "Domain : $DOMAIN_APEX / $DOMAIN_WWW"
+    log "==============================================================="
+    log " 1) Setup EC2 (Docker, Compose, NGINX, Certbot, UFW)  [sudo]"
+    log " 2) Fresh install (clone -> build -> up)"
+    log " 3) Setup NGINX + TLS (Certbot)                      [sudo]"
+    log " 4) Up (start services)"
+    log " 5) Up --build (rebuild images + start)"
+    log " 6) Status"
+    log " 7) Logs"
+    log " 8) Update (git pull + rebuild + up)"
+    log " 9) Restart workers"
+    log "10) Restart service (web/worker/all)"
+    log "11) Down (stop services)"
+    log " 0) Exit"
+    log "---------------------------------------------------------------"
+
+    local choice=""
+    read -r -p "Select option: " choice
+
+    case "$choice" in
+      1)
+        run_menu_cmd "Setup EC2" run_self_root setup-ec2
+        ;;
+      2)
+        local defaultRepo=""
+        defaultRepo="$(detect_repo_url)"
+
+        local repoUrl=""
+        if [[ -n "$defaultRepo" ]]; then
+          read -r -p "Git repo URL [$defaultRepo]: " repoUrl
+          repoUrl="${repoUrl:-$defaultRepo}"
+        else
+          read -r -p "Git repo URL (required): " repoUrl
+        fi
+        if [[ -z "$repoUrl" ]]; then
+          log "Repo URL is required."
+          pause
+          continue
+        fi
+
+        local branch=""
+        read -r -p "Git branch [main]: " branch
+        branch="${branch:-main}"
+
+        local args=(fresh-install --repo "$repoUrl" --branch "$branch")
+        if prompt_yes_no "Wipe $APP_DIR before install? (destructive)" "N"; then
+          args+=(--wipe)
+        fi
+
+        run_menu_cmd "Fresh install" run_self "${args[@]}"
+        ;;
+      3)
+        run_menu_cmd "Setup NGINX + TLS" run_self_root setup-nginx-tls
+        ;;
+      4)
+        run_menu_cmd "Up" run_self up
+        ;;
+      5)
+        run_menu_cmd "Up (rebuild)" run_self up --build
+        ;;
+      6)
+        run_menu_cmd "Status" run_self status
+        ;;
+      7)
+        local service=""
+        log ""
+        log "Services: web | order-worker | position-pnl-worker | all"
+        read -r -p "Service [web]: " service
+        service="${service:-web}"
+
+        local tail=""
+        read -r -p "Tail lines [200]: " tail
+        tail="${tail:-200}"
+
+        run_menu_cmd "Logs ($service)" run_self logs "$service" --tail "$tail"
+        ;;
+      8)
+        local updBranch=""
+        read -r -p "Git branch to update [main]: " updBranch
+        updBranch="${updBranch:-main}"
+        run_menu_cmd "Update app" run_self update --branch "$updBranch"
+        ;;
+      9)
+        if prompt_yes_no "Rebuild worker images before restarting?" "N"; then
+          run_menu_cmd "Restart workers (rebuild)" run_self restart-workers --rebuild
+        else
+          run_menu_cmd "Restart workers" run_self restart-workers
+        fi
+        ;;
+      10)
+        local rs=""
+        log ""
+        log "Services: web | order-worker | position-pnl-worker | all"
+        read -r -p "Service [all]: " rs
+        rs="${rs:-all}"
+        run_menu_cmd "Restart ($rs)" run_self restart "$rs"
+        ;;
+      11)
+        if prompt_yes_no "Stop services (docker compose down)?" "N"; then
+          run_menu_cmd "Down" run_self down
+        fi
+        ;;
+      0|q|quit|exit)
+        log "Bye."
+        return 0
+        ;;
+      *)
+        log "Invalid option."
+        pause
+        ;;
+    esac
+  done
 }
 
 require_app_dir() {
@@ -436,6 +629,11 @@ restart_cmd() {
 
 main() {
   local cmd="${1:-}"
+  if [[ -z "$cmd" ]]; then
+    interactive_menu
+    return 0
+  fi
+
   shift || true
 
   case "$cmd" in
