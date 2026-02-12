@@ -43,7 +43,7 @@ services:
     depends_on:
       web:
         condition: service_healthy
-    command: ["pnpm", "tsx", "scripts/order-worker.ts"]
+    command: ["npm", "run", "worker:order"]
 
   position-pnl-worker:
     build:
@@ -62,5 +62,5 @@ services:
     depends_on:
       web:
         condition: service_healthy
-    command: ["pnpm", "tsx", "scripts/position-pnl-worker.ts"]
+    command: ["npm", "run", "worker:pnl"]
 
