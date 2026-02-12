@@ -10,6 +10,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from "react"
 import { TrendingUp, Wallet, FileText, Eye, Loader2, RefreshCcw, Wifi, WifiOff, AlertCircle, Home } from "lucide-react"
+import { VtradeLogoLink } from "@/components/vtrade-logo-link"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -358,12 +359,7 @@ const TradingDashboard: React.FC = () => {
       {/* Header - Responsive */}
       <header className="bg-card border-b border-border sticky top-0 z-40 w-full backdrop-blur-lg bg-card/95">
         <div className="flex h-14 items-center justify-between px-3 sm:px-4 max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm">
-              <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            </div>
-            <span className="text-sm sm:text-base font-semibold hidden xs:inline">VTrade</span>
-          </div>
+          <VtradeLogoLink href="/dashboard" priority className="shrink-0" />
           <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
             {INDEX_CONFIGS.map(({ name, instrumentId }) => (
               <IndexDisplay
