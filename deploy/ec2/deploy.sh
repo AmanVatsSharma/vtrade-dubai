@@ -52,6 +52,18 @@ Usage:
   deploy/ec2/deploy.sh <command> [options]
 
 Commands:
+  status
+      Show running containers/services (docker compose ps).
+
+  up [--build]
+      Start services (docker compose up -d). With --build, rebuild images.
+
+  down
+      Stop services (docker compose down).
+
+  restart [service|all]
+      Restart all services or a single service (docker compose restart).
+
   setup-ec2
       Install docker engine, compose plugin, nginx, certbot, and basic firewall rules.
 
@@ -77,6 +89,11 @@ Environment overrides:
   APP_DIR=/opt/vtrade
 
 EOF
+}
+
+require_app_dir() {
+  [[ -d "$APP_DIR" ]] || die "APP_DIR not found: $APP_DIR"
+  [[ -f "$APP_DIR/docker-compose.prod.yml" ]] || die "Missing docker-compose.prod.yml in $APP_DIR"
 }
 
 detect_repo_url() {
@@ -313,6 +330,7 @@ update_app() {
 }
 
 show_logs() {
+  require_app_dir
   local service="${1:-web}"
   local tail="200"
 
@@ -339,6 +357,7 @@ show_logs() {
 }
 
 restart_workers() {
+  require_app_dir
   local rebuild="false"
 
   while [[ $# -gt 0 ]]; do
@@ -365,11 +384,73 @@ restart_workers() {
   log "✅ Workers updated/restarted."
 }
 
+status_cmd() {
+  need_cmd docker
+  require_app_dir
+  compose ps
+}
+
+down_cmd() {
+  need_cmd docker
+  require_app_dir
+  compose down
+}
+
+up_cmd() {
+  need_cmd docker
+  require_app_dir
+
+  local build="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --build)
+        build="true"; shift 1
+        ;;
+      *)
+        die "Unknown option: $1"
+        ;;
+    esac
+  done
+
+  ensure_env_file
+  assert_env_sane
+
+  if [[ "$build" == "true" ]]; then
+    compose up -d --build --remove-orphans
+  else
+    compose up -d --remove-orphans
+  fi
+}
+
+restart_cmd() {
+  need_cmd docker
+  require_app_dir
+
+  local service="${1:-all}"
+  if [[ "$service" == "all" ]]; then
+    compose restart
+    return 0
+  fi
+  compose restart "$service"
+}
+
 main() {
   local cmd="${1:-}"
   shift || true
 
   case "$cmd" in
+    status)
+      status_cmd "$@"
+      ;;
+    up)
+      up_cmd "$@"
+      ;;
+    down)
+      down_cmd "$@"
+      ;;
+    restart)
+      restart_cmd "$@"
+      ;;
     setup-ec2)
       setup_ec2 "$@"
       ;;

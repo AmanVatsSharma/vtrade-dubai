@@ -225,8 +225,6 @@ const result = await positionService.closePosition(
 ```bash
 # All dependencies already in package.json
 npm install
-# or
-pnpm install
 ```
 
 ### **Step 2: Update Imports**

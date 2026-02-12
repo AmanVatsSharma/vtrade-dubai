@@ -8,7 +8,7 @@ ERRORS=0
 if [ -d "node_modules" ]; then
     echo "✅ node_modules installed"
 else
-    echo "❌ node_modules missing - run: pnpm install"
+    echo "❌ node_modules missing - run: npm install"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -30,7 +30,7 @@ fi
 if [ -d "node_modules/.prisma" ] || [ -d "node_modules/@prisma/client" ]; then
     echo "✅ Prisma client generated"
 else
-    echo "❌ Prisma client not generated - run: pnpm prisma generate"
+    echo "❌ Prisma client not generated - run: npm run generate"
     ERRORS=$((ERRORS + 1))
 fi
 
