@@ -73,7 +73,7 @@ export function VTradeHeader(): React.JSX.Element {
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
             <Image
-              src="/vtrade/logo.png"
+              src="/vtrade/logo_dark.png"
               alt="VTrade"
               width={140}
               height={40}

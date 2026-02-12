@@ -1,11 +1,11 @@
 /**
 * File: components/vtrade-logo-link.tsx
 * Module: components
-* Purpose: Reusable VTrade logo link with contrast-safe backdrop for light logo assets.
+* Purpose: Reusable VTrade logo link that switches by theme (light/dark assets).
 * Author: Cursor / BharatERP
 * Last-updated: 2026-02-12
 * Notes:
-* - Uses a dark pill background so the white logo remains legible on light/glass headers.
+* - Uses Tailwind `dark:` classes to swap logo assets without JS/theme hooks.
 * - Prefer using this component instead of re-implementing the logo in multiple headers.
 */
 
@@ -31,19 +31,26 @@ export function VtradeLogoLink({
       href={href}
       aria-label="Go to VTrade home"
       className={[
-        "inline-flex items-center rounded-lg border border-white/10 bg-[#070727]/90 px-2 py-1 shadow-sm",
-        "hover:bg-[#070727] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#070727]",
+        "inline-flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
       <Image
-        src="/vtrade/logo.png"
-        alt="VTrade"
+        src="/vtrade/logo_light.png"
+        alt="VTrade logo"
         width={140}
         height={40}
-        className={["h-7 w-auto sm:h-8", imageClassName].filter(Boolean).join(" ")}
+        className={["h-7 w-auto sm:h-8 dark:hidden", imageClassName].filter(Boolean).join(" ")}
+        priority={priority}
+      />
+      <Image
+        src="/vtrade/logo_dark.png"
+        alt="VTrade logo"
+        width={140}
+        height={40}
+        className={["hidden h-7 w-auto sm:h-8 dark:block", imageClassName].filter(Boolean).join(" ")}
         priority={priority}
       />
     </Link>
