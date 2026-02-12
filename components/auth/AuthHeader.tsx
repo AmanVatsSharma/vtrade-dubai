@@ -29,7 +29,7 @@ export const AuthHeader = ({ label }: HeaderProps) => {
                 font.className
             )}>
                 <Image 
-                src="/vtrade/logo.png"
+                src="/vtrade/logo_dark.png"
                 alt="VTrade logo"
                 className='h-1/2 aspect-auto' 
                 width={500}

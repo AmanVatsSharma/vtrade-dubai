@@ -347,7 +347,7 @@ export function VTradeFooter(): React.JSX.Element {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <div className="flex items-center gap-3">
-              <Image src="/vtrade/logo.png" alt="VTrade" width={140} height={40} className="h-9 w-auto" />
+              <Image src="/vtrade/logo_dark.png" alt="VTrade" width={140} height={40} className="h-9 w-auto" />
             </div>
             <p className="mt-3 text-sm text-white/75">Trade Live. Trade Sharp.</p>
 
