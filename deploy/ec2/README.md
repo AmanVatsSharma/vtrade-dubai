@@ -39,6 +39,24 @@ You can also run the script with **no arguments** and it will show a menu:
 bash /opt/vtrade/deploy/ec2/deploy.sh
 ```
 
+## Using an existing repo “in place” (no cloning)
+
+If you already have the repo checked out somewhere (example: `~/vtrade`), **don’t use fresh-install**.
+Just create `.env` in that same repo root and run `up`.
+
+```bash
+cd ~/vtrade
+
+# 1) Create env file in THIS repo directory
+cp .env.example .env
+nano .env   # or vi .env
+
+# 2) Build + start using this repo directory
+bash deploy/ec2/deploy.sh up --build
+```
+
+The script auto-detects `APP_DIR` as the repo you run it from (so `.env` is `./.env`).
+
 ## 2) Fresh install (clone to /opt/vtrade and start containers)
 
 ```bash

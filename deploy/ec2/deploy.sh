@@ -16,7 +16,8 @@
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/vtrade}"
+DEFAULT_APP_DIR="/opt/vtrade"
+APP_DIR="${APP_DIR:-}"
 DOMAIN_APEX="tradebazar.live"
 DOMAIN_WWW="www.tradebazar.live"
 NGINX_SITE_NAME="tradebazar.live.conf"
@@ -54,6 +55,7 @@ Usage:
 
 Tip:
   Run without a command to open an interactive menu.
+  By default, the script auto-detects APP_DIR as the current repo directory.
 
 Commands:
   status
@@ -95,6 +97,27 @@ Environment overrides:
 EOF
 }
 
+resolve_app_dir() {
+  if [[ -n "${APP_DIR:-}" ]]; then
+    return 0
+  fi
+
+  # Prefer the directory you're running from (repo root).
+  if [[ -f "$PWD/docker-compose.prod.yml" ]]; then
+    APP_DIR="$PWD"
+    return 0
+  fi
+
+  # If invoked from within the repo but not at root, use the script's repo root.
+  if [[ -f "$REPO_ROOT/docker-compose.prod.yml" ]]; then
+    APP_DIR="$REPO_ROOT"
+    return 0
+  fi
+
+  # Fallback for fresh EC2 installs.
+  APP_DIR="$DEFAULT_APP_DIR"
+}
+
 is_tty() {
   [[ -t 0 && -t 1 ]]
 }
@@ -130,6 +153,7 @@ run_self() {
 }
 
 run_self_root() {
+  resolve_app_dir
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
     run_self "$@"
     return $?
@@ -161,6 +185,7 @@ run_menu_cmd() {
 }
 
 interactive_menu() {
+  resolve_app_dir
   if ! is_tty; then
     usage
     return 0
@@ -194,32 +219,68 @@ interactive_menu() {
         run_menu_cmd "Setup EC2" run_self_root setup-ec2
         ;;
       2)
-        local defaultRepo=""
-        defaultRepo="$(detect_repo_url)"
+        # If a repo already exists at APP_DIR, prefer using it (no re-clone).
+        if [[ -d "$APP_DIR/.git" ]]; then
+          log ""
+          log "Repo detected at $APP_DIR."
+          if prompt_yes_no "Use existing repo (skip clone) and build+up?" "Y"; then
+            run_menu_cmd "Build + up (existing repo)" run_self fresh-install
+          else
+            local defaultRepo=""
+            defaultRepo="$(detect_repo_url)"
 
-        local repoUrl=""
-        if [[ -n "$defaultRepo" ]]; then
-          read -r -p "Git repo URL [$defaultRepo]: " repoUrl
-          repoUrl="${repoUrl:-$defaultRepo}"
+            local repoUrl=""
+            if [[ -n "$defaultRepo" ]]; then
+              read -r -p "Git repo URL [$defaultRepo]: " repoUrl
+              repoUrl="${repoUrl:-$defaultRepo}"
+            else
+              read -r -p "Git repo URL (required): " repoUrl
+            fi
+            if [[ -z "$repoUrl" ]]; then
+              log "Repo URL is required."
+              pause
+              continue
+            fi
+
+            local branch=""
+            read -r -p "Git branch [main]: " branch
+            branch="${branch:-main}"
+
+            local args=(fresh-install --repo "$repoUrl" --branch "$branch")
+            if prompt_yes_no "Wipe $APP_DIR before install? (destructive)" "N"; then
+              args+=(--wipe)
+            fi
+
+            run_menu_cmd "Fresh install" run_self "${args[@]}"
+          fi
         else
-          read -r -p "Git repo URL (required): " repoUrl
-        fi
-        if [[ -z "$repoUrl" ]]; then
-          log "Repo URL is required."
-          pause
-          continue
-        fi
+          local defaultRepo=""
+          defaultRepo="$(detect_repo_url)"
 
-        local branch=""
-        read -r -p "Git branch [main]: " branch
-        branch="${branch:-main}"
+          local repoUrl=""
+          if [[ -n "$defaultRepo" ]]; then
+            read -r -p "Git repo URL [$defaultRepo]: " repoUrl
+            repoUrl="${repoUrl:-$defaultRepo}"
+          else
+            read -r -p "Git repo URL (required): " repoUrl
+          fi
+          if [[ -z "$repoUrl" ]]; then
+            log "Repo URL is required."
+            pause
+            continue
+          fi
 
-        local args=(fresh-install --repo "$repoUrl" --branch "$branch")
-        if prompt_yes_no "Wipe $APP_DIR before install? (destructive)" "N"; then
-          args+=(--wipe)
+          local branch=""
+          read -r -p "Git branch [main]: " branch
+          branch="${branch:-main}"
+
+          local args=(fresh-install --repo "$repoUrl" --branch "$branch")
+          if prompt_yes_no "Wipe $APP_DIR before install? (destructive)" "N"; then
+            args+=(--wipe)
+          fi
+
+          run_menu_cmd "Fresh install" run_self "${args[@]}"
         fi
-
-        run_menu_cmd "Fresh install" run_self "${args[@]}"
         ;;
       3)
         run_menu_cmd "Setup NGINX + TLS" run_self_root setup-nginx-tls
@@ -285,6 +346,7 @@ interactive_menu() {
 }
 
 require_app_dir() {
+  resolve_app_dir
   [[ -d "$APP_DIR" ]] || die "APP_DIR not found: $APP_DIR"
   [[ -f "$APP_DIR/docker-compose.prod.yml" ]] || die "Missing docker-compose.prod.yml in $APP_DIR"
 }
@@ -435,6 +497,7 @@ install_nginx_site_and_tls() {
 }
 
 fresh_install() {
+  resolve_app_dir
   local repoUrl=""
   local branch="main"
   local wipe="false"
@@ -459,11 +522,6 @@ fresh_install() {
   need_cmd git
   need_cmd docker
 
-  if [[ -z "$repoUrl" ]]; then
-    repoUrl="$(detect_repo_url)"
-  fi
-  [[ -n "$repoUrl" ]] || die "Repo URL not provided. Use: fresh-install --repo <git-url>"
-
   if [[ "$wipe" == "true" ]]; then
     log "⚠️  Wiping $APP_DIR (destructive)..."
     sudo rm -rf "$APP_DIR"
@@ -472,6 +530,11 @@ fresh_install() {
   if [[ -d "$APP_DIR/.git" ]]; then
     log "Repo already present at $APP_DIR. Skipping clone."
   else
+    if [[ -z "$repoUrl" ]]; then
+      repoUrl="$(detect_repo_url)"
+    fi
+    [[ -n "$repoUrl" ]] || die "Repo URL not provided. Use: fresh-install --repo <git-url>"
+
     log "Cloning repo to $APP_DIR..."
     sudo mkdir -p "$APP_DIR"
     sudo chown -R "$(id -u):$(id -g)" "$APP_DIR"
