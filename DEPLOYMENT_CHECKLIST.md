@@ -59,19 +59,19 @@ On EC2/Docker (recommended for full worker reliability), run:
 1) **Web app**
 
 ```bash
-pnpm start
+npm run start
 ```
 
 2) **Order execution worker** (recommended always-on)
 
 ```bash
-ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 pnpm tsx scripts/order-worker.ts
+ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 npm run worker:order
 ```
 
 3) **Position PnL worker** (only if PnL mode is `server`)
 
 ```bash
-POSITION_PNL_WORKER_INTERVAL_MS=3000 POSITION_PNL_WORKER_BATCH_LIMIT=500 POSITION_PNL_UPDATE_THRESHOLD=1 pnpm tsx scripts/position-pnl-worker.ts
+POSITION_PNL_WORKER_INTERVAL_MS=3000 POSITION_PNL_WORKER_BATCH_LIMIT=500 POSITION_PNL_UPDATE_THRESHOLD=1 npm run worker:pnl
 ```
 
 4) **Risk monitoring** (cron/scheduler)
