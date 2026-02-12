@@ -13,7 +13,7 @@ import { signOut } from "next-auth/react"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { ModeToggle } from "@/components/ui/modeToggle"
+import { ThemeTabSelector } from "@/components/ui/theme-tab-selector"
 import { toast } from "@/hooks/use-toast"
 import { useTransactions } from "@/lib/hooks/use-trading-data"
 import { useConsoleFeatures } from "@/lib/hooks/use-console-features"
@@ -214,6 +214,19 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                     </div>
 
                     <div className="p-4 sm:p-6 space-y-6">
+                        {/* Appearance (Theme) - moved out of Profile drawer */}
+                        <div className="rounded-2xl border border-gray-100 bg-white/70 backdrop-blur-md shadow-sm dark:border-slate-800 dark:bg-white/5">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4">
+                                <div className="min-w-0">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Appearance</h3>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                                        Choose Light, Dark, or follow your System theme.
+                                    </p>
+                                </div>
+                                <ThemeTabSelector />
+                            </div>
+                        </div>
+
                         {/* Funds summary - premium card look, mobile stacking */}
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             <StatCard icon={<DollarSign size={22} />} title="Total Balance" value={formatCurrency(account?.balance)} color="bg-emerald-100 text-emerald-600" />
@@ -446,8 +459,6 @@ export function Account({ portfolio, user, onUpdate }: AccountProps) {
                                 PayLater activation: Inactive. Can be activated by support team.
                             </div>
                         </div>
-
-                        <ModeToggle/>
 
                         {/* Footer */}
                         <div className="pt-2 text-xs text-gray-500 dark:text-slate-400">
