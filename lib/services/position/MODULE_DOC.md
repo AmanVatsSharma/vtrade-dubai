@@ -2,7 +2,7 @@
 MODULE_DOC.md
 Module: lib/services/position
 Purpose: Position management + server-side PnL computation worker.
-Last-updated: 2026-02-04
+Last-updated: 2026-02-11
 -->
 
 ## Overview
@@ -64,7 +64,7 @@ Run alongside the web app:
 POSITION_PNL_WORKER_INTERVAL_MS=3000 \
 POSITION_PNL_WORKER_BATCH_LIMIT=500 \
 POSITION_PNL_UPDATE_THRESHOLD=1 \
-pnpm tsx scripts/position-pnl-worker.ts
+npm run worker:pnl
 ```
 
 ### Serverless cron (Vercel / EventBridge)
@@ -89,4 +89,5 @@ Admin Console uses it to show **Worker Active** vs **Not Active**.
 ## Changelog
 
 - **2026-02-04**: Added `PositionPnLWorker` + cron endpoint + EC2 script + heartbeat setting + admin toggle support.
+- **2026-02-11**: Updated EC2/Docker runbook commands to use npm scripts for workers.
 

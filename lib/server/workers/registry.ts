@@ -112,7 +112,7 @@ export async function getWorkersSnapshot(options: WorkersSnapshotOptions = {}): 
       cronLimitDefault: 25,
       cronEndpoint: "/api/cron/order-worker",
     },
-    ec2Command: "ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 pnpm tsx scripts/order-worker.ts",
+    ec2Command: "ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 npm run worker:order",
     cronEndpoint: "/api/cron/order-worker",
   }
 
@@ -138,7 +138,7 @@ export async function getWorkersSnapshot(options: WorkersSnapshotOptions = {}): 
       cronEndpoint: "/api/cron/position-pnl-worker",
     },
     ec2Command:
-      "POSITION_PNL_WORKER_INTERVAL_MS=3000 POSITION_PNL_WORKER_BATCH_LIMIT=500 POSITION_PNL_UPDATE_THRESHOLD=1 pnpm tsx scripts/position-pnl-worker.ts",
+      "POSITION_PNL_WORKER_INTERVAL_MS=3000 POSITION_PNL_WORKER_BATCH_LIMIT=500 POSITION_PNL_UPDATE_THRESHOLD=1 npm run worker:pnl",
     cronEndpoint: "/api/cron/position-pnl-worker",
   }
 
