@@ -71,6 +71,24 @@ export class OrderExecutionWorker {
   private transactionRepo = new TransactionRepository()
 
   /**
+   * Compute a deterministic 64-bit advisory lock key for an order.
+   *
+   * We intentionally use the single-argument overload `pg_try_advisory_xact_lock(bigint)`
+   * to avoid Postgres overload mismatch issues that can happen with `(bigint, integer)`.
+   *
+   * Layout:
+   * - High 32 bits: ORDER_EXECUTION_ADVISORY_LOCK_NS
+   * - Low  32 bits: hashtext(orderId::text) (masked to unsigned 32-bit)
+   */
+  private buildOrderExecutionAdvisoryLockSql(orderId: string): Prisma.Sql {
+    return Prisma.sql`
+      SELECT pg_try_advisory_xact_lock(
+        ((${ORDER_EXECUTION_ADVISORY_LOCK_NS}::bigint << 32) | (hashtext(${orderId}::text)::bigint & 4294967295))
+      ) AS locked
+    `
+  }
+
+  /**
    * Process the oldest PENDING orders.
    * Designed for: EC2 loop worker OR Lambda/EventBridge scheduled trigger.
    */
@@ -163,7 +181,7 @@ export class OrderExecutionWorker {
       const txResult = await executeInTransaction<TxResult>(async (tx) => {
         // Advisory lock (per-order) to keep execution idempotent across cron + serverless + EC2 workers.
         const lockRows = await tx.$queryRaw<{ locked: boolean }[]>(
-          Prisma.sql`SELECT pg_try_advisory_xact_lock(${ORDER_EXECUTION_ADVISORY_LOCK_NS}, hashtext(${orderId})) AS locked`
+          this.buildOrderExecutionAdvisoryLockSql(orderId)
         )
         const locked = lockRows?.[0]?.locked === true
         if (!locked) {
@@ -272,7 +290,7 @@ export class OrderExecutionWorker {
       try {
         const comp = await executeInTransaction(async (tx) => {
           const lockRows = await tx.$queryRaw<{ locked: boolean }[]>(
-            Prisma.sql`SELECT pg_try_advisory_xact_lock(${ORDER_EXECUTION_ADVISORY_LOCK_NS}, hashtext(${orderId})) AS locked`
+            this.buildOrderExecutionAdvisoryLockSql(orderId)
           )
           const locked = lockRows?.[0]?.locked === true
           if (!locked) return { cancelled: false }

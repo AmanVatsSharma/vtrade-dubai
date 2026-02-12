@@ -55,6 +55,30 @@ describe("OrderExecutionWorker", () => {
     txMock.$queryRaw.mockResolvedValue([{ locked: true }])
   })
 
+  it("uses single-argument bigint advisory lock key (regression)", async () => {
+    prismaMock.order.findUnique.mockResolvedValue(null)
+
+    const worker = new OrderExecutionWorker()
+    await worker.processOrderById("o-lock-regression")
+
+    expect(txMock.$queryRaw).toHaveBeenCalled()
+    const firstCallArg = txMock.$queryRaw.mock.calls[0]?.[0] as any
+
+    // Prisma.sql(...) typically produces an object with a `.sql` string field.
+    const sqlText =
+      typeof firstCallArg === "string"
+        ? firstCallArg
+        : typeof firstCallArg?.sql === "string"
+          ? firstCallArg.sql
+          : ""
+
+    expect(sqlText).toContain("pg_try_advisory_xact_lock")
+    expect(sqlText).toContain("<< 32")
+    expect(sqlText).toContain("hashtext")
+    // Guard against reintroducing the 2-argument overload usage.
+    expect(sqlText).not.toMatch(/pg_try_advisory_xact_lock\s*\([^)]*,/)
+  })
+
   it("cancels a PENDING order when no valid execution price is available", async () => {
     prismaMock.order.findUnique.mockResolvedValue({
       id: "o-1",
