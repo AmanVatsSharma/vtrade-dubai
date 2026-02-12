@@ -45,7 +45,6 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { getMarketSession, setNSEHolidays, setMarketForceClosed } from "@/lib/hooks/market-timing"
-import Image from "next/image"
 import { HomeTabSettings } from "./home-tab-settings"
 
 interface SystemSetting {
@@ -667,11 +666,10 @@ export function Settings() {
                   {/* QR Code Preview */}
                   {qrCodePreview && (
                     <div className="relative w-64 h-64 border-2 border-primary/30 rounded-lg overflow-hidden">
-                      <Image 
-                        src={qrCodePreview} 
-                        alt="Payment QR Code" 
-                        fill
-                        className="object-contain p-4"
+                      <img
+                        src={qrCodePreview}
+                        alt="Payment QR Code"
+                        className="w-full h-full object-contain p-4"
                       />
                     </div>
                   )}

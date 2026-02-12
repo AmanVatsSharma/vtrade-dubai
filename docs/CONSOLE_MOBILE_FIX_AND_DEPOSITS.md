@@ -7,7 +7,7 @@
   - Keeping sidebar drawer body scroll lock only when open.
 - Wired deposits UPI modal to admin-configurable settings:
   - Admin uploads QR image and sets UPI ID in `/admin-console` → Settings.
-  - User `/console` deposits section reads `payment_qr_code` and `payment_upi_id` via `/api/admin/settings`.
+  - User `/console` deposits section reads `payment_qr_code` and `payment_upi_id` via `/api/settings/payment` (auth-only, non-admin).
   - `UPIPaymentModal` accepts `upiId` and `qrCodeUrl` props with safe fallbacks.
 
 ## Flow
@@ -18,7 +18,7 @@
    - API persists into `SystemSettings` with keys `payment_qr_code`, `payment_upi_id`
 2. User
    - Go to `/console` → Deposits → select UPI → Proceed
-   - `DepositsSection` fetches settings and passes to `UPIPaymentModal`
+   - `DepositsSection` fetches settings via `/api/settings/payment` and passes to `UPIPaymentModal`
    - Modal shows QR and UPI, supports copy and screenshot upload, returns UTR
 
 ## Key Files
@@ -34,7 +34,9 @@
 - `components/admin-console/settings.tsx`
   - Uploads QR, saves UPI via `/api/admin/settings`
   - Uses `/api/admin/upload` for S3
-- `app/api/admin/settings/route.ts` and `prisma/schema.prisma (SystemSettings)`
+- `app/api/settings/payment/route.ts` (auth-only read for users)
+- `app/api/admin/settings/route.ts` (admin-only write/read)
+- `prisma/schema.prisma (SystemSettings)`
 
 ## Testing Checklist
 - Mobile Safari/Chrome: open `/console`, scroll all sections, open/close sidebar.
@@ -45,3 +47,4 @@
 ## Notes
 - We intentionally still lock body scroll only while the mobile sidebar drawer is open.
 - If any other page uses `h-screen`, consider similar `min-h-[100dvh]` swap.
+- Payment settings write access remains admin-only via `/api/admin/settings`; user console reads via `/api/settings/payment`.
