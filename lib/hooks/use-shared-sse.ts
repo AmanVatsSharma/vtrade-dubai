@@ -8,7 +8,8 @@
 
 "use client"
 
-import React, { useEffect, useRef, useCallback } from 'react'
+import React, { useEffect, useRef, useCallback } from "react"
+import { createClientLogger } from "@/lib/logging/client-logger"
 
 export type RealtimeEventType =
   | 'order_placed'
@@ -44,13 +45,14 @@ class SharedSSEManager {
   private lastEventAt: Map<string, number> = new Map()
   private lastErrorAt: Map<string, number> = new Map()
   private readonly maxReconnectAttempts = 5
+  private readonly log = createClientLogger("SHARED-SSE")
 
   /**
    * Subscribe to SSE events for a user
    * Creates connection if needed, otherwise reuses existing
    */
   subscribe(userId: string, callback: EventCallback): () => void {
-    console.log(`📡 [SHARED-SSE] Subscribing to events for user: ${userId}`)
+    this.log.debug("subscribe", { userId })
 
     // Add callback to subscribers
     if (!this.subscribers.has(userId)) {
@@ -73,7 +75,7 @@ class SharedSSEManager {
    * Unsubscribe from SSE events
    */
   unsubscribe(userId: string, callback: EventCallback): void {
-    console.log(`📡 [SHARED-SSE] Unsubscribing from events for user: ${userId}`)
+    this.log.debug("unsubscribe", { userId })
 
     const userSubscribers = this.subscribers.get(userId)
     if (userSubscribers) {
@@ -93,16 +95,16 @@ class SharedSSEManager {
   private createConnection(userId: string): void {
     // Guard against SSR
     if (typeof window === 'undefined') {
-      console.warn(`⚠️ [SHARED-SSE] Cannot create SSE connection on server side for user: ${userId}`)
+      this.log.warn("cannot create SSE connection on server side", { userId })
       return
     }
 
     if (this.connections.has(userId)) {
-      console.log(`⚠️ [SHARED-SSE] Connection already exists for user: ${userId}`)
+      this.log.debug("connection already exists", { userId })
       return
     }
 
-    console.log(`🔌 [SHARED-SSE] Creating SSE connection for user: ${userId}`)
+    this.log.debug("creating SSE connection", { userId })
     
     const eventSource = new EventSource(`/api/realtime/stream?userId=${userId}`)
     this.connections.set(userId, eventSource)
@@ -110,7 +112,7 @@ class SharedSSEManager {
     this.lastEventAt.set(userId, Date.now())
 
     eventSource.onopen = () => {
-      console.log(`✅ [SHARED-SSE] SSE connection established for user: ${userId}`)
+      this.log.debug("SSE connection established", { userId })
       this.reconnectAttempts.set(userId, 0) // Reset on successful connection
       this.lastEventAt.set(userId, Date.now())
     }
@@ -118,7 +120,7 @@ class SharedSSEManager {
     eventSource.onmessage = (event) => {
       try {
         const message: SSEMessage = JSON.parse(event.data)
-        console.log(`📨 [SHARED-SSE] Received event: ${message.event} for user: ${userId}`)
+        this.log.throttled("events", 2000, "debug", "received event", { userId, event: message.event })
         this.lastEventAt.set(userId, Date.now())
 
         // Broadcast to all subscribers
@@ -128,17 +130,17 @@ class SharedSSEManager {
             try {
               callback(message)
             } catch (error) {
-              console.error(`❌ [SHARED-SSE] Error in subscriber callback:`, error)
+              this.log.error("subscriber callback error", { userId, message: (error as any)?.message || String(error) })
             }
           })
         }
       } catch (error) {
-        console.error(`❌ [SHARED-SSE] Error parsing SSE message:`, error)
+        this.log.error("error parsing SSE message", { userId, message: (error as any)?.message || String(error) })
       }
     }
 
     eventSource.onerror = (error) => {
-      console.error(`❌ [SHARED-SSE] SSE connection error for user ${userId}:`, error)
+      this.log.error("SSE connection error", { userId })
       this.lastErrorAt.set(userId, Date.now())
       
       // Only attempt reconnection if we still have subscribers and connection is closed
@@ -151,7 +153,7 @@ class SharedSSEManager {
         if (attempts < this.maxReconnectAttempts) {
           const newAttempts = attempts + 1
           this.reconnectAttempts.set(userId, newAttempts)
-          console.log(`🔄 [SHARED-SSE] Attempting reconnect ${newAttempts}/${this.maxReconnectAttempts} for user: ${userId}`)
+          this.log.warn("attempting reconnect", { userId, attempt: newAttempts, maxAttempts: this.maxReconnectAttempts })
           
           // Close old connection
           this.closeConnection(userId)
@@ -165,7 +167,7 @@ class SharedSSEManager {
             }
           }, 1000 * newAttempts)
         } else {
-          console.error(`❌ [SHARED-SSE] Max reconnect attempts reached for user: ${userId}`)
+          this.log.error("max reconnect attempts reached", { userId, maxAttempts: this.maxReconnectAttempts })
           this.closeConnection(userId)
         }
       }
@@ -178,7 +180,7 @@ class SharedSSEManager {
   private closeConnection(userId: string): void {
     const eventSource = this.connections.get(userId)
     if (eventSource) {
-      console.log(`🔌 [SHARED-SSE] Closing SSE connection for user: ${userId}`)
+      this.log.debug("closing SSE connection", { userId })
       eventSource.close()
       this.connections.delete(userId)
       this.reconnectAttempts.delete(userId)
@@ -244,6 +246,7 @@ export function useSharedSSE(
 ) {
   const onEventRef = useRef(onEvent)
   const unsubscribeRef = useRef<(() => void) | null>(null)
+  const log = useRef(createClientLogger("SHARED-SSE-HOOK")).current
 
   // Keep callback ref updated
   useEffect(() => {
@@ -254,7 +257,7 @@ export function useSharedSSE(
   useEffect(() => {
     if (!userId || typeof window === 'undefined') return
 
-    console.log(`📡 [SHARED-SSE-HOOK] Setting up subscription for user: ${userId}`)
+    log.debug("setting up subscription", { userId })
 
     // Subscribe with stable callback
     const unsubscribe = sseManager.subscribe(userId, (message) => {
@@ -265,7 +268,7 @@ export function useSharedSSE(
 
     // Cleanup on unmount
     return () => {
-      console.log(`🧹 [SHARED-SSE-HOOK] Cleaning up subscription for user: ${userId}`)
+      log.debug("cleaning up subscription", { userId })
       if (unsubscribeRef.current) {
         unsubscribeRef.current()
         unsubscribeRef.current = null
@@ -326,8 +329,5 @@ export function useSharedSSE(
   }
 }
 
-// Initialize log only in client-side
-if (typeof window !== 'undefined') {
-  console.log('✅ [SHARED-SSE] Module initialized')
-}
+// Module init logs intentionally omitted (noisy on route transitions).
 
