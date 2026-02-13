@@ -18,6 +18,7 @@ export type RealtimeEventType =
   | 'position_opened'
   | 'position_closed'
   | 'position_updated'
+  | 'positions_pnl_updated'
   | 'balance_updated'
   | 'margin_blocked'
   | 'margin_released'

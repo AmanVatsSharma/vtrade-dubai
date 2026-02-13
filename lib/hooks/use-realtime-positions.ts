@@ -208,6 +208,56 @@ export function useRealtimePositions(userId: string | undefined | null): UseReal
   // Shared SSE connection for real-time updates
   const { isConnected, connectionState } = useSharedSSE(userId, useCallback((message) => {
     // Handle position-related events
+    if (message.event === 'positions_pnl_updated') {
+      if (DEBUG) console.debug(`📨 [REALTIME-POSITIONS] SSE ${message.event} → patch (no refetch)`)
+
+      try {
+        mutate((currentData: PositionsResponse | undefined) => {
+          const updates = (message.data as any)?.updates
+          if (!currentData || !Array.isArray(currentData.positions) || !Array.isArray(updates) || updates.length === 0) {
+            return currentData
+          }
+
+          const map = new Map<string, any>()
+          updates.forEach((u: any) => {
+            if (typeof u?.positionId === "string") map.set(u.positionId, u)
+          })
+          if (map.size === 0) return currentData
+
+          const nextPositions = currentData.positions.map((p: any) => {
+            const u = map.get(p?.id)
+            if (!u) return p
+
+            const quantity = Number(p.quantity || 0)
+            const avg = Number(p.averagePrice || 0)
+            const currentPrice = u.currentPrice != null ? Number(u.currentPrice) : p.currentPrice
+
+            const currentValue =
+              typeof currentPrice === "number" && Number.isFinite(currentPrice)
+                ? currentPrice * quantity
+                : p.currentValue
+            const investedValue = avg * quantity
+
+            return {
+              ...p,
+              unrealizedPnL: u.unrealizedPnL != null ? Number(u.unrealizedPnL) : p.unrealizedPnL,
+              dayPnL: u.dayPnL != null ? Number(u.dayPnL) : p.dayPnL,
+              currentPrice,
+              currentValue,
+              investedValue,
+            }
+          })
+
+          return { ...currentData, positions: nextPositions }
+        }, false)
+      } catch (e) {
+        console.error('❌ [REALTIME-POSITIONS] PnL patch failed:', e)
+      }
+
+      lastSyncRef.current = Date.now()
+      return
+    }
+
     if (message.event === 'position_opened' || 
         message.event === 'position_closed' || 
         message.event === 'position_updated') {
