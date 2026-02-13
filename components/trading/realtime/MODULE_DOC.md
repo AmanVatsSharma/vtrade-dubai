@@ -54,4 +54,5 @@ Worker heartbeat:
 ## Changelog
 
 - **2026-02-04**: Added PnL mode support and worker health gating for client-side PnL overrides.
+- **2026-02-12**: SSE stream reduced duplicate “connected” messages and migrated SSE server logs to structured logging with request correlation.
 

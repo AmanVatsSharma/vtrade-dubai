@@ -6,9 +6,10 @@
  * @created 2025-01-27
  */
 
-import { NextRequest } from 'next/server'
-import { auth } from '@/auth'
-import { getRealtimeEventEmitter } from '@/lib/services/realtime/RealtimeEventEmitter'
+import { NextRequest } from "next/server"
+import { auth } from "@/auth"
+import { getRealtimeEventEmitter } from "@/lib/services/realtime/RealtimeEventEmitter"
+import { withRequest } from "@/lib/observability/logger"
 
 /**
  * GET /api/realtime/stream
@@ -20,7 +21,14 @@ import { getRealtimeEventEmitter } from '@/lib/services/realtime/RealtimeEventEm
  * - userId (optional, falls back to session)
  */
 export async function GET(request: NextRequest) {
-  console.log('📡 [SSE-STREAM] New connection request')
+  const requestId = request.headers.get("x-request-id") || request.headers.get("x-correlation-id") || undefined
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")?.[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    null
+  const log = withRequest({ requestId, ip, route: "/api/realtime/stream" }).child({ module: "sse-stream" })
+
+  log.info("new connection request")
 
   try {
     // Get userId from query params or session
@@ -32,26 +40,25 @@ export async function GET(request: NextRequest) {
     const userId = userIdParam || (session?.user?.id as string | undefined)
 
     if (!userId) {
-      console.error('❌ [SSE-STREAM] Unauthorized: No userId')
+      log.warn("unauthorized: no userId")
       return new Response('Unauthorized', { status: 401 })
     }
 
-    console.log(`✅ [SSE-STREAM] User authenticated: ${userId}`)
+    log.info({ userId }, "user authenticated")
 
     // Create SSE stream
-    const encoder = new TextEncoder()
     const eventEmitter = getRealtimeEventEmitter()
 
     const stream = new ReadableStream({
       async start(controller) {
-        console.log(`🔌 [SSE-STREAM] Starting SSE stream for user: ${userId}`)
+        log.info({ userId }, "starting SSE stream")
 
         // Subscribe to events
         eventEmitter.subscribe(userId, controller)
 
         // Handle client disconnect
         request.signal.addEventListener('abort', () => {
-          console.log(`🔌 [SSE-STREAM] Client disconnected: ${userId}`)
+          log.info({ userId }, "client disconnected")
           eventEmitter.unsubscribe(userId, controller)
           
           try {
@@ -61,21 +68,11 @@ export async function GET(request: NextRequest) {
           }
         })
 
-        // Send initial connection message
-        try {
-          const welcomeMessage = `data: ${JSON.stringify({
-            event: 'connected',
-            data: { userId, timestamp: new Date().toISOString() },
-            timestamp: new Date().toISOString()
-          })}\n\n`
-          controller.enqueue(encoder.encode(welcomeMessage))
-        } catch (error) {
-          console.error('❌ [SSE-STREAM] Error sending welcome message:', error)
-        }
+        // NOTE: Welcome message is emitted by RealtimeEventEmitter.subscribe() to avoid duplicates.
       },
 
       cancel() {
-        console.log(`🔌 [SSE-STREAM] Stream cancelled for user: ${userId}`)
+        log.info({ userId }, "stream cancelled")
         // Cleanup handled in abort event handler
       }
     })
@@ -91,7 +88,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('❌ [SSE-STREAM] Error creating SSE stream:', error)
+    log.error({ message: (error as any)?.message || String(error) }, "failed to create SSE stream")
     return new Response(
       JSON.stringify({ error: 'Failed to create SSE stream' }),
       { 
