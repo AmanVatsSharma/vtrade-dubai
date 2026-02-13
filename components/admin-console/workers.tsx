@@ -183,8 +183,17 @@ export function Workers() {
       params.dryRun = pnlDryRun
     }
     try {
-      await postAction({ action: "run_once", workerId, params }, `run_once:${workerId}`)
-      toast({ title: "Triggered", description: `${workerId} ran once successfully.` })
+      const data = await postAction({ action: "run_once", workerId, params }, `run_once:${workerId}`)
+      const skipped = Boolean((data as any)?.result?.skipped)
+      const skippedReason = (data as any)?.result?.skippedReason as string | undefined
+      if (workerId === "risk_monitoring" && skipped) {
+        toast({
+          title: "Skipped",
+          description: skippedReason || "Risk backstop skipped (positions worker healthy).",
+        })
+      } else {
+        toast({ title: "Triggered", description: `${workerId} ran once successfully.` })
+      }
     } catch (e: any) {
       log.error("run once failed", { workerId, message: e?.message || String(e) })
       toast({ title: "Run failed", description: e?.message || "Unknown error", variant: "destructive" })
@@ -416,6 +425,32 @@ export function Workers() {
                       {String(hbGet(pnl.heartbeat, "host") || "—")} / {fmtNumber(hbGet(pnl.heartbeat, "pid"))}
                     </div>
                   </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">SL auto-closed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "stopLossAutoClosed"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Target auto-closed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "targetAutoClosed"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Risk auto-closed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "riskAutoClosed"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Risk alerts</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "riskAlertsCreated"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Risk thresholds</div>
+                    <div className="text-xs font-mono text-foreground">
+                      {fmtNumber(hbGet(pnl.heartbeat, "riskWarningThreshold"))} / {fmtNumber(hbGet(pnl.heartbeat, "riskAutoCloseThreshold"))}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Threshold source</div>
+                    <div className="text-xs font-mono text-foreground">{String(hbGet(pnl.heartbeat, "riskThresholdSource") || "—")}</div>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -455,16 +490,18 @@ export function Workers() {
           </CardContent>
         </Card>
 
-        {/* Risk monitoring */}
+        {/* Risk backstop (cron) */}
         <Card className="bg-card border-border shadow-sm neon-border">
           <CardHeader className="space-y-1">
             <CardTitle className="flex items-center justify-between gap-3">
-              <span className="truncate">{risk?.label || "Risk Monitoring"}</span>
+              <span className="truncate">Risk Backstop (cron)</span>
               <StatusBadge status={healthToBadge(risk?.health || "unknown").status} type="system">
                 {healthToBadge(risk?.health || "unknown").label}
               </StatusBadge>
             </CardTitle>
-            <p className="text-sm text-muted-foreground">{risk?.description || "Runs platform risk monitoring (cron)."}</p>
+            <p className="text-sm text-muted-foreground">
+              Backstop runner: triggers positions worker risk enforcement only when the positions worker is stale.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-3">
@@ -499,20 +536,20 @@ export function Workers() {
                 <div className="text-xs font-medium text-foreground mb-2">Last run stats</div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <div className="text-[11px] text-muted-foreground">Checked accounts</div>
-                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "checkedAccounts"))}</div>
+                    <div className="text-[11px] text-muted-foreground">Skipped</div>
+                    <div className="text-xs font-mono text-foreground">{String(hbGet(risk.heartbeat, "skipped") ?? "—")}</div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-[11px] text-muted-foreground">Positions closed</div>
-                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "positionsClosed"))}</div>
+                    <div className="text-[11px] text-muted-foreground">Skip reason</div>
+                    <div className="text-xs font-mono text-foreground">{String(hbGet(risk.heartbeat, "skippedReason") || "—")}</div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-[11px] text-muted-foreground">Alerts created</div>
-                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "alertsCreated"))}</div>
+                    <div className="text-[11px] text-muted-foreground">PnL worker health</div>
+                    <div className="text-xs font-mono text-foreground">{String(hbGet(risk.heartbeat, "pnlWorkerHealth") || "—")}</div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-[11px] text-muted-foreground">Errors</div>
-                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "errorCount"))}</div>
+                    <div className="text-[11px] text-muted-foreground">PnL last run</div>
+                    <div className="text-xs font-mono text-foreground">{fmtIso(String(hbGet(risk.heartbeat, "pnlWorkerLastRunAtIso") || ""))}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-[11px] text-muted-foreground">Elapsed</div>

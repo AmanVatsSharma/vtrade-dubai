@@ -47,7 +47,6 @@ export function useRiskMonitoring(
 
   const [riskStatus, setRiskStatus] = useState<RiskStatus | null>(null)
   const [lastChecked, setLastChecked] = useState<Date | null>(null)
-  const [hasAutoClosed, setHasAutoClosed] = useState(false) // Track if we've already auto-closed to prevent multiple closures
 
   // Calculate unrealized P&L for all positions
   const calculateUnrealizedPnL = useCallback(() => {
@@ -167,79 +166,36 @@ export function useRiskMonitoring(
     }
   }, [calculateRiskStatus, thresholds])
 
-  // Auto-close position handler
-  const handleAutoClosePosition = useCallback(async (positionId: string, symbol: string) => {
-    try {
-      console.log(`🔴 [RISK-MONITORING] Auto-closing position ${symbol} due to risk threshold`)
-
-      // Use the existing closePosition API
-      const response = await fetch(`/api/trading/positions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          positionId: positionId
-          // tradingAccountId will be fetched from position if not provided
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to close position')
-      }
-
-      const result = await response.json()
-
-      toast({
-        title: "Position Auto-Closed",
-        description: `${symbol} position was automatically closed. Loss exceeded ${(thresholds.autoCloseThreshold * 100).toFixed(0)}% of available funds.`,
-        variant: "destructive",
-        duration: 10000,
-      })
-
-      // Refresh positions and account data after a short delay
-      setTimeout(() => {
-        window.location.reload()
-      }, 2000)
-
-    } catch (error: any) {
-      console.error('❌ [RISK-MONITORING] Failed to auto-close position:', error)
-      toast({
-        title: "Auto-Close Failed",
-        description: `Failed to auto-close ${symbol} position: ${error.message}. Please close manually.`,
-        variant: "destructive",
-      })
-      throw error
-    }
-  }, [thresholds])
-
-  // Auto-close positions when threshold breached (always enabled)
-  useEffect(() => {
-    if (!riskStatus || !riskStatus.shouldAutoClose || hasAutoClosed) {
-      return
-    }
-
-    // Sort positions by loss (worst first)
-    const sortedPositions = [...riskStatus.positionsAtRisk].sort(
-      (a, b) => a.unrealizedPnL - b.unrealizedPnL
-    )
-
-    // Close worst position
-    if (sortedPositions.length > 0) {
-      const worstPosition = sortedPositions[0]
-      setHasAutoClosed(true) // Prevent multiple closures
-      handleAutoClosePosition(worstPosition.positionId, worstPosition.symbol)
-        .finally(() => {
-          // Reset after a delay to allow for re-checking
-          setTimeout(() => setHasAutoClosed(false), 5000)
-        })
-    }
-  }, [riskStatus, hasAutoClosed, handleAutoClosePosition])
-
-
-  // Manual close position
+  // Manual close position (no auto-close from client; server enforces risk + SL/TP).
   const closePosition = useCallback(async (positionId: string) => {
-    return handleAutoClosePosition(positionId, 'Position')
-  }, [handleAutoClosePosition])
+    const response = await fetch(`/api/trading/positions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        positionId,
+        // tradingAccountId will be fetched server-side if not provided
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const message = (errorData as any)?.error || "Failed to close position"
+      toast({
+        title: "Close Failed",
+        description: message,
+        variant: "destructive",
+      })
+      throw new Error(message)
+    }
+
+    const result = await response.json()
+    toast({
+      title: "Close Requested",
+      description: "Position close triggered server-side.",
+      duration: 5000,
+    })
+    return result
+  }, [])
 
   return {
     riskStatus,

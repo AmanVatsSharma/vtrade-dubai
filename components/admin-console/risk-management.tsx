@@ -79,58 +79,189 @@ interface RiskConfig {
   updatedAt: Date
 }
 
-interface RiskMonitoringResult {
-  checkedAccounts: number
-  positionsChecked: number
-  positionsClosed: number
-  alertsCreated: number
+type RiskThresholdSource = "system_settings" | "env" | "default"
+
+interface RiskThresholds {
+  warningThreshold: number
+  autoCloseThreshold: number
+  source: RiskThresholdSource
+}
+
+interface PositionPnLWorkerHeartbeat {
+  stopLossAutoClosed?: number
+  targetAutoClosed?: number
+  riskAutoClosed?: number
+  riskAlertsCreated?: number
+  riskWarningThreshold?: number
+  riskAutoCloseThreshold?: number
+  riskThresholdSource?: string
+}
+
+interface ProcessPositionPnLResult {
+  success: boolean
+  scanned: number
+  updated: number
+  skipped: number
   errors: number
-  details: Array<{
-    tradingAccountId: string
-    userId: string
-    userName: string
-    totalUnrealizedPnL: number
-    availableMargin: number
-    marginUtilizationPercent: number
-    positionsClosed: number
-    alertCreated: boolean
-  }>
+  elapsedMs: number
+  heartbeat?: PositionPnLWorkerHeartbeat
+}
+
+interface RiskBackstopRunResult {
+  success: boolean
+  skipped: boolean
+  skippedReason?: string
+  pnlWorkerHealth: string
+  pnlWorkerLastRunAtIso: string | null
+  elapsedMs: number
+  result?: unknown
+}
+
+interface RiskBackstopApiResponse {
+  success: boolean
+  thresholds: RiskThresholds
+  result: RiskBackstopRunResult
+}
+
+function clampPercent(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(100, n))
+}
+
+function isProcessPositionPnLResult(v: unknown): v is ProcessPositionPnLResult {
+  if (!v || typeof v !== "object") return false
+  const anyV = v as any
+  return (
+    typeof anyV.success === "boolean" &&
+    typeof anyV.scanned === "number" &&
+    typeof anyV.updated === "number" &&
+    typeof anyV.skipped === "number" &&
+    typeof anyV.errors === "number" &&
+    typeof anyV.elapsedMs === "number"
+  )
 }
 
 function RiskMonitoringPanel() {
   const [monitoring, setMonitoring] = useState(false)
-  const [lastResult, setLastResult] = useState<RiskMonitoringResult | null>(null)
-  const [warningThreshold, setWarningThreshold] = useState(0.80)
-  const [autoCloseThreshold, setAutoCloseThreshold] = useState(0.90)
+  const [savingThresholds, setSavingThresholds] = useState(false)
+  const [loadingThresholds, setLoadingThresholds] = useState(false)
+  const [forceRun, setForceRun] = useState(false)
 
-  const runRiskMonitoring = async () => {
-    setMonitoring(true)
+  const [lastRun, setLastRun] = useState<RiskBackstopApiResponse | null>(null)
+  const [thresholdSource, setThresholdSource] = useState<RiskThresholdSource>("default")
+  const [warningThreshold, setWarningThreshold] = useState(0.8)
+  const [autoCloseThreshold, setAutoCloseThreshold] = useState(0.9)
+
+  const loadThresholds = async () => {
+    setLoadingThresholds(true)
     try {
-      const response = await fetch('/api/admin/risk/monitor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          warningThreshold,
-          autoCloseThreshold
-        })
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to run risk monitoring')
+      const res = await fetch("/api/admin/risk/thresholds", { method: "GET" })
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error?.error || "Failed to load thresholds")
       }
+      const data = (await res.json()) as { success: boolean; thresholds?: RiskThresholds }
+      if (!data?.thresholds) throw new Error("Invalid thresholds response")
 
-      const data = await response.json()
-      setLastResult(data.result)
-      
+      setWarningThreshold(data.thresholds.warningThreshold)
+      setAutoCloseThreshold(data.thresholds.autoCloseThreshold)
+      setThresholdSource(data.thresholds.source)
+    } catch (error: any) {
       toast({
-        title: "Risk Monitoring Complete",
-        description: `Checked ${data.result.checkedAccounts} accounts, closed ${data.result.positionsClosed} positions, created ${data.result.alertsCreated} alerts`,
+        title: "Error",
+        description: error.message || "Failed to load risk thresholds",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingThresholds(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadThresholds()
+  }, [])
+
+  const saveThresholds = async () => {
+    setSavingThresholds(true)
+    try {
+      const res = await fetch("/api/admin/risk/thresholds", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ warningThreshold, autoCloseThreshold }),
+      })
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error?.error || "Failed to update thresholds")
+      }
+      const data = (await res.json()) as { success: boolean; thresholds?: RiskThresholds }
+      if (!data?.thresholds) throw new Error("Invalid thresholds response")
+
+      setWarningThreshold(data.thresholds.warningThreshold)
+      setAutoCloseThreshold(data.thresholds.autoCloseThreshold)
+      setThresholdSource(data.thresholds.source)
+
+      toast({
+        title: "Saved",
+        description: "Risk thresholds updated in SystemSettings.",
       })
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to run risk monitoring",
+        description: error.message || "Failed to update thresholds",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingThresholds(false)
+    }
+  }
+
+  const runRiskBackstopNow = async () => {
+    setMonitoring(true)
+    try {
+      const res = await fetch("/api/admin/risk/monitor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forceRun }),
+      })
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error?.error || "Failed to run risk backstop")
+      }
+
+      const data = (await res.json()) as RiskBackstopApiResponse
+      setLastRun(data)
+
+      // Keep UI in-sync with thresholds used by backend.
+      if (data?.thresholds) {
+        setWarningThreshold(data.thresholds.warningThreshold)
+        setAutoCloseThreshold(data.thresholds.autoCloseThreshold)
+        setThresholdSource(data.thresholds.source)
+      }
+
+      if (data.result.skipped) {
+        toast({
+          title: "Skipped",
+          description:
+            data.result.skippedReason === "positions_worker_healthy"
+              ? "Backstop skipped (positions worker is healthy)."
+              : data.result.skippedReason || "Backstop skipped.",
+        })
+        return
+      }
+
+      const inner = data.result.result
+      const pnlResult = isProcessPositionPnLResult(inner) ? inner : null
+      toast({
+        title: "Backstop complete",
+        description: pnlResult
+          ? `Scanned ${pnlResult.scanned}, updated ${pnlResult.updated}, errors ${pnlResult.errors}.`
+          : "Backstop ran successfully.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to run risk backstop",
         variant: "destructive",
       })
     } finally {
@@ -144,15 +275,16 @@ function RiskMonitoringPanel() {
         <CardHeader>
           <CardTitle className="text-lg sm:text-xl font-bold text-primary flex items-center gap-2">
             <Shield className="w-5 h-5" />
-            Server-Side Risk Monitoring
+            Risk Backstop (positions worker)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-yellow-400/10 border border-yellow-400/30 rounded-lg p-4">
-            <p className="text-sm text-yellow-400 font-medium mb-2">⚠️ Important</p>
+            <p className="text-sm text-yellow-400 font-medium mb-2">Important</p>
             <p className="text-xs text-muted-foreground">
-              This monitoring runs server-side and works even when users close their app.
-              It calculates P&L server-side and automatically closes positions when loss exceeds thresholds.
+              Canonical risk enforcement happens continuously inside the Positions PnL Worker (SL/TP + account thresholds).
+              This backstop endpoint exists for cron/admin “run now” and will only run if the positions worker is stale
+              (unless you force-run).
             </p>
           </div>
 
@@ -163,9 +295,13 @@ function RiskMonitoringPanel() {
                 type="number"
                 step="0.01"
                 min="0"
-                max="1"
+                max="100"
                 value={warningThreshold * 100}
-                onChange={(e) => setWarningThreshold(parseFloat(e.target.value) / 100)}
+                onChange={(e) => {
+                  const ratio = clampPercent(e.target.value) / 100
+                  setWarningThreshold(ratio)
+                  if (ratio > autoCloseThreshold) setAutoCloseThreshold(ratio)
+                }}
                 placeholder="80"
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -178,9 +314,13 @@ function RiskMonitoringPanel() {
                 type="number"
                 step="0.01"
                 min="0"
-                max="1"
+                max="100"
                 value={autoCloseThreshold * 100}
-                onChange={(e) => setAutoCloseThreshold(parseFloat(e.target.value) / 100)}
+                onChange={(e) => {
+                  const ratio = clampPercent(e.target.value) / 100
+                  setAutoCloseThreshold(ratio)
+                  if (ratio < warningThreshold) setWarningThreshold(ratio)
+                }}
                 placeholder="90"
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -189,93 +329,163 @@ function RiskMonitoringPanel() {
             </div>
           </div>
 
-          <Button
-            onClick={runRiskMonitoring}
-            disabled={monitoring}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {monitoring ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Running Risk Monitoring...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 mr-2" />
-                Run Risk Monitoring Now
-              </>
-            )}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              onClick={saveThresholds}
+              disabled={savingThresholds || loadingThresholds}
+              variant="outline"
+              className="w-full sm:w-auto"
+            >
+              {savingThresholds ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save thresholds"
+              )}
+            </Button>
 
-          {lastResult && (
+            <Button
+              onClick={loadThresholds}
+              disabled={loadingThresholds || savingThresholds}
+              variant="ghost"
+              className="w-full sm:w-auto"
+            >
+              {loadingThresholds ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                "Refresh"
+              )}
+            </Button>
+
+            <div className="flex-1" />
+
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">Force run</div>
+                <div className="text-xs text-foreground truncate">Run even if positions worker is healthy</div>
+              </div>
+              <Switch checked={forceRun} onCheckedChange={setForceRun} />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+            <div className="text-xs text-muted-foreground">
+              Threshold source:{" "}
+              <Badge variant="secondary" className="ml-1">
+                {thresholdSource}
+              </Badge>
+            </div>
+
+            <Button
+              onClick={runRiskBackstopNow}
+              disabled={monitoring}
+              className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {monitoring ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Running backstop...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  Run backstop now
+                </>
+              )}
+            </Button>
+          </div>
+
+          {lastRun && (
             <div className="mt-4 space-y-2">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Accounts Checked</p>
-                  <p className="text-lg font-bold">{lastResult.checkedAccounts}</p>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <div className="mt-1">
+                    <StatusBadge
+                      status={lastRun.result.skipped ? "WARNING" : lastRun.result.success ? "HEALTHY" : "CRITICAL"}
+                      type="risk"
+                    />
+                  </div>
                 </Card>
                 <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Positions Closed</p>
-                  <p className="text-lg font-bold text-red-400">{lastResult.positionsClosed}</p>
+                  <p className="text-xs text-muted-foreground">Skipped</p>
+                  <p className="text-lg font-bold">{String(lastRun.result.skipped)}</p>
                 </Card>
                 <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Alerts Created</p>
-                  <p className="text-lg font-bold text-yellow-400">{lastResult.alertsCreated}</p>
+                  <p className="text-xs text-muted-foreground">PnL worker health</p>
+                  <p className="text-lg font-bold">{lastRun.result.pnlWorkerHealth}</p>
                 </Card>
                 <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Errors</p>
-                  <p className="text-lg font-bold text-red-400">{lastResult.errors}</p>
+                  <p className="text-xs text-muted-foreground">Elapsed</p>
+                  <p className="text-lg font-bold">{Math.round(lastRun.result.elapsedMs)}ms</p>
                 </Card>
               </div>
 
-              {lastResult.details.length > 0 && (
+              {lastRun.result.skipped && (
+                <div className="text-xs text-muted-foreground">
+                  Skip reason: <span className="font-mono text-foreground">{lastRun.result.skippedReason || "—"}</span>
+                </div>
+              )}
+
+              {!lastRun.result.skipped && isProcessPositionPnLResult(lastRun.result.result) && (
                 <Card className="mt-4">
                   <CardHeader>
-                    <CardTitle className="text-sm">Monitoring Details</CardTitle>
+                    <CardTitle className="text-sm">Positions worker run summary</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>User</TableHead>
-                            <TableHead>Unrealized P&L</TableHead>
-                            <TableHead>Available Margin</TableHead>
-                            <TableHead>Utilization</TableHead>
-                            <TableHead>Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {lastResult.details.map((detail) => (
-                            <TableRow key={detail.tradingAccountId}>
-                              <TableCell className="font-medium">{detail.userName}</TableCell>
-                              <TableCell className={detail.totalUnrealizedPnL < 0 ? 'text-red-400' : 'text-green-400'}>
-                                ₹{detail.totalUnrealizedPnL.toFixed(2)}
-                              </TableCell>
-                              <TableCell>₹{detail.availableMargin.toFixed(2)}</TableCell>
-                              <TableCell>
-                                <StatusBadge status={
-                                  detail.marginUtilizationPercent >= autoCloseThreshold
-                                    ? 'CRITICAL'
-                                    : detail.marginUtilizationPercent >= warningThreshold
-                                    ? 'WARNING'
-                                    : 'HEALTHY'
-                                } type="risk" />
-                              </TableCell>
-                              <TableCell>
-                                {detail.positionsClosed > 0 && (
-                                  <Badge className="bg-red-400/20 text-red-400">
-                                    {detail.positionsClosed} closed
-                                  </Badge>
-                                )}
-                                {detail.alertCreated && (
-                                  <StatusBadge status="WARNING" type="risk">Alert</StatusBadge>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Scanned</p>
+                        <p className="text-lg font-bold">{lastRun.result.result.scanned}</p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Updated</p>
+                        <p className="text-lg font-bold">{lastRun.result.result.updated}</p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Skipped</p>
+                        <p className="text-lg font-bold">{lastRun.result.result.skipped}</p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Errors</p>
+                        <p className="text-lg font-bold text-red-400">{lastRun.result.result.errors}</p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Worker elapsed</p>
+                        <p className="text-lg font-bold">{Math.round(lastRun.result.result.elapsedMs)}ms</p>
+                      </Card>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">SL auto-closed</p>
+                        <p className="text-lg font-bold text-red-400">
+                          {lastRun.result.result.heartbeat?.stopLossAutoClosed ?? 0}
+                        </p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Target auto-closed</p>
+                        <p className="text-lg font-bold text-green-400">
+                          {lastRun.result.result.heartbeat?.targetAutoClosed ?? 0}
+                        </p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Risk auto-closed</p>
+                        <p className="text-lg font-bold text-orange-400">
+                          {lastRun.result.result.heartbeat?.riskAutoClosed ?? 0}
+                        </p>
+                      </Card>
+                      <Card className="p-3">
+                        <p className="text-xs text-muted-foreground">Risk alerts</p>
+                        <p className="text-lg font-bold text-yellow-400">
+                          {lastRun.result.result.heartbeat?.riskAlertsCreated ?? 0}
+                        </p>
+                      </Card>
                     </div>
                   </CardContent>
                 </Card>
@@ -291,7 +501,7 @@ function RiskMonitoringPanel() {
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-2">
-            To run risk monitoring automatically, set up a cron job to call:
+            To run risk backstop automatically, set up a cron job to call:
           </p>
           <code className="block bg-background p-2 rounded text-xs break-all">
             GET /api/cron/risk-monitoring
@@ -337,7 +547,6 @@ export function RiskManagement() {
 
   const fetchRiskData = async () => {
     setLoading(true)
-    console.log("🛡️ [RISK-MANAGEMENT] Fetching risk data...")
 
     try {
       const [limitsResponse, alertsResponse, configsResponse] = await Promise.all([
@@ -349,31 +558,24 @@ export function RiskManagement() {
       if (limitsResponse && limitsResponse.ok) {
         const limitsData = await limitsResponse.json()
         setLimits(limitsData.limits || [])
-        console.log(`✅ [RISK-MANAGEMENT] Loaded ${limitsData.limits?.length || 0} risk limits`)
       } else {
-        console.warn("⚠️ [RISK-MANAGEMENT] Failed to fetch risk limits")
         setLimits([])
       }
 
       if (alertsResponse && alertsResponse.ok) {
         const alertsData = await alertsResponse.json()
         setAlerts(alertsData.alerts || [])
-        console.log(`✅ [RISK-MANAGEMENT] Loaded ${alertsData.alerts?.length || 0} risk alerts`)
       } else {
-        console.warn("⚠️ [RISK-MANAGEMENT] Failed to fetch risk alerts")
         setAlerts([])
       }
 
       if (configsResponse && configsResponse.ok) {
         const configsData = await configsResponse.json()
-        console.log("✅ [RISK-MANAGEMENT] Risk configs fetched:", configsData.configs)
         setRiskConfigs(configsData.configs || [])
       } else {
-        console.warn("⚠️ [RISK-MANAGEMENT] Failed to fetch risk configs")
         setRiskConfigs([])
       }
     } catch (error) {
-      console.error("❌ [RISK-MANAGEMENT] Error fetching data:", error)
       toast({
         title: "Error",
         description: "Failed to load risk management data",
