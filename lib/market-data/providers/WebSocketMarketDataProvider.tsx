@@ -43,7 +43,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, ReactNode } from "react";
-import { useUserWatchlist } from "@/lib/hooks/use-trading-data";
+import { useEnhancedWatchlists } from "@/lib/hooks/use-prisma-watchlist";
 import { useTradingRealtime } from "@/components/trading/realtime/trading-realtime-provider";
 import { useWebSocketMarketData } from "../hooks/useWebSocketMarketData";
 import { extractTokens, parseInstrumentId, INDEX_INSTRUMENTS } from "../utils/instrumentMapper";
@@ -167,23 +167,54 @@ export function WebSocketMarketDataProvider({
     enableInterpolation: config.interpolation.enabled,
   });
 
-  // Get user data
-  const { watchlist } = useUserWatchlist(userId);
+  // Watchlist source of truth (same REST/SWR data used by WatchlistManager).
+  const { watchlists } = useEnhancedWatchlists(userId)
 
-  const effectivePositionTokens = useMemo(() => {
+  const watchlistTokens = useMemo(() => {
+    const tokens = new Set<number>()
+    for (const wl of watchlists || []) {
+      for (const it of wl.items || []) {
+        if (typeof (it as any)?.token === "number" && Number.isFinite((it as any).token)) {
+          tokens.add((it as any).token)
+          continue
+        }
+        // Do not attempt instrumentId parsing here; tokens are the robust subscription key.
+        if (DEBUG) {
+          log.debug("watchlist item missing token; skipping subscription", {
+            watchlistId: (wl as any)?.id,
+            watchlistItemId: (it as any)?.watchlistItemId || (it as any)?.id,
+            symbol: (it as any)?.symbol,
+            exchange: (it as any)?.exchange,
+          })
+        }
+      }
+    }
+    return Array.from(tokens)
+  }, [watchlists, DEBUG, log])
+
+  const effectivePositionTokens: number[] = useMemo(() => {
+    const normalize = (vals: unknown[]): number[] => {
+      const out = new Set<number>()
+      for (const v of vals) {
+        const n = typeof v === "number" ? v : Number(v)
+        if (Number.isFinite(n) && n > 0) out.add(n)
+      }
+      return Array.from(out)
+    }
+
     // 1) Explicit tokens prop wins
     if (Array.isArray(positionTokens) && positionTokens.length > 0) {
-      return Array.from(new Set(positionTokens.filter((t) => typeof t === "number" && !Number.isNaN(t))))
+      return normalize(positionTokens as unknown[])
     }
 
     // 2) Explicit instrument IDs prop
     if (Array.isArray(positionInstrumentIds) && positionInstrumentIds.length > 0) {
-      return extractTokens(positionInstrumentIds)
+      return normalize(extractTokens(positionInstrumentIds))
     }
 
     // 3) TradingRealtimeProvider context (dashboard path)
     if (tradingRealtime?.positionTokens?.length) {
-      return Array.from(new Set(tradingRealtime.positionTokens))
+      return normalize(tradingRealtime.positionTokens as unknown[])
     }
 
     return []
@@ -198,31 +229,8 @@ export function WebSocketMarketDataProvider({
       if (token) tokens.add(token);
     });
 
-    // Add watchlist instruments
-    if (watchlist?.items) {
-      watchlist.items.forEach((item: any) => {
-        // Use token directly from WatchlistItem (no Stock dependency)
-        if (item.token) {
-          tokens.add(item.token);
-          if (DEBUG) {
-            log.debug('Using token from WatchlistItem.token field:', {
-              token: item.token,
-              symbol: item.symbol,
-              exchange: item.exchange,
-              watchlistItemId: item.watchlistItemId || item.id,
-              source: 'WatchlistItem.token'
-            });
-          }
-        } else {
-          console.warn('⚠️ [WS-PROVIDER] WatchlistItem missing token - will not receive real-time updates:', {
-            itemId: item.watchlistItemId || item.id,
-            symbol: item.symbol,
-            exchange: item.exchange,
-            warning: 'Token is required for live price subscriptions'
-          });
-        }
-      });
-    }
+    // Add watchlist instruments (REST/SWR watchlists)
+    watchlistTokens.forEach((t) => tokens.add(t))
 
     // Add position instruments
     if (effectivePositionTokens.length > 0) {
@@ -237,14 +245,14 @@ export function WebSocketMarketDataProvider({
         instruments: Array.from(tokens),
         sources: {
           indexInstruments: Object.values(INDEX_INSTRUMENTS).filter(Boolean).length,
-          watchlistItems: watchlist?.items?.length || 0,
+          watchlistItems: watchlistTokens.length,
           positionTokens: effectivePositionTokens.length,
         }
       });
     }
 
     return Array.from(tokens);
-  }, [watchlist, effectivePositionTokens, DEBUG]);
+  }, [watchlistTokens, effectivePositionTokens, DEBUG]);
 
   // Dynamic subscription management: update subscriptions when instruments change
   useEffect(() => {
@@ -401,12 +409,12 @@ export function WebSocketMarketDataProvider({
   useEffect(() => {
     if (!DEBUG) return
     log.debug('User data update', {
-      watchlistItems: watchlist?.items?.length || 0,
+      watchlistItems: watchlistTokens.length,
       positionTokens: effectivePositionTokens.length,
       totalInstruments: instrumentTokens.length,
       instruments: instrumentTokens,
     });
-  }, [watchlist, effectivePositionTokens, instrumentTokens, DEBUG, log]);
+  }, [watchlistTokens, effectivePositionTokens, instrumentTokens, DEBUG, log]);
 
   return (
     <MarketDataContext.Provider value={contextValue}>

@@ -2,7 +2,7 @@
 MODULE_DOC.md
 Module: lib/services/order
 Purpose: Document the order placement + async execution lifecycle.
-Last-updated: 2026-02-11
+Last-updated: 2026-02-03
 -->
 
 ## Overview
@@ -44,7 +44,7 @@ Implementation: `lib/services/order/OrderExecutionWorker.ts`
 
 - Worker finds oldest `Order.status=PENDING`
 - For each order:
-  - Compute execution price (order price/avgPrice; fallback to stock LTP)
+  - Compute execution price (order avgPrice/price; fallback to **server WS quote cache**, then DB stock LTP)
   - Single DB transaction:
     - Upsert `Position` (BUY adds quantity; SELL subtracts)
     - Update `Order.positionId`
@@ -61,7 +61,7 @@ Implementation: `lib/services/order/OrderExecutionWorker.ts`
 - Run the worker as a separate process/container:
 
 ```bash
-ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 npm run worker:order
+ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 pnpm tsx scripts/order-worker.ts
 ```
 
 ### Vercel (serverless) support
@@ -95,5 +95,5 @@ Timing logs exist at:
 
 - **2026-02-03**: Switched to ACCEPTED/QUEUED response, removed nested Prisma transactions, added `OrderExecutionWorker` + cron trigger.
 - **2026-02-04**: Added Vercel-safe background execution (`waitUntil`) + advisory lock to prevent double-processing; documented cron backstop.
-- **2026-02-11**: Updated EC2/Docker runbook commands to use npm scripts for workers.
+- **2026-02-12**: Execution price fallback prefers the same live marketdata feed as `/dashboard` (server-side WS quote cache) before DB `Stock.ltp`.
 
