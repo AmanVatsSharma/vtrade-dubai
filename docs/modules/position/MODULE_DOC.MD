@@ -31,6 +31,8 @@
 - `REDIS_POSITIONS_PNL_TTL_SECONDS` (default `120`)
 - `REDIS_POSITIONS_PNL_MAX_AGE_MS` (default `15000`)
 - `POSITION_PNL_UPDATE_THRESHOLD` (default `1`)
+- `RISK_WARNING_THRESHOLD` (default `0.80`)
+- `RISK_AUTO_CLOSE_THRESHOLD` (default `0.90`)
 
 **Tests:**
 - `tests/position/quote-normalizer.test.ts`
@@ -41,4 +43,6 @@
 - 2026-02-12: PnL worker now uses server WS quote cache instead of Vortex HTTP quote batching.
 - 2026-02-12: Added Redis-backed PnL cache + batched `positions_pnl_updated` realtime event to avoid frequent refetches.
 - 2026-02-13: PnL worker heartbeat now includes Redis cache write + emit counters for improved Admin Console visibility.
+- 2026-02-13: PnL worker now enforces StopLoss/Target + account risk thresholds and can auto square-off server-side.
+- 2026-02-13: Position close path now uses Postgres advisory xact lock for idempotency across UI + workers.
 

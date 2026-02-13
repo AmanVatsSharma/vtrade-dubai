@@ -13,6 +13,11 @@ This module owns the **worker registry** used by Admin Console to:
 - Store/parse worker **heartbeats** from `SystemSettings`
 - Provide safe, non-secret **config hints** for operators (cron endpoints, EC2 commands, Redis readiness)
 
+As of 2026-02-13 (IST), **risk monitoring is treated as a backstop runner**:
+
+- The canonical enforcer is `PositionPnLWorker` (runs continuously on EC2).
+- The `risk_monitoring` cron/API should only run when the positions worker is stale (unless force-run).
+
 ## Heartbeats
 
 Heartbeats are stored in `SystemSettings` as JSON values.
@@ -23,6 +28,17 @@ Key rules:
 - Value must include `lastRunAtIso`
 - Backward-compatible parsing: accepts JSON or a plain ISO string
 - Health is derived as `healthy`/`stale`/`unknown`/`disabled` based on TTL and enabled flag
+
+### Backstop heartbeat fields (risk monitoring)
+
+The `risk_monitoring_heartbeat` JSON may include operational fields like:
+
+- `source`: `"backstop"`
+- `skipped`: boolean
+- `skippedReason`: e.g. `"positions_worker_healthy"`
+- `pnlWorkerHealth`: snapshot health string for the positions worker
+- `pnlWorkerLastRunAtIso`: last run timestamp of the positions worker
+- `positionWorkerHeartbeat`: embedded `PositionPnLWorker` heartbeat (optional, for operator visibility)
 
 ## Redis readiness
 
@@ -58,4 +74,5 @@ No dedicated unit tests yet (covered indirectly by admin API behavior).
 
 - 2026-02-04 (IST): Added worker registry snapshot + heartbeat rules for Admin Console workers management.
 - 2026-02-13 (IST): Snapshot now surfaces Redis readiness + PnL cache knobs for better ops visibility.
+- 2026-02-13 (IST): Documented risk backstop heartbeat fields and clarified canonical enforcement path (positions worker primary).
 

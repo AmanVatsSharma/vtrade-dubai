@@ -64,6 +64,35 @@ Env:
 
 - `POSITION_PNL_UPDATE_THRESHOLD` (default: `1`)
 
+## Server-side SL/Target + Risk auto square-off
+
+When running the long-lived EC2/Docker worker, the platform can also enforce:
+
+- **Per-position StopLoss/Target** using `Position.stopLoss` and `Position.target`
+- **Account-level risk thresholds** based on **loss utilization** of total funds
+
+Implementation:
+
+- `PositionPnLWorker` evaluates each tick using the same quote source as `/dashboard` (server WS quote cache)
+- When a rule is breached, the worker triggers an immediate server-side close via `PositionManagementService.closePosition(positionId, tradingAccountId, exitPriceOverride)`
+  - `exitPriceOverride` is always provided from the current tick’s `currentPrice` to avoid worker-side HTTP quote calls
+- When risk thresholds are breached, the worker writes a `RiskAlert` row (throttled) for operator visibility
+
+### Risk thresholds
+
+Loss utilization is computed as:
+
+- `lossUtilization = (-min(0, totalUnrealizedPnL)) / (balance + availableMargin)`
+
+Env:
+
+- `RISK_WARNING_THRESHOLD` (default: `0.80`)
+- `RISK_AUTO_CLOSE_THRESHOLD` (default: `0.90`)
+
+### Idempotency
+
+`PositionManagementService.closePosition(...)` uses a **Postgres advisory transaction lock** to prevent double-closing (UI + worker + cron), and returns a safe “skipped” result when already closing/closed.
+
 ## Runbook
 
 ### EC2/Docker (recommended)
@@ -102,4 +131,6 @@ Admin Console uses it to show **Worker Active** vs **Not Active**.
 - **2026-02-12**: Server-side PnL worker now uses the platform marketdata WebSocket feed (server quote cache) instead of Vortex HTTP quote batching.
 - **2026-02-12**: Added Redis-backed PnL cache + batched SSE event `positions_pnl_updated` to keep `/dashboard` smooth without frequent refetches.
 - **2026-02-13**: Extended PnL worker heartbeat with Redis cache write + emit counters for better Admin Console observability.
+- **2026-02-13**: PnL worker now enforces StopLoss/Target + account risk thresholds (optional) and triggers server-side auto square-off.
+- **2026-02-13**: Position closing is now idempotent via Postgres advisory xact lock (prevents double close side-effects).
 
