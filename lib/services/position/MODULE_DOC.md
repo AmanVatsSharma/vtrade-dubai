@@ -2,7 +2,7 @@
 MODULE_DOC.md
 Module: lib/services/position
 Purpose: Position management + server-side PnL computation worker.
-Last-updated: 2026-02-11
+Last-updated: 2026-02-04
 -->
 
 ## Overview
@@ -43,8 +43,15 @@ Computation:
 
 Price inputs:
 
-- Quotes are fetched in batches using `lib/vortex/quotes-batcher.ts`.
+- Quotes are sourced from the **same live marketdata WebSocket feed** used by `/dashboard` via the server-side cache:
+  - `lib/market-data/server-market-data.service.ts`
 - Quote normalization is centralized in `lib/services/position/quote-normalizer.ts`.
+
+Env (server worker):
+
+- `LIVE_MARKET_WS_URL` (fallback: `NEXT_PUBLIC_LIVE_MARKET_WS_URL`)
+- `LIVE_MARKET_WS_API_KEY` (fallback: `NEXT_PUBLIC_LIVE_MARKET_WS_API_KEY`)
+- `MARKETDATA_QUOTE_MAX_AGE_MS` (default: `7500`)
 
 ### Update threshold
 
@@ -64,7 +71,7 @@ Run alongside the web app:
 POSITION_PNL_WORKER_INTERVAL_MS=3000 \
 POSITION_PNL_WORKER_BATCH_LIMIT=500 \
 POSITION_PNL_UPDATE_THRESHOLD=1 \
-npm run worker:pnl
+pnpm tsx scripts/position-pnl-worker.ts
 ```
 
 ### Serverless cron (Vercel / EventBridge)
@@ -89,5 +96,5 @@ Admin Console uses it to show **Worker Active** vs **Not Active**.
 ## Changelog
 
 - **2026-02-04**: Added `PositionPnLWorker` + cron endpoint + EC2 script + heartbeat setting + admin toggle support.
-- **2026-02-11**: Updated EC2/Docker runbook commands to use npm scripts for workers.
+- **2026-02-12**: Server-side PnL worker now uses the platform marketdata WebSocket feed (server quote cache) instead of Vortex HTTP quote batching.
 

@@ -25,11 +25,51 @@ import { OrderSide, OrderStatus, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { ORDER_WORKER_ENABLED_KEY, updateWorkerHeartbeat, WORKER_IDS } from "@/lib/server/workers/registry"
 import { getLatestActiveGlobalSettings, parseBooleanSetting } from "@/lib/server/workers/system-settings"
+import { parseInstrumentId } from "@/lib/market-data/utils/instrumentMapper"
+import { getServerMarketDataService } from "@/lib/market-data/server-market-data.service"
+import { baseLogger } from "@/lib/observability/logger"
 
 const ORDER_EXECUTION_ADVISORY_LOCK_NS = 910_001
 const ORDER_WORKER_ENABLED_CACHE_TTL_MS = 5_000
 
 let cachedOrderWorkerEnabled: { value: boolean; expiresAtMs: number } | null = null
+const workerLog = baseLogger.child({ worker: "order-execution-worker", host: os.hostname(), pid: process.pid })
+
+function parseTokenBestEffort(instrumentId: string | null | undefined): number | null {
+  if (!instrumentId) return null
+
+  const direct = parseInstrumentId(instrumentId)
+  if (typeof direct === "number" && Number.isFinite(direct) && direct > 0) return direct
+
+  const parts = instrumentId.split("-")
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const maybe = Number(parts[i])
+    if (Number.isFinite(maybe) && maybe > 0) return maybe
+  }
+  return null
+}
+
+function toExecutionPriceNumber(v: unknown): number | null {
+  if (v == null) return null
+  const n = typeof v === "number" ? v : Number(v)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n
+}
+
+function resolveExecutionPrice(input: {
+  averagePrice?: unknown
+  price?: unknown
+  stockLtp?: unknown
+  wsLtp?: unknown
+}): number {
+  return (
+    toExecutionPriceNumber(input.averagePrice) ??
+    toExecutionPriceNumber(input.price) ??
+    toExecutionPriceNumber(input.wsLtp) ??
+    toExecutionPriceNumber(input.stockLtp) ??
+    0
+  )
+}
 
 async function isOrderWorkerEnabled(): Promise<boolean> {
   const now = Date.now()
@@ -45,9 +85,9 @@ async function isOrderWorkerEnabled(): Promise<boolean> {
     cachedOrderWorkerEnabled = { value: resolved, expiresAtMs: now + ORDER_WORKER_ENABLED_CACHE_TTL_MS }
     return resolved
   } catch (e) {
-    console.warn("⚠️ [ORDER-WORKER] Failed to resolve enabled flag; defaulting to enabled", {
+    workerLog.warn({
       message: (e as any)?.message || String(e),
-    })
+    }, "failed to resolve enabled flag; defaulting to enabled")
     cachedOrderWorkerEnabled = { value: true, expiresAtMs: now + ORDER_WORKER_ENABLED_CACHE_TTL_MS }
     return true
   }
@@ -97,13 +137,20 @@ export class OrderExecutionWorker {
     const limit = Math.min(Math.max(1, input.limit ?? 25), 200)
     const maxAgeMs = input.maxAgeMs ?? 0
 
-    console.log("🧵 [ORDER-WORKER] Processing pending orders", { limit, maxAgeMs })
+    workerLog.info({ limit, maxAgeMs }, "processing pending orders")
 
     const enabled = await isOrderWorkerEnabled()
     if (!enabled) {
-      console.log("⏸️ [ORDER-WORKER] Disabled via SystemSettings; skipping batch", { limit, maxAgeMs })
+      workerLog.info({ limit, maxAgeMs }, "disabled via SystemSettings; skipping batch")
       return { scanned: 0, executed: 0, cancelled: 0, errors: [] }
     }
+
+    const serverMarketData = getServerMarketDataService()
+    await serverMarketData.ensureInitialized().catch((e) => {
+      workerLog.warn({
+        message: (e as any)?.message || String(e),
+      }, "server marketdata init failed; will fallback to Stock.ltp")
+    })
 
     const cutoff = maxAgeMs > 0 ? new Date(Date.now() - maxAgeMs) : null
 
@@ -115,10 +162,25 @@ export class OrderExecutionWorker {
       orderBy: { createdAt: "asc" },
       take: limit,
       include: {
-        Stock: { select: { id: true, ltp: true, segment: true, lot_size: true } },
+        Stock: { select: { id: true, ltp: true, segment: true, lot_size: true, instrumentId: true } },
         tradingAccount: { select: { id: true, userId: true } }
       }
     })
+
+    try {
+      const tokens = Array.from(
+        new Set(
+          pending
+            .map((o) => parseTokenBestEffort(o.Stock?.instrumentId))
+            .filter((t): t is number => typeof t === "number" && Number.isFinite(t) && t > 0),
+        ),
+      )
+      if (tokens.length > 0) serverMarketData.ensureSubscribed(tokens)
+    } catch (e) {
+      workerLog.warn({
+        message: (e as any)?.message || String(e),
+      }, "ensureSubscribed failed; continuing")
+    }
 
     const result: ProcessPendingOrdersResult = { scanned: pending.length, executed: 0, cancelled: 0, errors: [] }
 
@@ -129,12 +191,12 @@ export class OrderExecutionWorker {
         if (r === "cancelled") result.cancelled++
       } catch (e: any) {
         const message = e?.message || String(e)
-        console.error("❌ [ORDER-WORKER] Failed processing order", { orderId: order.id, message })
+        workerLog.error({ orderId: order.id, message }, "failed processing order")
         result.errors.push({ orderId: order.id, message })
       }
     }
 
-    console.log("✅ [ORDER-WORKER] Batch completed", result)
+    workerLog.info(result, "batch completed")
 
     // Heartbeat (for Admin Console visibility)
     try {
@@ -152,7 +214,7 @@ export class OrderExecutionWorker {
       }
       await updateWorkerHeartbeat(WORKER_IDS.ORDER_EXECUTION, JSON.stringify(heartbeat))
     } catch (err) {
-      console.warn("⚠️ [ORDER-WORKER] Failed to update heartbeat", err)
+      workerLog.warn({ message: (err as any)?.message || String(err) }, "failed to update heartbeat")
     }
 
     return result
@@ -165,11 +227,14 @@ export class OrderExecutionWorker {
   async processOrderById(orderId: string): Promise<"skipped" | "executed" | "cancelled"> {
     const enabled = await isOrderWorkerEnabled()
     if (!enabled) {
-      console.log("⏸️ [ORDER-WORKER] Disabled via SystemSettings; skipping order", { orderId })
+      workerLog.info({ orderId }, "disabled via SystemSettings; skipping order")
       return "skipped"
     }
 
-    console.log("🎯 [ORDER-WORKER] Processing order", { orderId })
+    const serverMarketData = getServerMarketDataService()
+    await serverMarketData.ensureInitialized().catch(() => {})
+
+    workerLog.info({ orderId }, "processing order")
 
     type TxResult =
       | { outcome: "skipped" }
@@ -185,46 +250,53 @@ export class OrderExecutionWorker {
         )
         const locked = lockRows?.[0]?.locked === true
         if (!locked) {
-          console.log("ℹ️ [ORDER-WORKER] Advisory lock not acquired; skipping", { orderId })
+          workerLog.info({ orderId }, "advisory lock not acquired; skipping")
           return { outcome: "skipped" }
         }
 
         const order = await tx.order.findUnique({
           where: { id: orderId },
           include: {
-            Stock: { select: { id: true, ltp: true, segment: true, lot_size: true } },
+            Stock: { select: { id: true, ltp: true, segment: true, lot_size: true, instrumentId: true } },
             tradingAccount: { select: { id: true, userId: true } }
           }
         })
 
         if (!order) {
-          console.warn("⚠️ [ORDER-WORKER] Order not found; skipping", { orderId })
+          workerLog.warn({ orderId }, "order not found; skipping")
           return { outcome: "skipped" }
         }
 
         if (order.status !== OrderStatus.PENDING) {
-          console.log("ℹ️ [ORDER-WORKER] Order not pending; skipping", { orderId, status: order.status })
+          workerLog.info({ orderId, status: order.status }, "order not pending; skipping")
           return { outcome: "skipped" }
         }
 
-        // Determine execution price
-        const executionPrice = (() => {
-          const p = order.averagePrice ?? order.price
-          const numeric = p != null ? Number(p) : null
-          if (numeric != null && Number.isFinite(numeric) && numeric > 0) return numeric
-          const ltp = order.Stock?.ltp
-          if (typeof ltp === "number" && Number.isFinite(ltp) && ltp > 0) return ltp
-          return 0
-        })()
+        // Determine execution price (prefer WS quote cache, then DB Stock.ltp).
+        const token = parseTokenBestEffort(order.Stock?.instrumentId)
+        if (token) {
+          try {
+            serverMarketData.ensureSubscribed([token])
+          } catch {
+            // best-effort only
+          }
+        }
+        const wsQuote = token ? serverMarketData.getQuote(token) : null
+        const executionPrice = resolveExecutionPrice({
+          averagePrice: order.averagePrice,
+          price: order.price,
+          wsLtp: wsQuote?.last_trade_price,
+          stockLtp: order.Stock?.ltp,
+        })
 
         if (!executionPrice || executionPrice <= 0) {
-          console.error("❌ [ORDER-WORKER] Invalid execution price; cancelling", { orderId, executionPrice })
+          workerLog.error({ orderId, executionPrice }, "invalid execution price; cancelling")
           await tx.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } })
           return { outcome: "cancelled" }
         }
 
         if (!order.stockId || !order.Stock?.id) {
-          console.error("❌ [ORDER-WORKER] Missing stock reference; cancelling", { orderId, stockId: order.stockId })
+          workerLog.error({ orderId, stockId: order.stockId }, "missing stock reference; cancelling")
           await tx.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } })
           return { outcome: "cancelled" }
         }
@@ -271,19 +343,19 @@ export class OrderExecutionWorker {
           })
         }
       } catch (notifError) {
-        console.warn("⚠️ [ORDER-WORKER] Failed to create order executed notification", {
+        workerLog.warn({
           orderId,
           message: notifError instanceof Error ? notifError.message : String(notifError)
-        })
+        }, "failed to create order executed notification")
       }
 
-      console.log("🎉 [ORDER-WORKER] Order executed", { orderId, executionPrice: txResult.executionPrice })
+      workerLog.info({ orderId, executionPrice: txResult.executionPrice }, "order executed")
       return "executed"
     } catch (error: any) {
-      console.error("❌ [ORDER-WORKER] Execution transaction failed; cancelling + releasing margin best-effort", {
+      workerLog.error({
         orderId,
         message: error?.message
-      })
+      }, "execution transaction failed; cancelling + releasing margin best-effort")
 
       // Best-effort compensation (cancel + release margin), guarded by advisory lock.
       let cancelled = false
@@ -298,7 +370,7 @@ export class OrderExecutionWorker {
           const order = await tx.order.findUnique({
             where: { id: orderId },
             include: {
-              Stock: { select: { id: true, ltp: true, segment: true, lot_size: true } },
+              Stock: { select: { id: true, ltp: true, segment: true, lot_size: true, instrumentId: true } },
               tradingAccount: { select: { id: true, userId: true } }
             }
           })
@@ -308,14 +380,14 @@ export class OrderExecutionWorker {
           await this.orderRepo.update(orderId, { status: OrderStatus.CANCELLED }, tx)
 
           // Release margin using current margin rules (charges refund not handled here).
-          const executionPrice = (() => {
-            const p = order.averagePrice ?? order.price
-            const numeric = p != null ? Number(p) : null
-            if (numeric != null && Number.isFinite(numeric) && numeric > 0) return numeric
-            const ltp = order.Stock?.ltp
-            if (typeof ltp === "number" && Number.isFinite(ltp) && ltp > 0) return ltp
-            return 0
-          })()
+          const token = parseTokenBestEffort(order.Stock?.instrumentId)
+          const wsQuote = token ? serverMarketData.getQuote(token) : null
+          const executionPrice = resolveExecutionPrice({
+            averagePrice: order.averagePrice,
+            price: order.price,
+            wsLtp: wsQuote?.last_trade_price,
+            stockLtp: order.Stock?.ltp,
+          })
 
           if (executionPrice > 0) {
             const logger = createTradingLogger({ tradingAccountId: order.tradingAccountId, userId: order.tradingAccount?.userId, symbol: order.symbol })
@@ -334,7 +406,7 @@ export class OrderExecutionWorker {
         })
         cancelled = Boolean((comp as any)?.cancelled)
       } catch (compError) {
-        console.warn("⚠️ [ORDER-WORKER] Compensation failed", { orderId, message: (compError as any)?.message || String(compError) })
+        workerLog.warn({ orderId, message: (compError as any)?.message || String(compError) }, "compensation failed")
       }
 
       return cancelled ? "cancelled" : "skipped"

@@ -13,10 +13,12 @@
 import os from "os"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { requestQuotesBatched } from "@/lib/vortex/quotes-batcher"
 import { normalizeQuotePrices } from "@/lib/services/position/quote-normalizer"
 import { parsePositionPnLMode, POSITION_PNL_MODE_KEY } from "@/lib/server/workers/registry"
 import { getLatestActiveGlobalSettings } from "@/lib/server/workers/system-settings"
+import { parseInstrumentId } from "@/lib/market-data/utils/instrumentMapper"
+import { getServerMarketDataService } from "@/lib/market-data/server-market-data.service"
+import { baseLogger } from "@/lib/observability/logger"
 
 export const POSITIONS_PNL_WORKER_HEARTBEAT_KEY = "positions_pnl_worker_heartbeat" as const
 
@@ -67,6 +69,22 @@ function toNumber(v: unknown): number {
 
 function abs(n: number): number {
   return Math.abs(n)
+}
+
+function parseTokenBestEffort(instrumentId: string | null | undefined): number | null {
+  if (!instrumentId) return null
+
+  // Fast-path for our standard format (e.g. "NSE_EQ-26000")
+  const direct = parseInstrumentId(instrumentId)
+  if (typeof direct === "number" && Number.isFinite(direct) && direct > 0) return direct
+
+  // Fallback: scan from right for last numeric segment
+  const parts = instrumentId.split("-")
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const maybe = Number(parts[i])
+    if (Number.isFinite(maybe) && maybe > 0) return maybe
+  }
+  return null
 }
 
 async function setGlobalSystemSetting(input: {
@@ -127,7 +145,8 @@ export class PositionPnLWorker {
     let skipped = 0
     let errors = 0
 
-    console.log("🧮 [POSITION-PNL-WORKER] Start", { limit, updateThreshold, dryRun })
+    const log = baseLogger.child({ worker: "position-pnl-worker", host: os.hostname(), pid: process.pid })
+    log.info({ limit, updateThreshold, dryRun }, "start")
 
     try {
       // Soft-toggle support: only run when server PnL mode is enabled.
@@ -156,13 +175,13 @@ export class PositionPnLWorker {
             description: "Heartbeat for server-side position PnL worker (EC2/Docker/cron).",
           }).catch(() => {})
 
-          console.log("⏸️ [POSITION-PNL-WORKER] Skipped (mode=client)", { mode })
+          log.info({ mode }, "skipped: mode=client")
           return { success: true, scanned: 0, updated: 0, skipped: 0, errors: 0, elapsedMs, heartbeat }
         }
       } catch (e) {
-        console.warn("⚠️ [POSITION-PNL-WORKER] Failed to read position_pnl_mode; defaulting to run", {
+        log.warn({
           message: (e as any)?.message || String(e),
-        })
+        }, "failed to read position_pnl_mode; defaulting to run")
       }
 
       const positions = await prisma.position.findMany({
@@ -181,24 +200,33 @@ export class PositionPnLWorker {
 
       scanned = positions.length
 
-      // Deduplicate instrument ids for batching
-      const instruments = Array.from(
+      // Use the SAME marketdata feed as /dashboard (server-side cache).
+      // Best-effort: subscribe the current position tokens before reading cache.
+      const serverMarketData = getServerMarketDataService()
+      await serverMarketData.ensureInitialized().catch((e) => {
+        errors += 1
+        log.error({
+          message: (e as any)?.message || String(e),
+        }, "server marketdata init failed; falling back to Stock.ltp")
+      })
+
+      const positionTokens = Array.from(
         new Set(
           positions
-            .map((p) => p.Stock?.instrumentId)
-            .filter((v): v is string => typeof v === "string" && v.length > 0),
+            .map((p) => parseTokenBestEffort(p.Stock?.instrumentId))
+            .filter((t): t is number => typeof t === "number" && Number.isFinite(t) && t > 0),
         ),
       )
 
-      let quotes: Record<string, any> = {}
-      try {
-        if (instruments.length > 0) {
-          quotes = await requestQuotesBatched(instruments, "ltp", { clientId: "position-pnl-worker" })
+      if (positionTokens.length > 0) {
+        try {
+          serverMarketData.ensureSubscribed(positionTokens)
+        } catch (e) {
+          errors += 1
+          log.error({
+            message: (e as any)?.message || String(e),
+          }, "ensureSubscribed failed; falling back to Stock.ltp")
         }
-      } catch (e) {
-        console.error("❌ [POSITION-PNL-WORKER] Quotes batch failed; will fallback to Stock.ltp", e)
-        errors += 1
-        quotes = {}
       }
 
       // Update sequentially; small batches to reduce DB pressure.
@@ -207,8 +235,8 @@ export class PositionPnLWorker {
           const quantity = Number(p.quantity || 0)
           const avg = Number(p.averagePrice)
 
-          const instrumentId = p.Stock?.instrumentId || null
-          const quote = instrumentId ? (quotes as any)[instrumentId] : null
+          const token = parseTokenBestEffort(p.Stock?.instrumentId)
+          const quote = token ? serverMarketData.getQuote(token) : null
 
           const norm = normalizeQuotePrices({
             quote,
@@ -246,7 +274,7 @@ export class PositionPnLWorker {
           updated += 1
         } catch (e) {
           errors += 1
-          console.error("❌ [POSITION-PNL-WORKER] Failed to process position", { positionId: p.id }, e)
+          log.error({ positionId: p.id, message: (e as any)?.message || String(e) }, "failed to process position")
         }
       }
 
@@ -270,11 +298,11 @@ export class PositionPnLWorker {
           description: "Heartbeat for server-side position PnL worker (EC2/Docker/cron).",
         })
       } catch (e) {
-        console.error("❌ [POSITION-PNL-WORKER] Failed to write heartbeat setting", e)
+        log.error({ message: (e as any)?.message || String(e) }, "failed to write heartbeat setting")
         // Do not fail the worker result on heartbeat write.
       }
 
-      console.log("✅ [POSITION-PNL-WORKER] Done", heartbeat)
+      log.info(heartbeat, "done")
 
       return {
         success: true,
@@ -297,7 +325,7 @@ export class PositionPnLWorker {
         errors: errors + 1,
         elapsedMs,
       }
-      console.error("❌ [POSITION-PNL-WORKER] Fatal error", e)
+      log.error({ message: (e as any)?.message || String(e) }, "fatal error")
       return {
         success: false,
         scanned,
