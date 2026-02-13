@@ -20,6 +20,7 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 import { withApiTelemetry } from "@/lib/observability/api-telemetry"
 import { getPositionPnLSettings } from "@/lib/server/position-pnl-settings"
+import { isRedisEnabled, redisMGet } from "@/lib/redis/redis-client"
 
 type ApiPositionPayload = {
   id: string
@@ -105,28 +106,58 @@ export async function GET(req: Request) {
       const openPositions: ApiPositionPayload[] = []
       const closedPositions: ApiPositionPayload[] = []
 
+      // Optional: overlay PnL from Redis cache for smoother server-side PnL mode.
+      const redisPnLByPositionId = new Map<string, { unrealizedPnL: number; dayPnL: number; currentPrice?: number; updatedAtMs: number }>()
+      if (isRedisEnabled()) {
+        try {
+          const maxAgeMs = Math.max(1000, Number(process.env.REDIS_POSITIONS_PNL_MAX_AGE_MS || 15_000))
+          const keys = positions.map((p) => `positions:pnl:${p.id}`)
+          const values = await redisMGet(keys)
+          values.forEach((raw, idx) => {
+            if (!raw) return
+            try {
+              const parsed = JSON.parse(raw) as any
+              const updatedAtMs = Number(parsed?.updatedAtMs)
+              if (!Number.isFinite(updatedAtMs) || Date.now() - updatedAtMs > maxAgeMs) return
+              const unrealizedPnL = Number(parsed?.unrealizedPnL)
+              const dayPnL = Number(parsed?.dayPnL)
+              if (!Number.isFinite(unrealizedPnL) || !Number.isFinite(dayPnL)) return
+              const currentPrice = parsed?.currentPrice != null ? Number(parsed.currentPrice) : undefined
+              const positionId = positions[idx]?.id
+              if (!positionId) return
+              redisPnLByPositionId.set(positionId, { unrealizedPnL, dayPnL, currentPrice, updatedAtMs })
+            } catch {
+              // ignore parse errors
+            }
+          })
+        } catch {
+          // Best-effort overlay only
+        }
+      }
+
       positions.forEach((position) => {
         const isClosed = position.quantity === 0
         const averagePrice = Number(position.averagePrice)
         const bookedPnL = Number(position.unrealizedPnL ?? 0)
         const livePnL = Number(position.dayPnL ?? 0)
+        const redisPnL = redisPnLByPositionId.get(position.id) || null
 
         const mappedPosition: ApiPositionPayload = {
           id: position.id,
           symbol: position.symbol,
           quantity: position.quantity,
           averagePrice,
-          unrealizedPnL: Number(position.unrealizedPnL),
+          unrealizedPnL: redisPnL ? redisPnL.unrealizedPnL : Number(position.unrealizedPnL),
           realizedPnL: bookedPnL,
           bookedPnL,
-          dayPnL: livePnL,
+          dayPnL: redisPnL ? redisPnL.dayPnL : livePnL,
           stopLoss: position.stopLoss ? Number(position.stopLoss) : null,
           target: position.target ? Number(position.target) : null,
           createdAt: position.createdAt.toISOString(),
           status: isClosed ? "CLOSED" : "OPEN",
           isClosed,
-          currentPrice: position.Stock?.ltp || averagePrice,
-          currentValue: (position.Stock?.ltp || averagePrice) * position.quantity,
+          currentPrice: redisPnL?.currentPrice || position.Stock?.ltp || averagePrice,
+          currentValue: (redisPnL?.currentPrice || position.Stock?.ltp || averagePrice) * position.quantity,
           investedValue: averagePrice * position.quantity,
           stock: position.Stock
             ? {
