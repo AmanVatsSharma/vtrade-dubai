@@ -10,10 +10,9 @@
 
 export const runtime = "nodejs"
 
-import os from "os"
 import { NextResponse } from "next/server"
-import { RiskMonitoringService } from "@/lib/services/risk/RiskMonitoringService"
-import { RISK_MONITORING_ENABLED_KEY, updateWorkerHeartbeat, WORKER_IDS } from "@/lib/server/workers/registry"
+import { runRiskBackstop } from "@/lib/services/risk/risk-backstop-runner"
+import { RISK_MONITORING_ENABLED_KEY } from "@/lib/server/workers/registry"
 import { getLatestActiveGlobalSettings, parseBooleanSetting } from "@/lib/server/workers/system-settings"
 
 export async function GET(req: Request) {
@@ -53,42 +52,20 @@ export async function GET(req: Request) {
       })
     }
 
-    // Run risk monitoring
-    const monitoringService = new RiskMonitoringService()
-    const result = await monitoringService.monitorAllAccounts()
+    // Backstop runner (runs PositionPnLWorker only when it is stale)
+    const backstop = await runRiskBackstop()
 
-    console.log("✅ [CRON-RISK-MONITORING] Risk monitoring completed:", {
-      checkedAccounts: result.checkedAccounts,
-      positionsClosed: result.positionsClosed,
-      alertsCreated: result.alertsCreated
+    console.log("✅ [CRON-RISK-MONITORING] Backstop completed:", {
+      skipped: backstop.skipped,
+      skippedReason: backstop.skippedReason,
+      pnlWorkerHealth: backstop.pnlWorkerHealth,
+      elapsedMs: backstop.elapsedMs,
     })
-
-    // Heartbeat for Admin Console worker visibility
-    try {
-      const heartbeat = {
-        lastRunAtIso: new Date().toISOString(),
-        host: os.hostname(),
-        pid: process.pid,
-        checkedAccounts: result.checkedAccounts,
-        positionsClosed: result.positionsClosed,
-        alertsCreated: result.alertsCreated,
-        errorCount: Array.isArray(result.errors) ? result.errors.length : 0,
-        elapsedMs: Date.now() - startedAt,
-      }
-      await updateWorkerHeartbeat(WORKER_IDS.RISK_MONITORING, JSON.stringify(heartbeat))
-    } catch (err) {
-      console.warn("⚠️ [CRON-RISK-MONITORING] Failed to update heartbeat", err)
-    }
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      result: {
-        checkedAccounts: result.checkedAccounts,
-        positionsClosed: result.positionsClosed,
-        alertsCreated: result.alertsCreated,
-        errors: result.errors
-      }
+      result: backstop
     }, { status: 200 })
 
   } catch (error: any) {

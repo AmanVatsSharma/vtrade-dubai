@@ -8,10 +8,10 @@
 - **Dashboard:** Platform KPIs, alerts, and top traders.
 - **User Management:** Search, filters, bulk actions, and per-user dialogs.
 - **Fund Management:** Deposits and withdrawals review with approvals.
-- **Risk Management:** Platform risk config, user limits, and monitoring.
+- **Risk Management:** Platform risk config, user limits, alerts, and the unified risk backstop (positions worker is canonical enforcer).
 - **Access Control:** RBAC management UI.
 - **KYC Queue:** Dedicated queue for KYC verification with SLA tracking.
-- **Workers:** Background worker visibility (status/heartbeat), Redis realtime readiness, enable/disable, and run-once triggers.
+- **Workers:** Background worker visibility (status/heartbeat), Redis realtime readiness, enable/disable, and run-once triggers (including risk backstop skip reasons).
 - **System Health, Logs, Settings, Notifications, Financial Reports.**
 
 ## User Quick Actions
@@ -40,6 +40,7 @@ Exposes existing admin APIs in the User Management table:
 - `header.tsx` — loads admin session, role, and permissions
 - `sidebar.tsx` — navigation gated by permissions
 - `access-control.tsx` — RBAC management UI
+- `risk-management.tsx` — risk limits/config + alerts + thresholds + run-now backstop
 - `workers.tsx` — worker cards (health, enable/disable, run once, config inputs)
 - `kyc-queue.tsx` — KYC queue with assignment and AML controls
 - `app/(admin)/admin-console/kyc/page.tsx` — KYC queue entry
@@ -49,6 +50,8 @@ Exposes existing admin APIs in the User Management table:
 - `app/api/admin/kyc/route.ts` — KYC queue + review actions API
 - `app/api/admin/kyc/[kycId]/route.ts` — KYC detail + review logs API
 - `app/api/admin/workers/route.ts` — worker status + manage API (no CRON secrets in browser)
+- `app/api/admin/risk/thresholds/route.ts` — read/update canonical risk thresholds (SystemSettings)
+- `app/api/admin/risk/monitor/route.ts` — run risk backstop (skips if positions worker healthy unless force-run)
 - `lib/server/workers/registry.ts` — worker registry + health rules + SystemSettings keys
 - `lib/admin/kyc-utils.ts` — SLA and AML flag utilities
 - `lib/services/admin/AccessControlService.ts` — RBAC config persistence
@@ -116,6 +119,8 @@ flowchart TD
 - `GET/PUT /api/admin/users/{userId}/statement-override` — per-user statements tri-state override (default/force_enable/force_disable)
 - `GET /api/admin/workers` — list workers with enabled + heartbeat health
 - `POST /api/admin/workers` — toggle enabled, run once, set PnL mode
+- `GET/PUT /api/admin/risk/thresholds` — read/update canonical thresholds in SystemSettings
+- `GET/POST /api/admin/risk/monitor` — risk backstop endpoint (positions worker is canonical enforcer)
 
 ## Env vars
 None.
@@ -133,3 +138,4 @@ None.
 - 2026-02-03 (IST): Added app-wide statements toggle in Settings + per-user statements override (tri-state) in Edit User dialog; statement exports blocked when disabled.
 - 2026-02-04 (IST): Added Workers page to manage background workers (heartbeats, enable/disable toggles, and run-once triggers) via `/api/admin/workers`.
 - 2026-02-13 (IST): Enhanced Workers page to show Redis realtime bus state + detailed heartbeat stats (scanned/updated/errors/elapsed) for faster ops debugging of worker→dashboard updates.
+- 2026-02-13 (IST): Updated Risk Management tab to edit canonical risk thresholds (SystemSettings) and run unified risk backstop (skips when positions worker is healthy unless force-run).

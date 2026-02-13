@@ -8,7 +8,6 @@
 
 export const runtime = "nodejs"
 
-import os from "os"
 import { NextResponse } from "next/server"
 import { handleAdminApi } from "@/lib/rbac/admin-api"
 import { AppError } from "@/src/common/errors"
@@ -17,14 +16,11 @@ import {
   POSITION_PNL_MODE_KEY,
   WORKER_TRADING_CATEGORY,
   setWorkerEnabled,
-  updateWorkerHeartbeat,
-  WORKER_IDS,
 } from "@/lib/server/workers/registry"
 import { upsertGlobalSetting } from "@/lib/server/workers/system-settings"
 import { orderExecutionWorker } from "@/lib/services/order/OrderExecutionWorker"
 import { positionPnLWorker } from "@/lib/services/position/PositionPnLWorker"
-import { RiskMonitoringService } from "@/lib/services/risk/RiskMonitoringService"
-import { isRedisEnabled } from "@/lib/redis/redis-client"
+import { runRiskBackstop } from "@/lib/services/risk/risk-backstop-runner"
 
 type ToggleWorkerBody = {
   action: "toggle"
@@ -187,25 +183,10 @@ export async function POST(req: Request) {
         }
 
         // risk_monitoring
-        const service = new RiskMonitoringService()
-        const result = await service.monitorAllAccounts()
-
-        // Write a small heartbeat (risk cron already writes too, but admin-trigger should update visibility)
-        await updateWorkerHeartbeat(
-          WORKER_IDS.RISK_MONITORING,
-          JSON.stringify({
-            lastRunAtIso: new Date().toISOString(),
-            host: os.hostname(),
-            pid: process.pid,
-            redisEnabled: isRedisEnabled(),
-            source: "admin_run_once",
-            checkedAccounts: result.checkedAccounts,
-            positionsClosed: result.positionsClosed,
-            alertsCreated: result.alertsCreated,
-            errorCount: Array.isArray(result.errors) ? result.errors.length : 0,
-            elapsedMs: Date.now() - startedAt,
-          }),
-        )
+        const forceRun = params["forceRun"] === true || params["forceRun"] === "true"
+        const limitRaw = params["limit"]
+        const limit = Number.isFinite(Number(limitRaw)) ? Math.trunc(Number(limitRaw)) : undefined
+        const result = await runRiskBackstop({ forceRun, limit })
 
         const workers = await getWorkersSnapshot()
         return NextResponse.json(
@@ -215,12 +196,7 @@ export async function POST(req: Request) {
             action: "run_once",
             workerId: body.workerId,
             elapsedMs: Date.now() - startedAt,
-            result: {
-              checkedAccounts: result.checkedAccounts,
-              positionsClosed: result.positionsClosed,
-              alertsCreated: result.alertsCreated,
-              errors: result.errors,
-            },
+            result,
             workers,
           },
           { status: 200 },
