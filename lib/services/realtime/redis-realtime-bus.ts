@@ -6,8 +6,10 @@
  * @created 2026-02-12
  */
 
-import "server-only"
-
+/**
+ * NOTE: Avoid `import "server-only"` here.
+ * The `server-only` package relies on Next.js bundler conditions and throws when executed via `tsx` in workers.
+ */
 import { randomUUID } from "crypto"
 import { baseLogger } from "@/lib/observability/logger"
 import type { SSEMessage } from "@/types/realtime"
