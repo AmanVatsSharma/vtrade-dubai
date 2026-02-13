@@ -27,6 +27,9 @@
 - `CRON_SECRET` (cron auth)
 - `LIVE_MARKET_WS_URL`, `LIVE_MARKET_WS_API_KEY` (server quote cache; fallback to `NEXT_PUBLIC_*`)
 - `MARKETDATA_QUOTE_MAX_AGE_MS` (default `7500`)
+- `REDIS_URL` (optional; enables cross-process realtime + PnL cache)
+- `REDIS_POSITIONS_PNL_TTL_SECONDS` (default `120`)
+- `REDIS_POSITIONS_PNL_MAX_AGE_MS` (default `15000`)
 - `POSITION_PNL_UPDATE_THRESHOLD` (default `1`)
 
 **Tests:**
@@ -36,4 +39,5 @@
 **Change-log:**
 - 2026-02-04: Added `PositionPnLWorker` + cron endpoint + EC2 script + heartbeat + admin toggle support.
 - 2026-02-12: PnL worker now uses server WS quote cache instead of Vortex HTTP quote batching.
+- 2026-02-12: Added Redis-backed PnL cache + batched `positions_pnl_updated` realtime event to avoid frequent refetches.
 
