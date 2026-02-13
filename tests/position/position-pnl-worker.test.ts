@@ -27,6 +27,12 @@ jest.mock("@/lib/market-data/server-market-data.service", () => {
   }
 })
 
+jest.mock("@/lib/redis/redis-client", () => {
+  return {
+    redisSet: jest.fn(async () => {}),
+  }
+})
+
 jest.mock("@/lib/server/workers/system-settings", () => {
   return {
     getLatestActiveGlobalSettings: jest.fn(async (keys: string[]) => {
@@ -73,6 +79,10 @@ const marketSvcMock = jest.requireMock("@/lib/market-data/server-market-data.ser
   getQuote: jest.Mock
 }
 
+const redisMock = jest.requireMock("@/lib/redis/redis-client") as {
+  redisSet: jest.Mock
+}
+
 describe("PositionPnLWorker", () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -104,6 +114,7 @@ describe("PositionPnLWorker", () => {
     expect(marketSvcMock.getQuote).toHaveBeenCalledWith(26000)
 
     expect(prismaMock.position.update).toHaveBeenCalledTimes(1)
+    expect(redisMock.redisSet).toHaveBeenCalled()
     const updateCall = prismaMock.position.update.mock.calls[0]?.[0]
     expect(updateCall.where).toEqual({ id: "p-1" })
     // 110 - 100 = 10; 110 - 105 = 5
