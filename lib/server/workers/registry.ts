@@ -12,6 +12,7 @@
 
 import { getLatestActiveGlobalSettings, parseBooleanSetting, upsertGlobalSetting } from "@/lib/server/workers/system-settings"
 import type { WorkerHealth, WorkerHeartbeat, WorkerId, WorkerSnapshot } from "@/lib/server/workers/types"
+import { isRedisEnabled } from "@/lib/redis/redis-client"
 
 export const WORKER_SETTINGS_CATEGORY = "SYSTEM" as const
 export const WORKER_TRADING_CATEGORY = "TRADING" as const
@@ -35,6 +36,12 @@ export type PositionPnLMode = "client" | "server"
 
 export function parsePositionPnLMode(value: string | null | undefined): PositionPnLMode {
   return value === "server" ? "server" : "client"
+}
+
+function envNumber(key: string, fallback: number): number {
+  const raw = process.env[key]
+  const n = raw == null ? Number.NaN : Number(raw)
+  return Number.isFinite(n) ? n : fallback
 }
 
 function parseHeartbeat(value: string | null | undefined): WorkerHeartbeat | null {
@@ -78,6 +85,9 @@ export async function getWorkersSnapshot(options: WorkersSnapshotOptions = {}): 
   const orderTtlMs = options.orderTtlMs ?? 2 * 60 * 1000
   const positionTtlMs = options.positionPnlTtlMs ?? 2 * 60 * 1000
   const riskTtlMs = options.riskTtlMs ?? 10 * 60 * 1000
+  const redisEnabled = isRedisEnabled()
+  const positionsPnlRedisTtlSeconds = Math.max(5, Math.floor(envNumber("REDIS_POSITIONS_PNL_TTL_SECONDS", 120)))
+  const positionsPnlRedisMaxAgeMs = Math.max(1000, envNumber("REDIS_POSITIONS_PNL_MAX_AGE_MS", 15_000))
 
   const keys = [
     ORDER_WORKER_ENABLED_KEY,
@@ -111,8 +121,10 @@ export async function getWorkersSnapshot(options: WorkersSnapshotOptions = {}): 
       batchLimitDefault: 50,
       cronLimitDefault: 25,
       cronEndpoint: "/api/cron/order-worker",
+      redisEnabled,
+      realtimeBus: redisEnabled ? "redis_pubsub" : "in_memory_only",
     },
-    ec2Command: "ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 npm run worker:order",
+    ec2Command: "ORDER_WORKER_INTERVAL_MS=750 ORDER_WORKER_BATCH_LIMIT=50 pnpm tsx scripts/order-worker.ts",
     cronEndpoint: "/api/cron/order-worker",
   }
 
@@ -136,9 +148,15 @@ export async function getWorkersSnapshot(options: WorkersSnapshotOptions = {}): 
       mode: pnlMode,
       updateThresholdDefault: 1,
       cronEndpoint: "/api/cron/position-pnl-worker",
+      redisEnabled,
+      realtimeBus: redisEnabled ? "redis_pubsub" : "in_memory_only",
+      redisPnlCacheKeyPrefix: "positions:pnl:",
+      redisPnlCacheTtlSeconds: positionsPnlRedisTtlSeconds,
+      redisPnlMaxAgeMs: positionsPnlRedisMaxAgeMs,
+      pnlRealtimeEvent: "positions_pnl_updated",
     },
     ec2Command:
-      "POSITION_PNL_WORKER_INTERVAL_MS=3000 POSITION_PNL_WORKER_BATCH_LIMIT=500 POSITION_PNL_UPDATE_THRESHOLD=1 npm run worker:pnl",
+      "POSITION_PNL_WORKER_INTERVAL_MS=3000 POSITION_PNL_WORKER_BATCH_LIMIT=500 POSITION_PNL_UPDATE_THRESHOLD=1 pnpm tsx scripts/position-pnl-worker.ts",
     cronEndpoint: "/api/cron/position-pnl-worker",
   }
 
@@ -161,6 +179,8 @@ export async function getWorkersSnapshot(options: WorkersSnapshotOptions = {}): 
     config: {
       cronEndpoint: "/api/cron/risk-monitoring",
       recommendedIntervalSeconds: 60,
+      redisEnabled,
+      realtimeBus: redisEnabled ? "redis_pubsub" : "in_memory_only",
     },
     cronEndpoint: "/api/cron/risk-monitoring",
   }

@@ -8,6 +8,7 @@
 
 export const runtime = "nodejs"
 
+import os from "os"
 import { NextResponse } from "next/server"
 import { handleAdminApi } from "@/lib/rbac/admin-api"
 import { AppError } from "@/src/common/errors"
@@ -23,6 +24,7 @@ import { upsertGlobalSetting } from "@/lib/server/workers/system-settings"
 import { orderExecutionWorker } from "@/lib/services/order/OrderExecutionWorker"
 import { positionPnLWorker } from "@/lib/services/position/PositionPnLWorker"
 import { RiskMonitoringService } from "@/lib/services/risk/RiskMonitoringService"
+import { isRedisEnabled } from "@/lib/redis/redis-client"
 
 type ToggleWorkerBody = {
   action: "toggle"
@@ -193,6 +195,9 @@ export async function POST(req: Request) {
           WORKER_IDS.RISK_MONITORING,
           JSON.stringify({
             lastRunAtIso: new Date().toISOString(),
+            host: os.hostname(),
+            pid: process.pid,
+            redisEnabled: isRedisEnabled(),
             source: "admin_run_once",
             checkedAccounts: result.checkedAccounts,
             positionsClosed: result.positionsClosed,

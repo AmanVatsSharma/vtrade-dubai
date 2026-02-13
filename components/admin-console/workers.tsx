@@ -9,7 +9,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Activity, Cpu, Play, RefreshCw } from "lucide-react"
+import { Cpu, Play } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { PageHeader, RefreshButton, StatusBadge } from "@/components/admin-console/shared"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { createClientLogger } from "@/lib/logging/client-logger"
 
 type WorkerHealth = "healthy" | "stale" | "unknown" | "disabled"
 
@@ -37,11 +38,39 @@ type WorkerSnapshot = {
 
 type WorkersApiGet = { success: true; timestamp: string; workers: WorkerSnapshot[] } | { success: false; error?: string }
 
+const log = createClientLogger("ADMIN-WORKERS")
+
 function fmtIso(iso: string | null): string {
   if (!iso) return "—"
   const t = Date.parse(iso)
   if (!Number.isFinite(t)) return iso
   return new Date(t).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+}
+
+function fmtNumber(v: unknown): string {
+  const n = typeof v === "number" ? v : Number(v)
+  if (!Number.isFinite(n)) return "—"
+  return String(n)
+}
+
+function fmtMs(v: unknown): string {
+  const n = typeof v === "number" ? v : Number(v)
+  if (!Number.isFinite(n) || n < 0) return "—"
+  if (n < 1000) return `${Math.trunc(n)} ms`
+  return `${(n / 1000).toFixed(2)} s`
+}
+
+function hbGet(hb: WorkerSnapshot["heartbeat"], key: string): unknown {
+  if (!hb) return null
+  return (hb as any)[key]
+}
+
+function hbBool(hb: WorkerSnapshot["heartbeat"], key: string): boolean | null {
+  const v = hbGet(hb, key)
+  if (typeof v === "boolean") return v
+  if (v === "true") return true
+  if (v === "false") return false
+  return null
 }
 
 function healthToBadge(health: WorkerHealth): { label: string; status: string } {
@@ -71,7 +100,7 @@ export function Workers() {
 
   const fetchWorkers = async () => {
     setLoading(true)
-    console.log("🧵 [ADMIN-WORKERS] Fetching workers snapshot")
+    log.debug("fetching workers snapshot")
     try {
       const res = await fetch("/api/admin/workers", { method: "GET" })
       const data = (await res.json().catch(() => null)) as WorkersApiGet | null
@@ -79,9 +108,9 @@ export function Workers() {
         throw new Error((data as any)?.error || `Failed to fetch workers (${res.status})`)
       }
       setWorkers(data.workers || [])
-      console.log("✅ [ADMIN-WORKERS] Snapshot loaded", { count: data.workers?.length || 0 })
+      log.info("snapshot loaded", { count: data.workers?.length || 0 })
     } catch (e: any) {
-      console.error("❌ [ADMIN-WORKERS] Failed to load workers", e)
+      log.error("failed to load workers", { message: e?.message || String(e) })
       toast({
         title: "Failed to load workers",
         description: e?.message || "Unknown error",
@@ -120,29 +149,29 @@ export function Workers() {
   }
 
   const toggleWorker = async (workerId: "order_execution" | "risk_monitoring", enabled: boolean) => {
-    console.log("🔁 [ADMIN-WORKERS] Toggling worker", { workerId, enabled })
+    log.info("toggling worker", { workerId, enabled })
     try {
       await postAction({ action: "toggle", workerId, enabled }, `toggle:${workerId}`)
       toast({ title: "Saved", description: `${workerId} is now ${enabled ? "enabled" : "disabled"}.` })
     } catch (e: any) {
-      console.error("❌ [ADMIN-WORKERS] Toggle failed", e)
+      log.error("toggle failed", { workerId, message: e?.message || String(e) })
       toast({ title: "Toggle failed", description: e?.message || "Unknown error", variant: "destructive" })
     }
   }
 
   const setPnlMode = async (mode: "client" | "server") => {
-    console.log("🔧 [ADMIN-WORKERS] Setting PnL mode", { mode })
+    log.info("setting pnl mode", { mode })
     try {
       await postAction({ action: "set_mode", workerId: "position_pnl", mode }, "set_mode:position_pnl")
       toast({ title: "Saved", description: `Position PnL mode set to ${mode}.` })
     } catch (e: any) {
-      console.error("❌ [ADMIN-WORKERS] Set mode failed", e)
+      log.error("set mode failed", { mode, message: e?.message || String(e) })
       toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" })
     }
   }
 
   const runOnce = async (workerId: WorkerSnapshot["id"]) => {
-    console.log("▶️ [ADMIN-WORKERS] Run once", { workerId })
+    log.info("run once", { workerId })
     const params: Record<string, unknown> = {}
     if (workerId === "order_execution") {
       params.limit = Number(orderLimit || 25)
@@ -157,7 +186,7 @@ export function Workers() {
       await postAction({ action: "run_once", workerId, params }, `run_once:${workerId}`)
       toast({ title: "Triggered", description: `${workerId} ran once successfully.` })
     } catch (e: any) {
-      console.error("❌ [ADMIN-WORKERS] Run once failed", e)
+      log.error("run once failed", { workerId, message: e?.message || String(e) })
       toast({ title: "Run failed", description: e?.message || "Unknown error", variant: "destructive" })
     }
   }
@@ -165,6 +194,13 @@ export function Workers() {
   const order = workersById.get("order_execution") || null
   const pnl = workersById.get("position_pnl") || null
   const risk = workersById.get("risk_monitoring") || null
+
+  const orderRedisEnabled = Boolean(hbBool(order?.heartbeat || null, "redisEnabled") ?? (order?.config as any)?.redisEnabled)
+  const pnlRedisEnabled = Boolean(hbBool(pnl?.heartbeat || null, "redisEnabled") ?? (pnl?.config as any)?.redisEnabled)
+  const riskRedisEnabled = Boolean(hbBool(risk?.heartbeat || null, "redisEnabled") ?? (risk?.config as any)?.redisEnabled)
+
+  const pnlRedisTtlSeconds = (pnl?.config as any)?.redisPnlCacheTtlSeconds as unknown
+  const pnlRedisMaxAgeMs = (pnl?.config as any)?.redisPnlMaxAgeMs as unknown
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
@@ -204,6 +240,50 @@ export function Workers() {
               <div className="text-sm font-medium text-foreground">Last heartbeat</div>
               <div className="text-xs text-muted-foreground">{fmtIso(order?.lastRunAtIso || null)}</div>
             </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-foreground">Redis realtime bus</div>
+                <div className="text-xs text-muted-foreground">Required for cross-process worker → dashboard updates</div>
+              </div>
+              <StatusBadge status={orderRedisEnabled ? "ONLINE" : "OFFLINE"} type="system">
+                {orderRedisEnabled ? "Enabled" : "Disabled"}
+              </StatusBadge>
+            </div>
+
+            {order?.heartbeat ? (
+              <div className="rounded-md border border-border bg-muted/30 p-3">
+                <div className="text-xs font-medium text-foreground mb-2">Last run stats</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Scanned</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(order.heartbeat, "scanned"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Executed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(order.heartbeat, "executed"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Cancelled</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(order.heartbeat, "cancelled"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Errors</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(order.heartbeat, "errorCount"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Elapsed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtMs(hbGet(order.heartbeat, "elapsedMs"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Host / PID</div>
+                    <div className="text-xs font-mono text-foreground">
+                      {String(hbGet(order.heartbeat, "host") || "—")} / {fmtNumber(hbGet(order.heartbeat, "pid"))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -276,6 +356,70 @@ export function Workers() {
               <div className="text-xs text-muted-foreground">{fmtIso(pnl?.lastRunAtIso || null)}</div>
             </div>
 
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-foreground">Redis realtime bus</div>
+                <div className="text-xs text-muted-foreground">Workers publish SSE payloads via Redis Pub/Sub</div>
+              </div>
+              <StatusBadge status={pnlRedisEnabled ? "ONLINE" : "OFFLINE"} type="system">
+                {pnlRedisEnabled ? "Enabled" : "Disabled"}
+              </StatusBadge>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-foreground">PnL Redis cache</div>
+                <div className="text-xs text-muted-foreground">Used by `/api/trading/positions/list` overlay + UI patch events</div>
+              </div>
+              <div className="text-xs text-muted-foreground font-mono">
+                TTL {fmtNumber(pnlRedisTtlSeconds)}s · MaxAge {fmtNumber(pnlRedisMaxAgeMs)}ms
+              </div>
+            </div>
+
+            {pnl?.heartbeat ? (
+              <div className="rounded-md border border-border bg-muted/30 p-3">
+                <div className="text-xs font-medium text-foreground mb-2">Last run stats</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Scanned</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "scanned"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Updated (DB)</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "updated"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Skipped (threshold)</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "skipped"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Errors</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "errors"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Redis cache writes</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(pnl.heartbeat, "redisPnlCacheWrites"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">PnL updates / events</div>
+                    <div className="text-xs font-mono text-foreground">
+                      {fmtNumber(hbGet(pnl.heartbeat, "pnlUpdatesEmitted"))} / {fmtNumber(hbGet(pnl.heartbeat, "pnlEventsEmitted"))}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Elapsed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtMs(hbGet(pnl.heartbeat, "elapsedMs"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Host / PID</div>
+                    <div className="text-xs font-mono text-foreground">
+                      {String(hbGet(pnl.heartbeat, "host") || "—")} / {fmtNumber(hbGet(pnl.heartbeat, "pid"))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-xs">Run-once limit</Label>
@@ -339,6 +483,50 @@ export function Workers() {
               <div className="text-sm font-medium text-foreground">Last heartbeat</div>
               <div className="text-xs text-muted-foreground">{fmtIso(risk?.lastRunAtIso || null)}</div>
             </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-foreground">Redis realtime bus</div>
+                <div className="text-xs text-muted-foreground">Optional (required only for cross-process realtime events)</div>
+              </div>
+              <StatusBadge status={riskRedisEnabled ? "ONLINE" : "OFFLINE"} type="system">
+                {riskRedisEnabled ? "Enabled" : "Disabled"}
+              </StatusBadge>
+            </div>
+
+            {risk?.heartbeat ? (
+              <div className="rounded-md border border-border bg-muted/30 p-3">
+                <div className="text-xs font-medium text-foreground mb-2">Last run stats</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Checked accounts</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "checkedAccounts"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Positions closed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "positionsClosed"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Alerts created</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "alertsCreated"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Errors</div>
+                    <div className="text-xs font-mono text-foreground">{fmtNumber(hbGet(risk.heartbeat, "errorCount"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Elapsed</div>
+                    <div className="text-xs font-mono text-foreground">{fmtMs(hbGet(risk.heartbeat, "elapsedMs"))}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-muted-foreground">Host / PID</div>
+                    <div className="text-xs font-mono text-foreground">
+                      {String(hbGet(risk.heartbeat, "host") || "—")} / {fmtNumber(hbGet(risk.heartbeat, "pid"))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs text-muted-foreground truncate">
