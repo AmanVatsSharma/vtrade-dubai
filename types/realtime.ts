@@ -16,12 +16,14 @@ export type RealtimeEventType =
   | 'position_opened'
   | 'position_closed'
   | 'position_updated'
+  | 'positions_pnl_updated'
   | 'balance_updated'
   | 'margin_blocked'
   | 'margin_released'
   | 'watchlist_updated'
   | 'watchlist_item_added'
   | 'watchlist_item_removed'
+  | 'connected'
 
 /**
  * Base structure for all realtime events
@@ -59,6 +61,21 @@ export interface PositionEventData {
   realizedPnL?: number
 }
 
+export interface PositionsPnLUpdatedEventData {
+  updates: Array<{
+    positionId: string
+    unrealizedPnL: number
+    dayPnL: number
+    currentPrice?: number
+    updatedAtMs: number
+  }>
+}
+
+export interface ConnectedEventData {
+  userId: string
+  timestamp: string
+}
+
 /**
  * Account-related event data
  */
@@ -86,7 +103,13 @@ export interface WatchlistEventData {
  */
 export interface SSEMessage {
   event: RealtimeEventType
-  data: OrderEventData | PositionEventData | AccountEventData | WatchlistEventData
+  data:
+    | OrderEventData
+    | PositionEventData
+    | PositionsPnLUpdatedEventData
+    | AccountEventData
+    | WatchlistEventData
+    | ConnectedEventData
   timestamp: string
 }
 

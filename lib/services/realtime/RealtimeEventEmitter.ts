@@ -9,6 +9,7 @@
 
 import type { SSEMessage } from '@/types/realtime'
 import { baseLogger } from '@/lib/observability/logger'
+import { isRedisRealtimeEnabled, publishUserMessage, subscribeUserMessages } from "@/lib/services/realtime/redis-realtime-bus"
 
 /**
  * Realtime Event Emitter
@@ -19,6 +20,7 @@ import { baseLogger } from '@/lib/observability/logger'
 export class RealtimeEventEmitter {
   private readonly log = baseLogger.child({ module: "realtime-emitter" })
   private connections: Map<string, Set<ReadableStreamDefaultController<Uint8Array>>> = new Map()
+  private redisUnsubs: Map<string, () => void> = new Map()
   private heartbeatInterval: NodeJS.Timeout | null = null
   private readonly HEARTBEAT_INTERVAL = 30000 // 30 seconds
 
@@ -42,6 +44,20 @@ export class RealtimeEventEmitter {
     this.connections.get(userId)!.add(controller)
     
     this.log.info({ userId, totalConnections: this.getConnectionCount() }, "subscribed")
+
+    // Cross-process: ensure Redis subscription exists for this user (one per userId).
+    if (isRedisRealtimeEnabled() && !this.redisUnsubs.has(userId)) {
+      subscribeUserMessages(userId, (payload) => {
+        // Redis-delivered messages should not be re-published; deliver locally only.
+        this.emitLocal(userId, payload)
+      })
+        .then((unsub) => {
+          this.redisUnsubs.set(userId, unsub)
+        })
+        .catch((e) => {
+          this.log.warn({ userId, message: (e as any)?.message || String(e) }, "redis subscribe failed")
+        })
+    }
     
     // Send initial connection message
     try {
@@ -71,6 +87,16 @@ export class RealtimeEventEmitter {
       // Clean up empty user entries
       if (userConnections.size === 0) {
         this.connections.delete(userId)
+
+        const redisUnsub = this.redisUnsubs.get(userId)
+        if (redisUnsub) {
+          try {
+            redisUnsub()
+          } catch {
+            // ignore
+          }
+          this.redisUnsubs.delete(userId)
+        }
       }
     }
     
@@ -84,49 +110,61 @@ export class RealtimeEventEmitter {
    * @param data - Event data payload
    */
   emit(userId: string, event: SSEMessage['event'], data: SSEMessage['data']): void {
-    const userConnections = this.connections.get(userId)
-    
-    if (!userConnections || userConnections.size === 0) {
-      // No connections for this user - silently skip (not an error)
-      return
-    }
-
     const message: SSEMessage = {
       event,
       data,
       timestamp: new Date().toISOString()
     }
 
+    // Deliver locally to any connected SSE clients in THIS process.
+    this.emitLocal(userId, message)
+
+    // Publish to Redis bus so other processes (e.g. workers) can reach the app server SSE connections.
+    if (isRedisRealtimeEnabled()) {
+      publishUserMessage(userId, message).catch(() => {})
+    }
+  }
+
+  /**
+   * Emit to local connections ONLY (no Redis publish).
+   */
+  private emitLocal(userId: string, message: SSEMessage): void {
+    const userConnections = this.connections.get(userId)
+    if (!userConnections || userConnections.size === 0) return
+
     const messageText = `data: ${JSON.stringify(message)}\n\n`
     const encoder = new TextEncoder()
     const encoded = encoder.encode(messageText)
 
-    this.log.debug({ userId, event, connections: userConnections.size }, "emit")
+    this.log.debug({ userId, event: message.event, connections: userConnections.size }, "emitLocal")
 
-    // Send to all connections for this user
     const deadConnections: ReadableStreamDefaultController<Uint8Array>[] = []
-    
     userConnections.forEach((controller) => {
       try {
         controller.enqueue(encoded)
       } catch (error) {
-        this.log.warn({ userId, event, message: (error as any)?.message || String(error) }, "emit_failed_dead_connection")
-        // Mark connection as dead for cleanup
+        this.log.warn(
+          { userId, event: message.event, message: (error as any)?.message || String(error) },
+          "emit_failed_dead_connection",
+        )
         deadConnections.push(controller)
       }
     })
 
-    // Clean up dead connections
-    deadConnections.forEach((controller) => {
-      userConnections.delete(controller)
-    })
-
+    deadConnections.forEach((controller) => userConnections.delete(controller))
     if (deadConnections.length > 0) {
       this.log.info({ userId, dead: deadConnections.length }, "cleaned_dead_connections")
-      
-      // Remove user entry if no connections remain
       if (userConnections.size === 0) {
         this.connections.delete(userId)
+        const redisUnsub = this.redisUnsubs.get(userId)
+        if (redisUnsub) {
+          try {
+            redisUnsub()
+          } catch {
+            // ignore
+          }
+          this.redisUnsubs.delete(userId)
+        }
       }
     }
   }
