@@ -8,6 +8,7 @@
  */
 
 import type { SSEMessage } from '@/types/realtime'
+import { baseLogger } from '@/lib/observability/logger'
 
 /**
  * Realtime Event Emitter
@@ -16,12 +17,13 @@ import type { SSEMessage } from '@/types/realtime'
  * Thread-safe event emission using Set for multiple connections per user.
  */
 export class RealtimeEventEmitter {
+  private readonly log = baseLogger.child({ module: "realtime-emitter" })
   private connections: Map<string, Set<ReadableStreamDefaultController<Uint8Array>>> = new Map()
   private heartbeatInterval: NodeJS.Timeout | null = null
   private readonly HEARTBEAT_INTERVAL = 30000 // 30 seconds
 
   constructor() {
-    console.log('🚀 [REALTIME-EMITTER] Event emitter initialized')
+    this.log.info("initialized")
     this.startHeartbeat()
   }
 
@@ -31,7 +33,7 @@ export class RealtimeEventEmitter {
    * @param controller - SSE stream controller
    */
   subscribe(userId: string, controller: ReadableStreamDefaultController<Uint8Array>): void {
-    console.log(`📡 [REALTIME-EMITTER] Subscribing user: ${userId}`)
+    this.log.info({ userId }, "subscribe")
     
     if (!this.connections.has(userId)) {
       this.connections.set(userId, new Set())
@@ -39,7 +41,7 @@ export class RealtimeEventEmitter {
     
     this.connections.get(userId)!.add(controller)
     
-    console.log(`✅ [REALTIME-EMITTER] User ${userId} subscribed. Total connections: ${this.getConnectionCount()}`)
+    this.log.info({ userId, totalConnections: this.getConnectionCount() }, "subscribed")
     
     // Send initial connection message
     try {
@@ -50,7 +52,7 @@ export class RealtimeEventEmitter {
       })}\n\n`
       controller.enqueue(new TextEncoder().encode(welcomeMessage))
     } catch (error) {
-      console.error(`❌ [REALTIME-EMITTER] Error sending welcome message:`, error)
+      this.log.error({ userId, message: (error as any)?.message || String(error) }, "welcome_message_failed")
     }
   }
 
@@ -60,7 +62,7 @@ export class RealtimeEventEmitter {
    * @param controller - SSE stream controller to remove
    */
   unsubscribe(userId: string, controller: ReadableStreamDefaultController<Uint8Array>): void {
-    console.log(`📡 [REALTIME-EMITTER] Unsubscribing user: ${userId}`)
+    this.log.info({ userId }, "unsubscribe")
     
     const userConnections = this.connections.get(userId)
     if (userConnections) {
@@ -72,7 +74,7 @@ export class RealtimeEventEmitter {
       }
     }
     
-    console.log(`✅ [REALTIME-EMITTER] User ${userId} unsubscribed. Total connections: ${this.getConnectionCount()}`)
+    this.log.info({ userId, totalConnections: this.getConnectionCount() }, "unsubscribed")
   }
 
   /**
@@ -99,7 +101,7 @@ export class RealtimeEventEmitter {
     const encoder = new TextEncoder()
     const encoded = encoder.encode(messageText)
 
-    console.log(`📤 [REALTIME-EMITTER] Emitting ${event} to user ${userId} (${userConnections.size} connection(s))`)
+    this.log.debug({ userId, event, connections: userConnections.size }, "emit")
 
     // Send to all connections for this user
     const deadConnections: ReadableStreamDefaultController<Uint8Array>[] = []
@@ -108,7 +110,7 @@ export class RealtimeEventEmitter {
       try {
         controller.enqueue(encoded)
       } catch (error) {
-        console.error(`❌ [REALTIME-EMITTER] Error emitting to connection:`, error)
+        this.log.warn({ userId, event, message: (error as any)?.message || String(error) }, "emit_failed_dead_connection")
         // Mark connection as dead for cleanup
         deadConnections.push(controller)
       }
@@ -120,7 +122,7 @@ export class RealtimeEventEmitter {
     })
 
     if (deadConnections.length > 0) {
-      console.log(`🧹 [REALTIME-EMITTER] Cleaned up ${deadConnections.length} dead connection(s)`)
+      this.log.info({ userId, dead: deadConnections.length }, "cleaned_dead_connections")
       
       // Remove user entry if no connections remain
       if (userConnections.size === 0) {
@@ -153,7 +155,7 @@ export class RealtimeEventEmitter {
   private startHeartbeat(): void {
     // In test runs, avoid leaking timers that keep Jest alive.
     if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID) {
-      console.log("🧪 [REALTIME-EMITTER] Test environment detected; heartbeat disabled")
+      this.log.debug("test environment detected; heartbeat disabled")
       return
     }
 
@@ -189,7 +191,7 @@ export class RealtimeEventEmitter {
       })
 
       if (totalSent > 0 || deadConnections.length > 0) {
-        console.log(`💓 [REALTIME-EMITTER] Heartbeat sent to ${totalSent} connection(s), cleaned ${deadConnections.length} dead`)
+        this.log.debug({ totalSent, cleaned: deadConnections.length }, "heartbeat")
       }
     }, this.HEARTBEAT_INTERVAL)
 
@@ -206,7 +208,7 @@ export class RealtimeEventEmitter {
       this.heartbeatInterval = null
     }
     this.connections.clear()
-    console.log('🛑 [REALTIME-EMITTER] Event emitter stopped')
+    this.log.info("stopped")
   }
 }
 
@@ -222,6 +224,4 @@ export function getRealtimeEventEmitter(): RealtimeEventEmitter {
   }
   return eventEmitter
 }
-
-console.log('✅ [REALTIME-EMITTER] Module initialized')
 

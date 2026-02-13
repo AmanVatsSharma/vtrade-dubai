@@ -6,8 +6,17 @@
  * @created 2026-02-03
  */
 
-import { OrderExecutionWorker } from "@/lib/services/order/OrderExecutionWorker"
 import { OrderSide, OrderStatus, OrderType } from "@prisma/client"
+
+jest.mock("@/lib/market-data/server-market-data.service", () => {
+  return {
+    getServerMarketDataService: () => ({
+      ensureInitialized: jest.fn(async () => {}),
+      ensureSubscribed: jest.fn(() => {}),
+      getQuote: jest.fn(() => null),
+    }),
+  }
+})
 
 jest.mock("@/lib/prisma", () => {
   const tx = {
@@ -28,6 +37,8 @@ jest.mock("@/lib/prisma", () => {
     },
   }
 })
+
+import { OrderExecutionWorker } from "@/lib/services/order/OrderExecutionWorker"
 
 const prismaMock = jest.requireMock("@/lib/prisma").prisma as {
   __tx: {
