@@ -1,13 +1,3 @@
-/**
- * File: components/auth/EmailVerification.tsx
- * Module: components/auth
- * Purpose: Email verification result screen (success/error + resend).
- * Author: Cursor / BharatERP
- * Last-updated: 2026-02-11
- * Notes:
- * - Rebranded user-facing copy from MarketPulse360 to VTrade.
- */
-
 'use client'
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -15,12 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FaCheckCircle, FaExclamationTriangle, FaEnvelope } from 'react-icons/fa'
 import { motion, AnimatePresence } from 'framer-motion'
-// `canvas-confetti` ships without TypeScript declarations in this repo; keep it typed as `any`.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const confetti: any = require('canvas-confetti')
-import { newVerification, sendVerificationEmailAgain } from '@/actions/auth.actions'
+import confetti from 'canvas-confetti'
+import { newVerification, resendVerificationEmailByToken } from '@/actions/auth.actions'
 // import { sendVerificationEmail } from '@/lib/ResendMail'
-import { getVerificationTokenByToken } from '@/data/verification-token'
 
 
 const EmailVerification = () => {
@@ -82,35 +69,45 @@ const EmailVerification = () => {
 
 
     const resendVerificationEmail = async () => {
-        setIsResending(true)
-        if (token) {
-
-            const verificationToken = await getVerificationTokenByToken(token)
-            if (!verificationToken) {
-                setIsResending(false)
-                setVerificationStatus('error');
-                setErrorMessage("The system is regenerate token for now. Try again later.")
+        try {
+            setIsResending(true)
+            if (!token) {
+                setVerificationStatus('error')
+                setErrorMessage("Missing token or broken link.")
                 return
             }
 
-            // Resend the verification email
-            await sendVerificationEmailAgain(verificationToken.email, verificationToken?.token)
-            setIsResending(false)
-            setResendCooldown(60)
+            const response = await resendVerificationEmailByToken(token)
+            if (!response) {
+                setVerificationStatus('error')
+                setErrorMessage("Unexpected error occurred. Please try again.")
+                return
+            }
 
-            const countdownInterval = setInterval(() => {
-                setResendCooldown((prevCooldown) => {
-                    if (prevCooldown <= 1) {
-                        clearInterval(countdownInterval)
-                        return 0
-                    }
-                    return prevCooldown - 1
-                })
-            }, 1000)
+            if (response.success) {
+                setErrorMessage(response.success)
+                setResendCooldown(60)
+
+                const countdownInterval = setInterval(() => {
+                    setResendCooldown((prevCooldown) => {
+                        if (prevCooldown <= 1) {
+                            clearInterval(countdownInterval)
+                            return 0
+                        }
+                        return prevCooldown - 1
+                    })
+                }, 1000)
+                return
+            }
+
+            setVerificationStatus('error')
+            setErrorMessage(response.error || "Failed to resend verification email.")
+        } catch (e) {
+            setVerificationStatus('error')
+            setErrorMessage("Failed to resend verification email.")
+        } finally {
+            setIsResending(false)
         }
-        setIsResending(false)
-        setVerificationStatus('error');
-        setErrorMessage("Missing token or broken link.")
     }
 
 
@@ -149,7 +146,7 @@ const EmailVerification = () => {
                         >
                             <FaCheckCircle className="mx-auto text-6xl text-green-600 mb-4" />
                             <h2 className="text-xl font-semibold mb-2">Email Verified!</h2>
-                            <p className="text-gray-600">Your email has been successfully verified. You can now access all features of VTrade.</p>
+                            <p className="text-gray-600">Your email has been successfully verified. You can now access all features of MarketPulse360.</p>
                         </motion.div>
                     )}
                     {verificationStatus === 'error' && (
@@ -178,10 +175,7 @@ const EmailVerification = () => {
             </CardContent>
             <CardFooter className="bg-gray-50 p-4">
                 <p className="text-sm text-gray-600 text-center w-full">
-                    If you&apos;re having trouble, please contact{" "}
-                    <a href="mailto:support@vtrade.live" className="text-green-600 hover:underline">
-                        support@vtrade.live
-                    </a>
+                    If you&apos;re having trouble, please contact <a href="mailto:support@promerchants.com" className="text-green-600 hover:underline">support@marketpulse360.live</a>
                 </p>
             </CardFooter>
         </Card>

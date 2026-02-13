@@ -309,6 +309,37 @@ export const newVerification = async (token: string) => {
     }
 }
 
+export const resendVerificationEmailByToken = async (token: string) => {
+    try {
+        if (!token || !token.trim()) {
+            return { error: "Invalid verification link. Please request a new one." }
+        }
+
+        const existingToken = await getVerificationTokenByToken(token)
+        if (!existingToken) {
+            return { error: "Invalid or expired verification link. Please request a new one." }
+        }
+
+        const hasExpired = new Date(existingToken.expires) < new Date()
+        if (hasExpired) {
+            // Best-effort cleanup and regenerate a new token for the same email.
+            await prisma.verificationToken.delete({ where: { token } }).catch(() => {})
+            const next = await generateVerificationToken(existingToken.email)
+            await sendVerificationEmail(next.email, next.token)
+            return { success: "Verification link expired. A new verification email has been sent." }
+        }
+
+        await sendVerificationEmail(existingToken.email, existingToken.token)
+        return { success: "Verification email resent successfully. Please check your inbox." }
+    } catch (error) {
+        console.error("Resend verification email error:", error)
+        if (error instanceof Error) {
+            return { error: `Failed to resend verification email: ${error.message}` }
+        }
+        return { error: "Failed to resend verification email. Please try again later." }
+    }
+}
+
 export const resetPassword = async (values: { identifier: string }): Promise<PasswordResetResponse> => {
     console.log(`[AUTH] 🔄 resetPassword called with identifier: ${values.identifier?.substring(0, 3)}***`);
     
