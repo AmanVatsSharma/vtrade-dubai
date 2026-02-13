@@ -52,6 +52,9 @@ Env (server worker):
 - `LIVE_MARKET_WS_URL` (fallback: `NEXT_PUBLIC_LIVE_MARKET_WS_URL`)
 - `LIVE_MARKET_WS_API_KEY` (fallback: `NEXT_PUBLIC_LIVE_MARKET_WS_API_KEY`)
 - `MARKETDATA_QUOTE_MAX_AGE_MS` (default: `7500`)
+- `REDIS_URL` (optional; enables cross-process SSE + PnL cache for smooth dashboard updates)
+- `REDIS_POSITIONS_PNL_TTL_SECONDS` (default: `120`)
+- `REDIS_POSITIONS_PNL_MAX_AGE_MS` (default: `15000`)
 
 ### Update threshold
 
@@ -97,4 +100,5 @@ Admin Console uses it to show **Worker Active** vs **Not Active**.
 
 - **2026-02-04**: Added `PositionPnLWorker` + cron endpoint + EC2 script + heartbeat setting + admin toggle support.
 - **2026-02-12**: Server-side PnL worker now uses the platform marketdata WebSocket feed (server quote cache) instead of Vortex HTTP quote batching.
+- **2026-02-12**: Added Redis-backed PnL cache + batched SSE event `positions_pnl_updated` to keep `/dashboard` smooth without frequent refetches.
 

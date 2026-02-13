@@ -19,6 +19,9 @@ import { getLatestActiveGlobalSettings } from "@/lib/server/workers/system-setti
 import { parseInstrumentId } from "@/lib/market-data/utils/instrumentMapper"
 import { getServerMarketDataService } from "@/lib/market-data/server-market-data.service"
 import { baseLogger } from "@/lib/observability/logger"
+import { redisSet } from "@/lib/redis/redis-client"
+import { getRealtimeEventEmitter } from "@/lib/services/realtime/RealtimeEventEmitter"
+import type { PositionsPnLUpdatedEventData } from "@/types/realtime"
 
 export const POSITIONS_PNL_WORKER_HEARTBEAT_KEY = "positions_pnl_worker_heartbeat" as const
 
@@ -187,6 +190,7 @@ export class PositionPnLWorker {
       const positions = await prisma.position.findMany({
         where: { quantity: { not: 0 } },
         include: {
+          tradingAccount: { select: { userId: true } },
           Stock: {
             select: {
               instrumentId: true,
@@ -229,9 +233,14 @@ export class PositionPnLWorker {
         }
       }
 
+      const emitter = getRealtimeEventEmitter()
+      const updatesByUser = new Map<string, PositionsPnLUpdatedEventData["updates"]>()
+      const redisTtlSeconds = Math.max(5, Math.floor(Number(process.env.REDIS_POSITIONS_PNL_TTL_SECONDS || 120)))
+
       // Update sequentially; small batches to reduce DB pressure.
       for (const p of positions) {
         try {
+          const userId = (p as any)?.tradingAccount?.userId as string | undefined
           const quantity = Number(p.quantity || 0)
           const avg = Number(p.averagePrice)
 
@@ -249,6 +258,32 @@ export class PositionPnLWorker {
 
           const unrealizedPnL = (currentPrice - avg) * quantity
           const dayPnL = (currentPrice - prevClose) * quantity
+
+          // Always write latest computed PnL into Redis (even if DB update is skipped),
+          // so the dashboard can stay smooth without re-fetching on every tick.
+          if (!dryRun) {
+            const key = `positions:pnl:${p.id}`
+            const payload = JSON.stringify({
+              positionId: p.id,
+              unrealizedPnL: Number(unrealizedPnL.toFixed(2)),
+              dayPnL: Number(dayPnL.toFixed(2)),
+              currentPrice: Number(currentPrice.toFixed(4)),
+              updatedAtMs: Date.now(),
+            })
+            await redisSet(key, payload, redisTtlSeconds)
+          }
+
+          if (userId) {
+            const list = updatesByUser.get(userId) || []
+            list.push({
+              positionId: p.id,
+              unrealizedPnL: Number(unrealizedPnL.toFixed(2)),
+              dayPnL: Number(dayPnL.toFixed(2)),
+              currentPrice: Number(currentPrice.toFixed(4)),
+              updatedAtMs: Date.now(),
+            })
+            updatesByUser.set(userId, list)
+          }
 
           const oldUnrealized = toNumber(p.unrealizedPnL)
           const oldDay = toNumber(p.dayPnL)
@@ -275,6 +310,17 @@ export class PositionPnLWorker {
         } catch (e) {
           errors += 1
           log.error({ positionId: p.id, message: (e as any)?.message || String(e) }, "failed to process position")
+        }
+      }
+
+      // Emit batched PnL updates via realtime bus (Redis-backed) so UI can patch without refetch.
+      // Keep payload bounded to avoid huge SSE frames.
+      const MAX_UPDATES_PER_EVENT = 250
+      for (const [userId, updates] of Array.from(updatesByUser.entries())) {
+        if (!updates.length) continue
+        for (let i = 0; i < updates.length; i += MAX_UPDATES_PER_EVENT) {
+          const chunk = updates.slice(i, i + MAX_UPDATES_PER_EVENT)
+          emitter.emit(userId, "positions_pnl_updated", { updates: chunk } as PositionsPnLUpdatedEventData)
         }
       }
 
