@@ -28,6 +28,7 @@ import { getLatestActiveGlobalSettings, parseBooleanSetting } from "@/lib/server
 import { parseInstrumentId } from "@/lib/market-data/utils/instrumentMapper"
 import { getServerMarketDataService } from "@/lib/market-data/server-market-data.service"
 import { baseLogger } from "@/lib/observability/logger"
+import { isRedisEnabled } from "@/lib/redis/redis-client"
 
 const ORDER_EXECUTION_ADVISORY_LOCK_NS = 910_001
 const ORDER_WORKER_ENABLED_CACHE_TTL_MS = 5_000
@@ -204,6 +205,7 @@ export class OrderExecutionWorker {
         lastRunAtIso: new Date().toISOString(),
         host: os.hostname(),
         pid: process.pid,
+        redisEnabled: isRedisEnabled(),
         limit,
         maxAgeMs,
         scanned: result.scanned,

@@ -19,7 +19,7 @@ import { getLatestActiveGlobalSettings } from "@/lib/server/workers/system-setti
 import { parseInstrumentId } from "@/lib/market-data/utils/instrumentMapper"
 import { getServerMarketDataService } from "@/lib/market-data/server-market-data.service"
 import { baseLogger } from "@/lib/observability/logger"
-import { redisSet } from "@/lib/redis/redis-client"
+import { isRedisEnabled, redisSet } from "@/lib/redis/redis-client"
 import { getRealtimeEventEmitter } from "@/lib/services/realtime/RealtimeEventEmitter"
 import type { PositionsPnLUpdatedEventData } from "@/types/realtime"
 
@@ -36,6 +36,10 @@ export type PositionPnLWorkerHeartbeat = {
   elapsedMs: number
   mode?: "client" | "server"
   reason?: string
+  redisEnabled?: boolean
+  redisPnlCacheWrites?: number
+  pnlUpdatesEmitted?: number
+  pnlEventsEmitted?: number
 }
 
 export type ProcessPositionPnLInput = {
@@ -72,6 +76,12 @@ function toNumber(v: unknown): number {
 
 function abs(n: number): number {
   return Math.abs(n)
+}
+
+function envNumber(key: string, fallback: number): number {
+  const raw = process.env[key]
+  const n = raw == null ? Number.NaN : Number(raw)
+  return Number.isFinite(n) ? n : fallback
 }
 
 function parseTokenBestEffort(instrumentId: string | null | undefined): number | null {
@@ -235,7 +245,8 @@ export class PositionPnLWorker {
 
       const emitter = getRealtimeEventEmitter()
       const updatesByUser = new Map<string, PositionsPnLUpdatedEventData["updates"]>()
-      const redisTtlSeconds = Math.max(5, Math.floor(Number(process.env.REDIS_POSITIONS_PNL_TTL_SECONDS || 120)))
+      const redisTtlSeconds = Math.max(5, Math.floor(envNumber("REDIS_POSITIONS_PNL_TTL_SECONDS", 120)))
+      let redisPnlCacheWrites = 0
 
       // Update sequentially; small batches to reduce DB pressure.
       for (const p of positions) {
@@ -271,6 +282,7 @@ export class PositionPnLWorker {
               updatedAtMs: Date.now(),
             })
             await redisSet(key, payload, redisTtlSeconds)
+            redisPnlCacheWrites += 1
           }
 
           if (userId) {
@@ -316,11 +328,15 @@ export class PositionPnLWorker {
       // Emit batched PnL updates via realtime bus (Redis-backed) so UI can patch without refetch.
       // Keep payload bounded to avoid huge SSE frames.
       const MAX_UPDATES_PER_EVENT = 250
+      let pnlUpdatesEmitted = 0
+      let pnlEventsEmitted = 0
       for (const [userId, updates] of Array.from(updatesByUser.entries())) {
         if (!updates.length) continue
+        pnlUpdatesEmitted += updates.length
         for (let i = 0; i < updates.length; i += MAX_UPDATES_PER_EVENT) {
           const chunk = updates.slice(i, i + MAX_UPDATES_PER_EVENT)
           emitter.emit(userId, "positions_pnl_updated", { updates: chunk } as PositionsPnLUpdatedEventData)
+          pnlEventsEmitted += 1
         }
       }
 
@@ -334,6 +350,10 @@ export class PositionPnLWorker {
         skipped,
         errors,
         elapsedMs,
+        redisEnabled: isRedisEnabled(),
+        redisPnlCacheWrites: dryRun ? 0 : redisPnlCacheWrites,
+        pnlUpdatesEmitted,
+        pnlEventsEmitted,
       }
 
       try {

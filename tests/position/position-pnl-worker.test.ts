@@ -29,6 +29,7 @@ jest.mock("@/lib/market-data/server-market-data.service", () => {
 
 jest.mock("@/lib/redis/redis-client", () => {
   return {
+    isRedisEnabled: jest.fn(() => true),
     redisSet: jest.fn(async () => {}),
   }
 })
