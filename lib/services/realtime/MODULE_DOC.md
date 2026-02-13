@@ -37,4 +37,5 @@ Files:
 ## Changelog
 
 - **2026-02-13**: Added Redis Pub/Sub bridge for cross-process realtime delivery.
+- **2026-02-13**: Removed `server-only` marker imports so `tsx` workers don’t crash under plain Node module resolution.
 

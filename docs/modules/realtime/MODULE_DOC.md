@@ -39,4 +39,5 @@
 ## Change-log
 
 - 2026-02-12: Added Redis-backed realtime bus + PnL cache to avoid polling/refetch jitter.
+- 2026-02-13: Removed `server-only` marker imports so `tsx` workers don’t crash when importing realtime/redis modules.
 

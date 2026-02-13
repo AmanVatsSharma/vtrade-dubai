@@ -14,4 +14,5 @@
 ## Change-log
 
 - 2026-02-13: Added Redis utilities to support realtime bus + PnL cache overlay.
+- 2026-02-13: Removed `server-only` marker imports so `tsx` workers can import Redis utilities without runtime throws.
 

@@ -22,4 +22,5 @@ This module provides a small Redis wrapper used by:
 ## Changelog
 
 - **2026-02-13**: Added Redis client wrapper (publish/subscribe/get/set/mget).
+- **2026-02-13**: Removed `server-only` marker imports so `tsx` workers can import Redis utilities without runtime throws.
 
