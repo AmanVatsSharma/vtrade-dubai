@@ -2,15 +2,17 @@
 
 ## Overview
 
-Client-side risk monitoring that calculates P&L in real-time and alerts users when their losses approach or exceed risk thresholds. Includes automatic position closure when enabled.
+Client-side risk monitoring that calculates P&L in real-time (using live quotes) and alerts users when their losses approach or exceed risk thresholds.
+
+**Important:** Client-side monitoring is **informational only**. All automatic risk enforcement (SL/TP + account thresholds) is handled server-side by `PositionPnLWorker`.
 
 ## Features
 
 ✅ **Real-time P&L Calculation** - Calculates unrealized P&L using live market data  
 ✅ **Risk Thresholds** - Configurable warning (80%) and auto-close (90%) thresholds  
 ✅ **Visual Alerts** - Color-coded warnings and critical alerts (only shown when at risk)  
-✅ **Auto-Close Positions** - **Always enabled** - Automatically closes positions when 90% threshold breached  
-✅ **Position Risk List** - Shows positions at risk with quick close buttons  
+✅ **Manual Close Button** - Users can request a server-side close from the UI  
+✅ **Position Risk List** - Shows positions at risk with quick close buttons (manual)  
 ✅ **Hidden When Safe** - Component only appears when there's a warning or critical risk  
 ✅ **Settings** - Customizable thresholds via UI  
 
@@ -27,8 +29,6 @@ import { useRiskMonitoring } from '@/lib/hooks/use-risk-monitoring'
 const {
   riskStatus,
   lastChecked,
-  autoCloseEnabled,
-  setAutoCloseEnabled,
   closePosition,
   isLoading,
   thresholds,
@@ -113,15 +113,14 @@ function MyComponent() {
 
 ## Auto-Close Feature
 
-**Always Enabled** - Automatically closes positions when 90% threshold is breached:
+### No client-side auto-close
 
-1. Sorts positions by loss (worst first)
-2. Closes worst position automatically
-3. Shows toast notification
-4. Refreshes data after 2 seconds
-5. Prevents multiple closures with debounce logic
+Client-side auto-close is intentionally **disabled** to avoid double-closing and funds/margin side-effects.
 
-**No Toggle Required** - Auto-close is always active when threshold is breached
+Server-side enforcement runs via:
+
+- `PositionPnLWorker` (canonical, long-running)
+- Risk backstop cron/admin “run now” (safety net)
 
 ## Configuration
 
@@ -147,7 +146,7 @@ function MyComponent() {
 
 ### Settings Dialog
 
-Users can adjust thresholds via the settings button (gear icon) in the RiskMonitor component. Settings are stored locally in browser.
+Users can adjust thresholds via the settings button (gear icon) in the RiskMonitor component. Settings are stored locally in the browser and only affect **UI alerts**, not server-side enforcement.
 
 ## API Integration
 
@@ -182,10 +181,7 @@ For 24/7 monitoring, see server-side implementation in `docs/RISK_MANAGEMENT_SYS
 - Check browser console for errors
 
 **Auto-close not working?**
-- Ensure auto-close toggle is enabled
-- Check if threshold is breached
-- Verify API endpoint is accessible
-- Check browser console for errors
+- Client-side auto-close is disabled; check server-side worker enforcement/heartbeats in Admin Console → Workers.
 
 **P&L not updating?**
 - Verify WebSocket connection is active

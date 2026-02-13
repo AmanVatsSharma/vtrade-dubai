@@ -2,7 +2,11 @@
 
 ## Overview
 
-This document describes the server-side risk management system that automatically monitors positions, calculates P&L server-side, and closes positions when loss thresholds are breached. **This system works even when users close their app**, ensuring proper risk management 24/7.
+This document describes the server-side risk management system that enforces **SL/TP + account loss thresholds** inside the long-running **Positions PnL Worker** and provides a **backstop runner** for cron/admin “run now”.
+
+> **Update (2026-02-13 IST)**: Risk enforcement is now integrated into `lib/services/position/PositionPnLWorker.ts`.  
+> `/api/admin/risk/monitor` and `/api/cron/risk-monitoring` run the **Risk Backstop** (skips when positions worker is healthy unless `forceRun=true`).  
+> Canonical thresholds are stored in **SystemSettings** via `GET/PUT /api/admin/risk/thresholds` (env fallback remains supported).
 
 ## Problem Statement
 
@@ -17,28 +21,32 @@ Previously, P&L was calculated only on the client side. This led to several crit
 
 ### Components
 
-1. **RiskMonitoringService** (`lib/services/risk/RiskMonitoringService.ts`)
-   - Core service that monitors all trading accounts
-   - Calculates unrealized P&L server-side using live market data
-   - Checks margin utilization against configurable thresholds
-   - Automatically closes positions when thresholds are breached
-   - Creates risk alerts for admin notification
+1. **PositionPnLWorker** (`lib/services/position/PositionPnLWorker.ts`)
+   - Canonical server-side enforcer
+   - Calculates live P&L using the server market-data quote cache
+   - Enforces per-position StopLoss/Target and account loss-utilization thresholds
+   - Creates `RiskAlert` rows (throttled) for operator visibility
 
-2. **RiskMonitoringJob** (`lib/services/risk/RiskMonitoringJob.ts`)
-   - Background job wrapper for periodic execution
-   - Can run continuously or be triggered via cron
-   - Handles error logging and retry logic
+2. **Risk thresholds helper** (`lib/services/risk/risk-thresholds.ts`)
+   - Reads/writes canonical thresholds from `SystemSettings` (env fallback supported)
+   - Keys:
+     - `risk_warning_threshold`
+     - `risk_auto_close_threshold`
 
-3. **API Endpoints**
-   - `/api/admin/risk/monitor` - Manual trigger (admin only)
-   - `/api/cron/risk-monitoring` - Cron endpoint (protected by secret)
+3. **Risk backstop runner** (`lib/services/risk/risk-backstop-runner.ts`)
+   - Safety net runner used by cron/admin
+   - Skips when positions worker is healthy (unless force-run)
+   - When running, triggers `PositionPnLWorker.processPositionPnL({ forceRun: true, ... })`
 
-4. **Admin Console Integration**
-   - New "Risk Monitoring" tab in admin console
-   - Real-time monitoring dashboard
-   - Manual trigger button
-   - Configurable thresholds (80% warning, 90% auto-close)
-   - Detailed results display
+4. **API Endpoints**
+   - `GET/PUT /api/admin/risk/thresholds` — read/update canonical thresholds
+   - `GET/POST /api/admin/risk/monitor` — run risk backstop (admin-only)
+   - `GET/POST /api/cron/risk-monitoring` — cron backstop endpoint (protected by secret)
+
+5. **Admin Console Integration**
+   - Risk Management → Risk Monitoring tab:
+     - Edit canonical thresholds (SystemSettings)
+     - Run the unified backstop and view a worker-run summary (may be skipped if positions worker is healthy)
 
 ## How It Works
 
@@ -71,13 +79,13 @@ When auto-close threshold (90%) is breached:
 
 ### P&L Calculation
 
-The system uses `PositionManagementService.calculateUnrealizedPnL()` which:
+The canonical enforcement path uses `PositionPnLWorker.processPositionPnL()` which:
 
 1. Fetches all active positions for an account
-2. Gets current LTP (Last Traded Price) from market data API
+2. Gets current LTP (Last Traded Price) from the **server market-data quote cache**
 3. Calculates: `Unrealized P&L = (Current Price - Average Price) × Quantity`
-4. Updates position records with latest P&L
-5. Returns total unrealized P&L
+4. Updates position records with latest P&L (and optionally Redis cache/SSE for smooth dashboards)
+5. Enforces SL/TP + account risk thresholds and triggers safe, idempotent auto square-off when needed
 
 ## Configuration
 
@@ -188,13 +196,12 @@ job.start(60000) // 60 seconds
 
 ### POST /api/admin/risk/monitor
 
-Manual trigger for risk monitoring (admin only).
+Manual trigger for the **risk backstop** (admin only).
 
 **Request Body:**
 ```json
 {
-  "warningThreshold": 0.80,    // Optional, default 0.80
-  "autoCloseThreshold": 0.90  // Optional, default 0.90
+  "forceRun": false
 }
 ```
 
@@ -202,25 +209,34 @@ Manual trigger for risk monitoring (admin only).
 ```json
 {
   "success": true,
+  "thresholds": {
+    "warningThreshold": 0.8,
+    "autoCloseThreshold": 0.9,
+    "source": "system_settings"
+  },
   "result": {
-    "checkedAccounts": 10,
-    "positionsChecked": 25,
-    "positionsClosed": 2,
-    "alertsCreated": 3,
-    "errors": 0,
-    "details": [
-      {
-        "tradingAccountId": "...",
-        "userId": "...",
-        "userName": "John Doe",
-        "totalUnrealizedPnL": -5000,
-        "availableMargin": 10000,
-        "marginUtilizationPercent": 0.50,
-        "positionsClosed": 0,
-        "alertCreated": false
-      }
-    ]
+    "success": true,
+    "skipped": true,
+    "skippedReason": "positions_worker_healthy",
+    "pnlWorkerHealth": "healthy",
+    "pnlWorkerLastRunAtIso": "2026-02-13T10:00:00.000Z",
+    "elapsedMs": 12,
+    "result": { "heartbeat": { "skipped": true } }
   }
+}
+```
+
+### GET/PUT /api/admin/risk/thresholds
+
+Read/update canonical thresholds stored in `SystemSettings`.
+
+- **GET** returns `{ success, thresholds }`
+- **PUT** accepts:
+
+```json
+{
+  "warningThreshold": 0.8,
+  "autoCloseThreshold": 0.9
 }
 ```
 
@@ -239,10 +255,12 @@ Authorization: Bearer YOUR_CRON_SECRET
   "success": true,
   "timestamp": "2025-01-27T10:30:00.000Z",
   "result": {
-    "checkedAccounts": 10,
-    "positionsClosed": 2,
-    "alertsCreated": 3,
-    "errors": 0
+    "success": true,
+    "skipped": true,
+    "skippedReason": "positions_worker_healthy",
+    "pnlWorkerHealth": "healthy",
+    "pnlWorkerLastRunAtIso": "2026-02-13T10:00:00.000Z",
+    "elapsedMs": 12
   }
 }
 ```
@@ -260,17 +278,11 @@ View alerts in: **Admin Console → Risk Management → User Risk Limits → Ris
 
 ## Monitoring & Logging
 
-All risk monitoring actions are logged:
+All risk monitoring actions are logged via structured server logs:
 
 - **TradingLog**: Position closures, alerts created
 - **RiskAlert**: Alert records in database
-- **Console Logs**: Detailed logging for debugging
-
-Log categories:
-- `RISK_MONITORING_START` - Monitoring job started
-- `RISK_MONITORING_COMPLETE` - Monitoring completed
-- `RISK_AUTO_CLOSE_FAILED` - Position closure failed
-- `RISK_MONITORING_ACCOUNT_ERROR` - Account monitoring error
+- **Worker heartbeats**: `positions_pnl_worker_heartbeat` and `risk_monitoring_heartbeat` in `SystemSettings`
 
 ## Best Practices
 
@@ -302,7 +314,7 @@ Log categories:
 1. Check market data API availability
 2. Verify positions have valid `Stock` relations
 3. Check `instrumentId` format matches market data API
-4. Review `PositionManagementService.calculateUnrealizedPnL()` logs
+4. Review `PositionPnLWorker` logs + heartbeat fields for quote freshness and per-tick counters
 
 ## Future Enhancements
 
@@ -324,3 +336,8 @@ Potential improvements:
 - Warning alerts at 80% threshold
 - Admin console integration
 - Cron endpoint for automated execution
+
+### 2026-02-13
+- Canonical enforcement moved into `PositionPnLWorker` (SL/TP + account thresholds).
+- `/api/admin/risk/monitor` and `/api/cron/risk-monitoring` repurposed as a backstop runner (skips when positions worker is healthy unless force-run).
+- Added `GET/PUT /api/admin/risk/thresholds` for SystemSettings-backed canonical thresholds.
