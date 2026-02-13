@@ -17,10 +17,12 @@ import { OrderRepository } from "@/lib/repositories/OrderRepository"
 import { FundManagementService } from "@/lib/services/funds/FundManagementService"
 import { MarginCalculator } from "@/lib/services/risk/MarginCalculator"
 import { TradingLogger } from "@/lib/services/logging/TradingLogger"
-import { OrderType, OrderSide } from "@prisma/client"
+import { OrderType, OrderSide, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 
 console.log("📊 [POSITION-MGMT-SERVICE] Module loaded")
+
+const POSITION_CLOSE_ADVISORY_LOCK_NS = 910_002
 
 export interface ClosePositionResult {
   success: boolean
@@ -44,6 +46,18 @@ export class PositionManagementService {
   private fundService: FundManagementService
   private marginCalculator: MarginCalculator
   private logger: TradingLogger
+
+  /**
+   * Compute a deterministic advisory lock key for position close.
+   * Uses `pg_try_advisory_xact_lock(bigint)` so the lock is held only for the transaction.
+   */
+  private buildPositionCloseAdvisoryLockSql(positionId: string): Prisma.Sql {
+    return Prisma.sql`
+      SELECT pg_try_advisory_xact_lock(
+        ((${POSITION_CLOSE_ADVISORY_LOCK_NS}::bigint << 32) | (hashtext(${positionId}::text)::bigint & 4294967295))
+      ) AS locked
+    `
+  }
 
   constructor(logger?: TradingLogger) {
     this.positionRepo = new PositionRepository()
@@ -88,8 +102,16 @@ export class PositionManagementService {
       }
 
       if (position.quantity === 0) {
-        console.error("❌ [POSITION-MGMT-SERVICE] Position already closed")
-        throw new Error("Position is already closed")
+        console.warn("⚠️ [POSITION-MGMT-SERVICE] Position already closed; skipping")
+        return {
+          success: true,
+          positionId,
+          exitOrderId: "",
+          realizedPnL: 0,
+          exitPrice: exitPriceOverride && exitPriceOverride > 0 ? exitPriceOverride : 0,
+          marginReleased: 0,
+          message: "Position already closed; skipped",
+        }
       }
 
       console.log("✅ [POSITION-MGMT-SERVICE] Position found:", {
@@ -204,7 +226,33 @@ export class PositionManagementService {
       })
 
       // Step 5: Execute in transaction
-      const result = await executeInTransaction(async (tx) => {
+      type ClosePositionTxResult =
+        | { skipped: true; exitOrderId: ""; reason: "lock_not_acquired" | "already_closed" }
+        | { skipped: false; exitOrderId: string }
+
+      const result: ClosePositionTxResult = await executeInTransaction(async (tx) => {
+        // Advisory lock (per-position) to keep close idempotent across UI + worker + cron.
+        const lockRows = await tx.$queryRaw<{ locked: boolean }[]>(
+          this.buildPositionCloseAdvisoryLockSql(positionId)
+        )
+        const locked = lockRows?.[0]?.locked === true
+        if (!locked) {
+          console.warn("⏸️ [POSITION-MGMT-SERVICE] Close lock not acquired; skipping", { positionId })
+          return { exitOrderId: "", skipped: true, reason: "lock_not_acquired" }
+        }
+
+        const fresh = await tx.position.findUnique({
+          where: { id: positionId },
+          select: { quantity: true },
+        })
+        if (!fresh) {
+          throw new Error("Position not found")
+        }
+        if (fresh.quantity === 0) {
+          console.warn("⏸️ [POSITION-MGMT-SERVICE] Position already closed under lock; skipping", { positionId })
+          return { exitOrderId: "", skipped: true, reason: "already_closed" }
+        }
+
         // Create exit order (opposite side)
         const exitSide = quantity > 0 ? OrderSide.SELL : OrderSide.BUY
         
@@ -282,9 +330,22 @@ export class PositionManagementService {
         }
 
         return {
-          exitOrderId: exitOrder.id
+          exitOrderId: exitOrder.id,
+          skipped: false,
         }
       })
+
+      if (result.skipped) {
+        return {
+          success: true,
+          positionId,
+          exitOrderId: "",
+          realizedPnL: 0,
+          exitPrice,
+          marginReleased: 0,
+          message: "Position close skipped (already closing/closed).",
+        }
+      }
 
       await this.logger.logPosition("POSITION_CLOSED", `Position closed successfully: ${positionId}`, {
         positionId,
