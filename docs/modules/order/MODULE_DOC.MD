@@ -35,4 +35,5 @@
 - 2026-02-03: Added async execution worker + cron trigger; avoided nested transactions.
 - 2026-02-04: Added advisory lock + serverless `waitUntil()` best-effort execution.
 - 2026-02-12: Execution price fallback prefers server WS quote cache before DB `Stock.ltp`.
+- 2026-02-13: Order worker heartbeat includes `redisEnabled` so Admin Console can confirm Redis realtime readiness for cross-process updates.
 

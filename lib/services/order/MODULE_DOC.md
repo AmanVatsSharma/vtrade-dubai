@@ -96,4 +96,5 @@ Timing logs exist at:
 - **2026-02-03**: Switched to ACCEPTED/QUEUED response, removed nested Prisma transactions, added `OrderExecutionWorker` + cron trigger.
 - **2026-02-04**: Added Vercel-safe background execution (`waitUntil`) + advisory lock to prevent double-processing; documented cron backstop.
 - **2026-02-12**: Execution price fallback prefers the same live marketdata feed as `/dashboard` (server-side WS quote cache) before DB `Stock.ltp`.
+- **2026-02-13**: Order worker heartbeat now includes `redisEnabled` to verify Redis realtime readiness in Admin Console (cross-process worker → SSE delivery).
 

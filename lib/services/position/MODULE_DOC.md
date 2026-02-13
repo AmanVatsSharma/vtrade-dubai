@@ -101,4 +101,5 @@ Admin Console uses it to show **Worker Active** vs **Not Active**.
 - **2026-02-04**: Added `PositionPnLWorker` + cron endpoint + EC2 script + heartbeat setting + admin toggle support.
 - **2026-02-12**: Server-side PnL worker now uses the platform marketdata WebSocket feed (server quote cache) instead of Vortex HTTP quote batching.
 - **2026-02-12**: Added Redis-backed PnL cache + batched SSE event `positions_pnl_updated` to keep `/dashboard` smooth without frequent refetches.
+- **2026-02-13**: Extended PnL worker heartbeat with Redis cache write + emit counters for better Admin Console observability.
 

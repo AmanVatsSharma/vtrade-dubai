@@ -11,7 +11,7 @@
 - **Risk Management:** Platform risk config, user limits, and monitoring.
 - **Access Control:** RBAC management UI.
 - **KYC Queue:** Dedicated queue for KYC verification with SLA tracking.
-- **Workers:** Background worker visibility (status/heartbeat), enable/disable, and run-once triggers.
+- **Workers:** Background worker visibility (status/heartbeat), Redis realtime readiness, enable/disable, and run-once triggers.
 - **System Health, Logs, Settings, Notifications, Financial Reports.**
 
 ## User Quick Actions
@@ -132,3 +132,4 @@ None.
 - 2026-01-25 (IST): Added professional mini scrollbar to admin console sidebar.
 - 2026-02-03 (IST): Added app-wide statements toggle in Settings + per-user statements override (tri-state) in Edit User dialog; statement exports blocked when disabled.
 - 2026-02-04 (IST): Added Workers page to manage background workers (heartbeats, enable/disable toggles, and run-once triggers) via `/api/admin/workers`.
+- 2026-02-13 (IST): Enhanced Workers page to show Redis realtime bus state + detailed heartbeat stats (scanned/updated/errors/elapsed) for faster ops debugging of worker→dashboard updates.

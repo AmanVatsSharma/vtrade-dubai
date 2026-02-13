@@ -8,8 +8,12 @@
 - `header.tsx` — loads admin session, role, and permissions
 - `sidebar.tsx` — navigation gated by permissions
 - `access-control.tsx` — RBAC management UI
+- `workers.tsx` — worker cards (health, Redis readiness, run-once actions)
 - `app/(admin)/admin-console/access-control/page.tsx` — access control page entry
+- `app/(admin)/admin-console/workers/page.tsx` — workers page entry
 - `app/api/admin/access-control/route.ts` — RBAC config API
+- `app/api/admin/workers/route.ts` — workers snapshot + manage actions
+- `lib/server/workers/registry.ts` — worker registry + heartbeat health rules
 - `lib/services/admin/AccessControlService.ts` — RBAC config persistence
 - `MODULE_DOC.md` — this file
 
@@ -46,3 +50,4 @@ flowchart TD
 
 **Change-log:**
 - 2026-01-15: Added RBAC access-control UI, restricted permission gating, and audit logging.
+- 2026-02-13: Enhanced Workers page to show Redis realtime readiness + detailed heartbeat stats for background workers.

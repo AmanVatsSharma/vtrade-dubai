@@ -8,6 +8,7 @@ Provide administrative control surfaces for users, funds, risk, and system opera
 - User Management: search, filters, bulk actions, and per-user dialogs.
 - Fund Management: deposits and withdrawals review with approvals.
 - Risk Management: platform risk config, user limits, and monitoring.
+- Workers: background worker status/heartbeat + Redis realtime readiness (cross-process worker → dashboard).
 - System Health, Logs, Settings, Notifications, Financial Reports.
 
 ## User Quick Actions
@@ -62,3 +63,4 @@ flowchart TD
 - 2026-01-15 (IST): Added user quick actions for admin APIs and data source status messaging on core admin pages.
 - 2026-01-15 (IST): Added KYC queue with assignment, SLA tracking, AML flags, and review logs.
 - 2026-01-15 (IST): Added AML flag filter and extended SLA buckets in KYC queue.
+- 2026-02-13 (IST): Enhanced Admin Console Workers view with Redis readiness + richer heartbeat stats for worker debugging.

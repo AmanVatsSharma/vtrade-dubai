@@ -40,4 +40,5 @@
 - 2026-02-04: Added `PositionPnLWorker` + cron endpoint + EC2 script + heartbeat + admin toggle support.
 - 2026-02-12: PnL worker now uses server WS quote cache instead of Vortex HTTP quote batching.
 - 2026-02-12: Added Redis-backed PnL cache + batched `positions_pnl_updated` realtime event to avoid frequent refetches.
+- 2026-02-13: PnL worker heartbeat now includes Redis cache write + emit counters for improved Admin Console visibility.
 
